@@ -1,4 +1,4 @@
-package ru.girchev.fsm.test.document
+package ru.girchev.fsm.it.document
 
 import ru.girchev.fsm.FSMContext
 import java.util.UUID

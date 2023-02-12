@@ -1,5 +1,7 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
+
+
 plugins {
     kotlin("jvm") version "1.6.21"
     id("io.gitlab.arturbosch.detekt") version "1.21.0-RC2"
@@ -7,7 +9,7 @@ plugins {
 }
 
 group = "ru.girchev"
-version = "0.1.0a"
+version = "0.1.1a"
 
 repositories {
     mavenCentral()
@@ -15,6 +17,9 @@ repositories {
 
 dependencies {
     implementation("io.github.microutils:kotlin-logging-jvm:2.0.11")
+    implementation("ch.qos.logback:logback-classic:1.2.3")
+    testImplementation("org.mockito", "mockito-core","2.25.0")
+    testImplementation("org.junit.jupiter", "junit-jupiter-params","5.8.1")
     testImplementation(kotlin("test"))
 }
 

@@ -3,7 +3,7 @@ package ru.girchev.fsm.core
 import ru.girchev.fsm.FSMContext
 import java.util.concurrent.TimeUnit
 
-open class SimpleTransition<STATE>(
+open class BTransition<STATE>(
     val from: STATE,
     val to: STATE,
     val condition: Guard<in FSMContext<STATE>>? = null,
@@ -14,7 +14,7 @@ open class SimpleTransition<STATE>(
         if (this === other) return true
         if (javaClass != other?.javaClass) return false
 
-        other as SimpleTransition<*>
+        other as BTransition<*>
 
         if (from != other.from) return false
         if (to != other.to) return false
@@ -29,7 +29,7 @@ open class SimpleTransition<STATE>(
     }
 
     override fun toString(): String {
-        return "SimpleTransition(from=$from, to=$to, " +
+        return "BaseTransition(from=$from, to=$to, " +
                 "hasCondition=${condition != null}, " +
                 "hasAction=${action != null}, " +
                 "timeout=$timeout)"

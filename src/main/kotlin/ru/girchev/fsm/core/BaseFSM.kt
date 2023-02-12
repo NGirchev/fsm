@@ -10,15 +10,15 @@ import java.util.concurrent.ScheduledExecutorService
 /**
  * Finite-state machine
  */
-open class SimpleFSM<STATE> : StateSupport<STATE>, Notifiable<STATE> {
+open class BaseFSM<STATE> : StateSupport<STATE>, Notifiable<STATE> {
 
     companion object : KLogging()
 
-    internal open val transitionTable: SimpleTransitionTable<STATE>
+    internal open val transitionTable: BTransitionTable<STATE>
 
     constructor(
         state: STATE,
-        transitionTable: SimpleTransitionTable<STATE>,
+        transitionTable: BTransitionTable<STATE>,
     ) {
         transitionTable.also { this.transitionTable = it }
         this.context = DefaultFSMContext(state)
@@ -26,7 +26,7 @@ open class SimpleFSM<STATE> : StateSupport<STATE>, Notifiable<STATE> {
 
     constructor(
         context: FSMContext<STATE>,
-        transitionTable: SimpleTransitionTable<STATE>,
+        transitionTable: BTransitionTable<STATE>,
     ) {
         transitionTable.also { this.transitionTable = it }
         this.context = context
@@ -42,14 +42,14 @@ open class SimpleFSM<STATE> : StateSupport<STATE>, Notifiable<STATE> {
         logger.info { "Changed status $oldState -> $newState" }
     }
 
-    override fun toState(newState: STATE) {
+    override fun to(newState: STATE) {
         val transition = transitionTable.getTransition(context, newState)
         val oldState = context.state
         if (transition == null) throw FSMTransitionFailedException(oldState.toString(), newState.toString())
-        toState(transition)
+        to(transition)
     }
 
-    override fun toState(transition: SimpleTransition<STATE>) {
+    override fun to(transition: BTransition<STATE>) {
         val oldState = context.state
         if (transition.from != oldState) throw FSMException(
             "Current state $oldState doesn't fit " +
@@ -61,7 +61,7 @@ open class SimpleFSM<STATE> : StateSupport<STATE>, Notifiable<STATE> {
         transitionExecution(transition)
     }
 
-    private fun transitionExecution(transition: SimpleTransition<STATE>) {
+    private fun transitionExecution(transition: BTransition<STATE>) {
         val oldState = context.state
         val newState = transition.to
 
@@ -70,7 +70,7 @@ open class SimpleFSM<STATE> : StateSupport<STATE>, Notifiable<STATE> {
         notify(context, oldState, newState)
     }
 
-    private fun getExecutorService2(): ScheduledExecutorService {
+    private fun getExecutorService(): ScheduledExecutorService {
         return Executors.newScheduledThreadPool(1)
     }
 

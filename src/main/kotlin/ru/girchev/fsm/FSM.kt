@@ -1,13 +1,13 @@
 package ru.girchev.fsm
 
 import ru.girchev.fsm.core.EventSupport
-import ru.girchev.fsm.core.SimpleFSM
-import ru.girchev.fsm.core.SimpleTransition
+import ru.girchev.fsm.core.BaseFSM
+import ru.girchev.fsm.core.BTransition
 import ru.girchev.fsm.exception.FSMEventSourcingTransitionFailedException
 
-class FSM<STATE, EVENT> : SimpleFSM<STATE>, EventSupport<EVENT> {
+open class FSM<STATE, EVENT> : BaseFSM<STATE>, EventSupport<EVENT> {
 
-    override val transitionTable: TransitionTable<STATE, EVENT>
+    final override val transitionTable: TransitionTable<STATE, EVENT>
     private val autoTransitionEnabled: Boolean
 
     constructor(
@@ -18,6 +18,7 @@ class FSM<STATE, EVENT> : SimpleFSM<STATE>, EventSupport<EVENT> {
         state,
         transitionTable,
     ) {
+
         this.transitionTable = transitionTable
         this.autoTransitionEnabled = autoTransitionEnabled
     }
@@ -34,15 +35,15 @@ class FSM<STATE, EVENT> : SimpleFSM<STATE>, EventSupport<EVENT> {
         this.autoTransitionEnabled = autoTransitionEnabled
     }
 
-    override fun handle(event: EVENT) {
+    override fun on(event: EVENT) {
         transitionTable.getTransition(context, event).also {
             if (it == null) throw FSMEventSourcingTransitionFailedException(context.state.toString(), event.toString())
             changeState(it)
         }
     }
 
-    private fun changeState(transition: SimpleTransition<STATE>) {
-        super.toState(transition)
+    private fun changeState(transition: BTransition<STATE>) {
+        super.to(transition)
         if (autoTransitionEnabled) {
             getAutoTransition()?.also { changeState(it) }
         }

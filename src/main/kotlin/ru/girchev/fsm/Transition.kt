@@ -2,7 +2,7 @@ package ru.girchev.fsm
 
 import ru.girchev.fsm.core.Action
 import ru.girchev.fsm.core.Guard
-import ru.girchev.fsm.core.SimpleTransition
+import ru.girchev.fsm.core.BTransition
 import ru.girchev.fsm.core.Timeout
 
 open class Transition<STATE, EVENT>(
@@ -12,7 +12,7 @@ open class Transition<STATE, EVENT>(
     condition: Guard<in FSMContext<STATE>>? = null,
     action: Action<in FSMContext<STATE>>? = null,
     timeout: Timeout? = null
-) : SimpleTransition<STATE>(from, to, condition, action, timeout) {
+) : BTransition<STATE>(from, to, condition, action, timeout) {
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

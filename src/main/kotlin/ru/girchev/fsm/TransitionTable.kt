@@ -6,7 +6,7 @@ import ru.girchev.fsm.exception.DuplicateTransitionException
 open class TransitionTable<STATE, EVENT>
 internal constructor(
     override val transitions: Map<STATE, LinkedHashSet<Transition<STATE, EVENT>>>
-) : SimpleTransitionTable<STATE>(transitions) {
+) : BTransitionTable<STATE>(transitions) {
 
     fun getTransition(context: FSMContext<STATE>, event: EVENT): Transition<STATE, EVENT>? {
         return transitions[context.state]
@@ -16,7 +16,7 @@ internal constructor(
 
     class Builder<STATE, EVENT> {
 
-        private val transitions: MutableMap<STATE, LinkedHashSet<Transition<STATE, EVENT>>> = hashMapOf()
+        internal val transitions: MutableMap<STATE, LinkedHashSet<Transition<STATE, EVENT>>> = hashMapOf()
 
         fun add(
             from: STATE,
@@ -26,11 +26,13 @@ internal constructor(
             action: Action<in FSMContext<STATE>>? = null,
             timeout: Timeout? = null
         ): Builder<STATE, EVENT> {
-            transitions.putIfAbsent(from, LinkedHashSet())
-            val transition = Transition(from, event, to, condition, action, timeout)
-            if (!transitions[from]!!.add(transition)) {
-                throw DuplicateTransitionException(transition)
-            }
+            transitions.getOrPut(from) { LinkedHashSet() }
+                .also { transitionSet ->
+                    val transition = Transition(from, event, to, condition, action, timeout)
+                    if (!transitionSet.add(transition)) {
+                        throw DuplicateTransitionException(transition)
+                    }
+                }
             return this
         }
 
@@ -46,11 +48,13 @@ internal constructor(
 
         fun add(from: STATE, event: EVENT? = null, vararg to: To<STATE>): Builder<STATE, EVENT> {
             for (t in to) {
-                transitions.putIfAbsent(from, LinkedHashSet())
-                val transition = Transition(from, event, t.to, t.condition, t.action, t.timeout)
-                if (!transitions[from]!!.add(transition)) {
-                    throw DuplicateTransitionException(transition)
-                }
+                transitions.getOrPut(from) { LinkedHashSet() }
+                    .also { transitionSet ->
+                        val transition = Transition(from, event, t.to, t.condition, t.action, t.timeout)
+                        if (!transitionSet.add(transition)) {
+                            throw DuplicateTransitionException(transition)
+                        }
+                    }
             }
             return this
         }

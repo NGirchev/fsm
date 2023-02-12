@@ -3,13 +3,13 @@ package ru.girchev.fsm.core
 import ru.girchev.fsm.FSMContext
 
 interface StateSupport<STATE> {
-    fun toState(newState: STATE)
+    fun to(newState: STATE)
     fun getState(): STATE
-    fun toState(transition: SimpleTransition<STATE>)
+    fun to(transition: BTransition<STATE>)
 }
 
 interface EventSupport<EVENT> {
-    fun handle(event: EVENT)
+    fun on(event: EVENT)
 }
 
 interface Notifiable<STATE> {
@@ -17,9 +17,8 @@ interface Notifiable<STATE> {
 }
 
 interface DomainSupport<DOMAIN : FSMContext<STATE>, STATE> {
+    /**
+     * change state for passed document.
+     */
     fun changeState(domain: DOMAIN, newState: STATE)
-}
-
-interface DomainWithEventSupport<DOMAIN : FSMContext<STATE>, STATE, EVENT> {
-    fun handle(domain: DOMAIN, event: EVENT)
 }

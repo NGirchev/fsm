@@ -1,17 +1,18 @@
 package ru.girchev.fsm
 
 import mu.KLogging
-import ru.girchev.fsm.core.DomainWithEventSupport
-import ru.girchev.fsm.core.SimpleDomainFSM
+import ru.girchev.fsm.core.BDomainFSM
 
 open class DomainFSM<DOMAIN : FSMContext<STATE>, STATE, EVENT>(
     override val transitionTable: TransitionTable<STATE, EVENT>
-) : SimpleDomainFSM<DOMAIN, STATE>(transitionTable),
-    DomainWithEventSupport<DOMAIN, STATE, EVENT> {
+) : BDomainFSM<DOMAIN, STATE>(transitionTable) {
 
     companion object : KLogging()
 
-    override fun handle(domain: DOMAIN, event: EVENT) {
-        FSM(domain, transitionTable).handle(event)
+    /**
+     * handle event for passed document.
+     */
+    fun handle(domain: DOMAIN, event: EVENT) {
+        FSM(domain, transitionTable).on(event)
     }
 }
