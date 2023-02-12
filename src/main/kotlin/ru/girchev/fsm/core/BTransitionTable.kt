@@ -8,7 +8,7 @@ internal constructor(
     internal open val transitions: Map<STATE, LinkedHashSet<out BTransition<STATE>>>
 ) {
 
-    fun getTransition(context: FSMContext<STATE>, newState: STATE): BTransition<STATE>? {
+    open fun getTransitionByState(context: FSMContext<STATE>, newState: STATE): BTransition<STATE>? {
         return transitions[context.state]?.singleOrNull {
             it.to == newState && it.condition?.invoke(context) ?: true
         }

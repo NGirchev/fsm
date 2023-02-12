@@ -18,7 +18,8 @@ repositories {
 dependencies {
     implementation("io.github.microutils:kotlin-logging-jvm:2.0.11")
     implementation("ch.qos.logback:logback-classic:1.2.3")
-    testImplementation("org.mockito", "mockito-core","2.25.0")
+    testImplementation("org.mockito.kotlin:mockito-kotlin:3.2.0")
+    testImplementation("io.mockk:mockk:1.9.3")
     testImplementation("org.junit.jupiter", "junit-jupiter-params","5.8.1")
     testImplementation(kotlin("test"))
 }

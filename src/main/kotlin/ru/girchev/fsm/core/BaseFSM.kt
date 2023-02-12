@@ -43,7 +43,7 @@ open class BaseFSM<STATE> : StateSupport<STATE>, Notifiable<STATE> {
     }
 
     override fun to(newState: STATE) {
-        val transition = transitionTable.getTransition(context, newState)
+        val transition = transitionTable.getTransitionByState(context, newState)
         val oldState = context.state
         if (transition == null) throw FSMTransitionFailedException(oldState.toString(), newState.toString())
         to(transition)

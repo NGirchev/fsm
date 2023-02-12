@@ -4,7 +4,8 @@ import mu.KLogging
 import ru.girchev.fsm.core.BDomainFSM
 
 open class DomainFSM<DOMAIN : FSMContext<STATE>, STATE, EVENT>(
-    override val transitionTable: TransitionTable<STATE, EVENT>
+    override val transitionTable: TransitionTable<STATE, EVENT>,
+    private val autoTransitionEnabled: Boolean = true
 ) : BDomainFSM<DOMAIN, STATE>(transitionTable) {
 
     companion object : KLogging()
@@ -13,6 +14,6 @@ open class DomainFSM<DOMAIN : FSMContext<STATE>, STATE, EVENT>(
      * handle event for passed document.
      */
     fun handle(domain: DOMAIN, event: EVENT) {
-        FSM(domain, transitionTable).on(event)
+        FSM(domain, transitionTable, autoTransitionEnabled).on(event)
     }
 }

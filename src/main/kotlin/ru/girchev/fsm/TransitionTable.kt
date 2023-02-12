@@ -8,7 +8,7 @@ internal constructor(
     override val transitions: Map<STATE, LinkedHashSet<Transition<STATE, EVENT>>>
 ) : BTransitionTable<STATE>(transitions) {
 
-    fun getTransition(context: FSMContext<STATE>, event: EVENT): Transition<STATE, EVENT>? {
+    open fun getTransition(context: FSMContext<STATE>, event: EVENT): Transition<STATE, EVENT>? {
         return transitions[context.state]
             ?.filter { it.event == event }
             ?.firstOrNull { it.condition?.invoke(context) ?: true }
