@@ -1,17 +1,18 @@
-package ru.girchev.fsm
+package ru.girchev.fsm.impl.extended
 
-import ru.girchev.fsm.core.Action
-import ru.girchev.fsm.core.Guard
-import ru.girchev.fsm.core.Timeout
+import ru.girchev.fsm.Action
+import ru.girchev.fsm.FSMContext
+import ru.girchev.fsm.Guard
+import ru.girchev.fsm.Timeout
 import ru.girchev.fsm.exception.FSMException
 
-fun <STATE, EVENT> TransitionTable.Builder<STATE, EVENT>.from(from: STATE): FromBuilder<STATE, EVENT> {
+fun <STATE, EVENT> ExTransitionTable.Builder<STATE, EVENT>.from(from: STATE): FromBuilder<STATE, EVENT> {
     return FromBuilder(from, this)
 }
 
 class FromBuilder<STATE, EVENT>(
     private val from: STATE,
-    private val rootBuilder: TransitionTable.Builder<STATE, EVENT>
+    private val rootBuilder: ExTransitionTable.Builder<STATE, EVENT>
 ) {
     private var event: EVENT? = null
 
@@ -33,7 +34,7 @@ class FromBuilder<STATE, EVENT>(
 class ToBuilder<STATE, EVENT>(
     private val from: STATE,
     private val to: STATE,
-    private val rootBuilder: TransitionTable.Builder<STATE, EVENT>,
+    private val rootBuilder: ExTransitionTable.Builder<STATE, EVENT>,
     private var event: EVENT? = null
 ) {
     private var condition: Guard<in FSMContext<STATE>>? = null
@@ -64,19 +65,19 @@ class ToBuilder<STATE, EVENT>(
         return this
     }
 
-    fun end(): TransitionTable.Builder<STATE, EVENT> {
-        return rootBuilder.add(Transition(from, event, to, condition, action, timeout))
+    fun end(): ExTransitionTable.Builder<STATE, EVENT> {
+        return rootBuilder.add(ExTransition(from, event, to, condition, action, timeout))
     }
 }
 
 class ToMultipleBuilder<STATE, EVENT>(
     private val from: STATE,
-    private val rootBuilder: TransitionTable.Builder<STATE, EVENT>,
+    private val rootBuilder: ExTransitionTable.Builder<STATE, EVENT>,
     private var event: EVENT? = null
 ) {
 
-    private val transitions: ArrayList<Transition<STATE, EVENT>> = ArrayList()
-    internal fun addTransition(transition: Transition<STATE, EVENT>): ToMultipleBuilder<STATE, EVENT> {
+    private val transitions: ArrayList<ExTransition<STATE, EVENT>> = ArrayList()
+    internal fun addTransition(transition: ExTransition<STATE, EVENT>): ToMultipleBuilder<STATE, EVENT> {
         transitions.add(transition)
         return this
     }
@@ -85,7 +86,7 @@ class ToMultipleBuilder<STATE, EVENT>(
         return ToMultipleTransitionBuilder(from, to, this, event)
     }
 
-    fun endMultiple(): TransitionTable.Builder<STATE, EVENT> {
+    fun endMultiple(): ExTransitionTable.Builder<STATE, EVENT> {
         for (t in transitions) {
             rootBuilder.add(t)
         }
@@ -128,6 +129,6 @@ class ToMultipleTransitionBuilder<STATE, EVENT>(
     }
 
     fun end(): ToMultipleBuilder<STATE, EVENT> {
-        return multipleBuilder.addTransition(Transition(from, event, to, condition, action, timeout))
+        return multipleBuilder.addTransition(ExTransition(from, event, to, condition, action, timeout))
     }
 }

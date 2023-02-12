@@ -4,19 +4,19 @@ import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import ru.girchev.fsm.FSMContext
-import ru.girchev.fsm.core.BDomainFSM
-import ru.girchev.fsm.core.BTransitionTable
+import ru.girchev.fsm.impl.basic.BaDomainFSM
+import ru.girchev.fsm.impl.basic.BaTransitionTable
 import ru.girchev.fsm.exception.FSMException
 import ru.girchev.fsm.it.document.Document
 import ru.girchev.fsm.it.document.DocumentState
 import ru.girchev.fsm.it.document.DocumentState.*
 import kotlin.test.assertEquals
 
-internal class BaseDomainFsmIT {
+internal class BaDomainFsmIT {
 
     private lateinit var document: Document
-    private val fsm: BDomainFSM<FSMContext<DocumentState>, DocumentState> = BDomainFSM(
-        BTransitionTable.Builder<DocumentState>()
+    private val fsm: BaDomainFSM<FSMContext<DocumentState>, DocumentState> = BaDomainFSM(
+        BaTransitionTable.Builder<DocumentState>()
             .add(from = NEW, READY_FOR_SIGN)
             .add(
                 from = READY_FOR_SIGN,

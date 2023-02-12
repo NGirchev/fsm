@@ -1,15 +1,17 @@
-package ru.girchev.fsm.core
+package ru.girchev.fsm.impl.basic
 
 import ru.girchev.fsm.FSMContext
+import ru.girchev.fsm.Action
+import ru.girchev.fsm.Guard
 import ru.girchev.fsm.exception.FSMException
 
-fun <STATE> BTransitionTable.Builder<STATE>.from(from: STATE): BFromBuilder<STATE> {
+fun <STATE> BaTransitionTable.Builder<STATE>.from(from: STATE): BFromBuilder<STATE> {
     return BFromBuilder(from, this)
 }
 
 class BFromBuilder<STATE>(
     private val from: STATE,
-    private val rootBuilder: BTransitionTable.Builder<STATE>
+    private val rootBuilder: BaTransitionTable.Builder<STATE>
 ) {
     fun to(to: STATE): BToBuilder<STATE> {
         return BToBuilder(from, to, rootBuilder)
@@ -23,7 +25,7 @@ class BFromBuilder<STATE>(
 class BToBuilder<STATE>(
     private val from: STATE,
     private val to: STATE,
-    private val rootBuilder: BTransitionTable.Builder<STATE>
+    private val rootBuilder: BaTransitionTable.Builder<STATE>
 ) {
     private var condition: Guard<in FSMContext<STATE>>? = null
     private var action: Action<in FSMContext<STATE>>? = null
@@ -44,15 +46,15 @@ class BToBuilder<STATE>(
         return this
     }
 
-    fun end(): BTransitionTable.Builder<STATE> {
-        return rootBuilder.add(BTransition(from, to, condition, action))
+    fun end(): BaTransitionTable.Builder<STATE> {
+        return rootBuilder.add(BaTransition(from, to, condition, action))
     }
 }
 
-class BToMultipleBuilder<STATE>(private val from: STATE, private val rootBuilder: BTransitionTable.Builder<STATE>) {
+class BToMultipleBuilder<STATE>(private val from: STATE, private val rootBuilder: BaTransitionTable.Builder<STATE>) {
 
-    private val transitions: ArrayList<BTransition<STATE>> = ArrayList()
-    internal fun addTransition(transition: BTransition<STATE>): BToMultipleBuilder<STATE> {
+    private val transitions: ArrayList<BaTransition<STATE>> = ArrayList()
+    internal fun addTransition(transition: BaTransition<STATE>): BToMultipleBuilder<STATE> {
         transitions.add(transition)
         return this
     }
@@ -61,7 +63,7 @@ class BToMultipleBuilder<STATE>(private val from: STATE, private val rootBuilder
         return BToMultipleTransitionBuilder(from, to, this)
     }
 
-    fun endMultiple(): BTransitionTable.Builder<STATE> {
+    fun endMultiple(): BaTransitionTable.Builder<STATE> {
         for (t in transitions) {
             rootBuilder.add(t)
         }
@@ -94,6 +96,6 @@ class BToMultipleTransitionBuilder<STATE>(
     }
 
     fun end(): BToMultipleBuilder<STATE> {
-        return multipleBuilder.addTransition(BTransition(from, to, condition, action))
+        return multipleBuilder.addTransition(BaTransition(from, to, condition, action))
     }
 }

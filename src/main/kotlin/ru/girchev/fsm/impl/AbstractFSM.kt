@@ -1,7 +1,10 @@
-package ru.girchev.fsm.core
+package ru.girchev.fsm.impl
 
 import mu.KLogging
 import ru.girchev.fsm.FSMContext
+import ru.girchev.fsm.Notifiable
+import ru.girchev.fsm.StateSupport
+import ru.girchev.fsm.impl.basic.BaTransition
 import ru.girchev.fsm.exception.FSMException
 import ru.girchev.fsm.exception.FSMTransitionFailedException
 import java.util.concurrent.Executors
@@ -10,15 +13,16 @@ import java.util.concurrent.ScheduledExecutorService
 /**
  * Finite-state machine
  */
-open class BaseFSM<STATE> : StateSupport<STATE>, Notifiable<STATE> {
+abstract class AbstractFSM<STATE, TRANSITION : BaTransition<STATE>, TRANSITION_TABLE : AbstractTransitionTable<STATE, TRANSITION>> :
+    StateSupport<STATE, TRANSITION>, Notifiable<STATE> {
 
     companion object : KLogging()
 
-    internal open val transitionTable: BTransitionTable<STATE>
+    internal open val transitionTable: TRANSITION_TABLE
 
     constructor(
         state: STATE,
-        transitionTable: BTransitionTable<STATE>,
+        transitionTable: TRANSITION_TABLE,
     ) {
         transitionTable.also { this.transitionTable = it }
         this.context = DefaultFSMContext(state)
@@ -26,7 +30,7 @@ open class BaseFSM<STATE> : StateSupport<STATE>, Notifiable<STATE> {
 
     constructor(
         context: FSMContext<STATE>,
-        transitionTable: BTransitionTable<STATE>,
+        transitionTable: TRANSITION_TABLE,
     ) {
         transitionTable.also { this.transitionTable = it }
         this.context = context
@@ -42,26 +46,26 @@ open class BaseFSM<STATE> : StateSupport<STATE>, Notifiable<STATE> {
         logger.info { "Changed status $oldState -> $newState" }
     }
 
-    override fun to(newState: STATE) {
+    override fun toState(newState: STATE) {
         val transition = transitionTable.getTransitionByState(context, newState)
         val oldState = context.state
         if (transition == null) throw FSMTransitionFailedException(oldState.toString(), newState.toString())
-        to(transition)
+        toState(transition)
     }
 
-    override fun to(transition: BTransition<STATE>) {
+    override fun toState(transition: TRANSITION) {
         val oldState = context.state
         if (transition.from != oldState) throw FSMException(
             "Current state $oldState doesn't fit " +
                     "to change, because transition from=[${transition.from}]"
         )
-        if (transition.timeout != null) {
-            Thread.sleep(transition.timeout.value * 1000)
+        transition.timeout?.value?.also {
+            Thread.sleep(it * 1000)
         }
         transitionExecution(transition)
     }
 
-    private fun transitionExecution(transition: BTransition<STATE>) {
+    private fun transitionExecution(transition: TRANSITION) {
         val oldState = context.state
         val newState = transition.to
 

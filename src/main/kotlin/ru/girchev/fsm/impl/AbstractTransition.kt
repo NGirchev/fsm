@@ -1,20 +1,20 @@
-package ru.girchev.fsm.core
+package ru.girchev.fsm.impl
 
-import ru.girchev.fsm.FSMContext
-import java.util.concurrent.TimeUnit
+import ru.girchev.fsm.*
+import ru.girchev.fsm.impl.basic.BaTransition
 
-open class BTransition<STATE>(
-    val from: STATE,
-    val to: STATE,
-    val condition: Guard<in FSMContext<STATE>>? = null,
-    val action: Action<in FSMContext<STATE>>? = null,
-    val timeout: Timeout? = null
-) {
+abstract class AbstractTransition<STATE> (
+    override val from: STATE,
+    override val to: STATE,
+    override val condition: Guard<in FSMContext<STATE>>? = null,
+    override val action: Action<in FSMContext<STATE>>? = null,
+    override val timeout: Timeout? = null
+) : Transition<STATE> {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (javaClass != other?.javaClass) return false
 
-        other as BTransition<*>
+        other as BaTransition<*>
 
         if (from != other.from) return false
         if (to != other.to) return false
@@ -29,17 +29,9 @@ open class BTransition<STATE>(
     }
 
     override fun toString(): String {
-        return "BaseTransition(from=$from, to=$to, " +
+        return "AbstractTransition(from=$from, to=$to, " +
                 "hasCondition=${condition != null}, " +
                 "hasAction=${action != null}, " +
                 "timeout=$timeout)"
     }
 }
-
-typealias Action<T> = (T) -> Unit
-typealias Guard<T> = (T) -> Boolean
-
-data class Timeout(
-    val value: Long,
-    val unit: TimeUnit = TimeUnit.SECONDS
-)

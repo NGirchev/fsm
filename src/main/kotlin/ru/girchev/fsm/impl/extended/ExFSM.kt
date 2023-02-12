@@ -1,18 +1,21 @@
-package ru.girchev.fsm
+package ru.girchev.fsm.impl.extended
 
-import ru.girchev.fsm.core.EventSupport
-import ru.girchev.fsm.core.BaseFSM
-import ru.girchev.fsm.core.BTransition
+import ru.girchev.fsm.EventSupport
+import ru.girchev.fsm.impl.AbstractFSM
+import ru.girchev.fsm.FSMContext
 import ru.girchev.fsm.exception.FSMEventSourcingTransitionFailedException
 
-open class FSM<STATE, EVENT> : BaseFSM<STATE>, EventSupport<EVENT> {
+open class ExFSM<STATE, EVENT> :
+    AbstractFSM<STATE, ExTransition<STATE, EVENT>,
+            ExTransitionTable<STATE, EVENT>>,
+    EventSupport<EVENT> {
 
-    final override val transitionTable: TransitionTable<STATE, EVENT>
+    final override val transitionTable: ExTransitionTable<STATE, EVENT>
     private val autoTransitionEnabled: Boolean
 
     constructor(
         state: STATE,
-        transitionTable: TransitionTable<STATE, EVENT>,
+        transitionTable: ExTransitionTable<STATE, EVENT>,
         autoTransitionEnabled: Boolean = true,
     ) : super(
         state,
@@ -25,7 +28,7 @@ open class FSM<STATE, EVENT> : BaseFSM<STATE>, EventSupport<EVENT> {
 
     constructor(
         context: FSMContext<STATE>,
-        transitionTable: TransitionTable<STATE, EVENT>,
+        transitionTable: ExTransitionTable<STATE, EVENT>,
         autoTransitionEnabled: Boolean = true,
     ) : super(
         context,
@@ -35,21 +38,21 @@ open class FSM<STATE, EVENT> : BaseFSM<STATE>, EventSupport<EVENT> {
         this.autoTransitionEnabled = autoTransitionEnabled
     }
 
-    override fun on(event: EVENT) {
-        transitionTable.getTransition(context, event).also {
+    override fun onEvent(event: EVENT) {
+        transitionTable.getTransitionByEvent(context, event).also {
             if (it == null) throw FSMEventSourcingTransitionFailedException(context.state.toString(), event.toString())
             changeState(it)
         }
     }
 
-    private fun changeState(transition: BTransition<STATE>) {
-        super.to(transition)
+    private fun changeState(transition: ExTransition<STATE, EVENT>) {
+        super.toState(transition)
         if (autoTransitionEnabled) {
             getAutoTransition()?.also { changeState(it) }
         }
     }
 
-    private fun getAutoTransition(): Transition<STATE, EVENT>? {
+    private fun getAutoTransition(): ExTransition<STATE, EVENT>? {
         return transitionTable.transitions[context.state]
             ?.firstOrNull {
                 it.event == null && it.condition?.invoke(context) != false

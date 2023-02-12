@@ -1,4 +1,4 @@
-package ru.girchev.fsm
+package ru.girchev.fsm.impl.extended
 
 import io.mockk.MockKAnnotations
 import io.mockk.every
@@ -12,25 +12,24 @@ import ru.girchev.fsm.it.document.DocumentState
 import kotlin.test.assertEquals
 
 @ExtendWith(MockKExtension::class)
-class DomainFSMTest {
+class ExDomainFSMTest {
 
     @MockK
-    lateinit var transitionTable: TransitionTable<DocumentState, String>
+    lateinit var exTransitionTable: ExTransitionTable<DocumentState, String>
 
     @BeforeEach
     fun setUp() = MockKAnnotations.init(this)
 
     @Test
     fun handleWhenEventIsInvalidThenThrowException() {
-        every { transitionTable.getTransition(any(), any()) } returns Transition(
+        every { exTransitionTable.getTransitionByEvent(any(), any()) } returns ExTransition(
             from = DocumentState.NEW,
             to = DocumentState.READY_FOR_SIGN
         )
-        val fsm = DomainFSM(transitionTable, autoTransitionEnabled = false)
+        val fsm = ExDomainFSM(exTransitionTable, autoTransitionEnabled = false)
 
         val document = Document()
         fsm.handle(document, "RUN")
         assertEquals(DocumentState.READY_FOR_SIGN, document.state)
     }
-
 }
