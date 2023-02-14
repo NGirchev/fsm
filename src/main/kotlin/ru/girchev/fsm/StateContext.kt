@@ -1,5 +1,5 @@
 package ru.girchev.fsm
 
-interface FSMContext<STATE> {
+interface StateContext<STATE> {
     var state: STATE
 }

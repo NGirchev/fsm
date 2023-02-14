@@ -1,10 +1,7 @@
 package ru.girchev.fsm.impl.extended
 
-import ru.girchev.fsm.Action
-import ru.girchev.fsm.FSMContext
-import ru.girchev.fsm.Guard
-import ru.girchev.fsm.Timeout
-import ru.girchev.fsm.exception.FSMException
+import ru.girchev.fsm.*
+import ru.girchev.fsm.exception.FsmException
 
 fun <STATE, EVENT> ExTransitionTable.Builder<STATE, EVENT>.from(from: STATE): FromBuilder<STATE, EVENT> {
     return FromBuilder(from, this)
@@ -17,7 +14,7 @@ class FromBuilder<STATE, EVENT>(
     private var event: EVENT? = null
 
     fun event(event: EVENT): FromBuilder<STATE, EVENT> {
-        if (this.event != null) { throw FSMException("Already has event") }
+        if (this.event != null) { throw FsmException("Already has event") }
         this.event = event
         return this
     }
@@ -37,36 +34,36 @@ class ToBuilder<STATE, EVENT>(
     private val rootBuilder: ExTransitionTable.Builder<STATE, EVENT>,
     private var event: EVENT? = null
 ) {
-    private var condition: Guard<in FSMContext<STATE>>? = null
-    private var action: Action<in FSMContext<STATE>>? = null
+    private var condition: Guard<in StateContext<STATE>>? = null
+    private var action: Action<in StateContext<STATE>>? = null
     private var timeout: Timeout? = null
 
     fun event(event: EVENT): ToBuilder<STATE, EVENT> {
-        if (this.event != null) { throw FSMException("Already has event") }
+        if (this.event != null) { throw FsmException("Already has event") }
         this.event = event
         return this
     }
 
-    fun condition(condition: Guard<in FSMContext<STATE>>): ToBuilder<STATE, EVENT> {
-        if (this.condition != null) { throw FSMException("Already has condition") }
+    fun condition(condition: Guard<in StateContext<STATE>>): ToBuilder<STATE, EVENT> {
+        if (this.condition != null) { throw FsmException("Already has condition") }
         this.condition = condition
         return this
     }
 
-    fun action(action: Action<in FSMContext<STATE>>): ToBuilder<STATE, EVENT> {
-        if (this.action != null) { throw FSMException("Already has condition") }
+    fun action(action: Action<in StateContext<STATE>>): ToBuilder<STATE, EVENT> {
+        if (this.action != null) { throw FsmException("Already has condition") }
         this.action = action
         return this
     }
 
     fun timeout(timeout: Timeout): ToBuilder<STATE, EVENT> {
-        if (this.timeout != null) { throw FSMException("Already has timeout") }
+        if (this.timeout != null) { throw FsmException("Already has timeout") }
         this.timeout = timeout
         return this
     }
 
     fun end(): ExTransitionTable.Builder<STATE, EVENT> {
-        return rootBuilder.add(ExTransition(from, event, to, condition, action, timeout))
+        return rootBuilder.add(ExTransition(from, To(to, condition, action, timeout), event))
     }
 }
 
@@ -100,35 +97,35 @@ class ToMultipleTransitionBuilder<STATE, EVENT>(
     private val multipleBuilder: ToMultipleBuilder<STATE, EVENT>,
     private var event: EVENT? = null
 ) {
-    private var condition: Guard<in FSMContext<STATE>>? = null
-    private var action: Action<in FSMContext<STATE>>? = null
+    private var condition: Guard<in StateContext<STATE>>? = null
+    private var action: Action<in StateContext<STATE>>? = null
     private var timeout: Timeout? = null
 
     fun event(event: EVENT): ToMultipleTransitionBuilder<STATE, EVENT> {
-        if (this.event != null) { throw FSMException("Already has event") }
+        if (this.event != null) { throw FsmException("Already has event") }
         this.event = event
         return this
     }
 
-    fun condition(condition: Guard<in FSMContext<STATE>>): ToMultipleTransitionBuilder<STATE, EVENT> {
-        if (this.condition != null) { throw FSMException("Already has condition") }
+    fun condition(condition: Guard<in StateContext<STATE>>): ToMultipleTransitionBuilder<STATE, EVENT> {
+        if (this.condition != null) { throw FsmException("Already has condition") }
         this.condition = condition
         return this
     }
 
-    fun action(action: Action<in FSMContext<STATE>>): ToMultipleTransitionBuilder<STATE, EVENT> {
-        if (this.action != null) { throw FSMException("Already has action") }
+    fun action(action: Action<in StateContext<STATE>>): ToMultipleTransitionBuilder<STATE, EVENT> {
+        if (this.action != null) { throw FsmException("Already has action") }
         this.action = action
         return this
     }
 
     fun timeout(timeout: Timeout): ToMultipleTransitionBuilder<STATE, EVENT> {
-        if (this.timeout != null) { throw FSMException("Already has timeout") }
+        if (this.timeout != null) { throw FsmException("Already has timeout") }
         this.timeout = timeout
         return this
     }
 
     fun end(): ToMultipleBuilder<STATE, EVENT> {
-        return multipleBuilder.addTransition(ExTransition(from, event, to, condition, action, timeout))
+        return multipleBuilder.addTransition(ExTransition(from, To(to, condition, action, timeout), event))
     }
 }

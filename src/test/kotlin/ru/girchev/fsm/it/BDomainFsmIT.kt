@@ -3,20 +3,20 @@ package ru.girchev.fsm.it
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import ru.girchev.fsm.FSMContext
-import ru.girchev.fsm.impl.basic.BaDomainFSM
-import ru.girchev.fsm.impl.basic.BaTransitionTable
-import ru.girchev.fsm.exception.FSMException
+import ru.girchev.fsm.StateContext
+import ru.girchev.fsm.impl.basic.BDomainFsm
+import ru.girchev.fsm.impl.basic.BTransitionTable
+import ru.girchev.fsm.exception.FsmException
 import ru.girchev.fsm.it.document.Document
 import ru.girchev.fsm.it.document.DocumentState
 import ru.girchev.fsm.it.document.DocumentState.*
 import kotlin.test.assertEquals
 
-internal class BaDomainFsmIT {
+internal class BDomainFsmIT {
 
     private lateinit var document: Document
-    private val fsm: BaDomainFSM<FSMContext<DocumentState>, DocumentState> = BaDomainFSM(
-        BaTransitionTable.Builder<DocumentState>()
+    private val fsm: BDomainFsm<StateContext<DocumentState>, DocumentState> = BDomainFsm(
+        BTransitionTable.Builder<DocumentState>()
             .add(from = NEW, READY_FOR_SIGN)
             .add(
                 from = READY_FOR_SIGN,
@@ -35,10 +35,10 @@ internal class BaDomainFsmIT {
     }
 
     @Test
-    fun shouldThrowFSMExceptionWhenTryToSign() {
+    fun shouldThrowFsmExceptionWhenTryToSign() {
         // given
         // when
-        Assertions.assertThrows(FSMException::class.java) {
+        Assertions.assertThrows(FsmException::class.java) {
             fsm.changeState(document, SIGNED)
         }
         assertEquals(NEW, document.state)

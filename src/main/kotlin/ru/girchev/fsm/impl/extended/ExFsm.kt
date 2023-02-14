@@ -1,14 +1,12 @@
 package ru.girchev.fsm.impl.extended
 
 import ru.girchev.fsm.EventSupport
-import ru.girchev.fsm.impl.AbstractFSM
-import ru.girchev.fsm.FSMContext
-import ru.girchev.fsm.exception.FSMEventSourcingTransitionFailedException
+import ru.girchev.fsm.StateContext
+import ru.girchev.fsm.exception.FsmEventSourcingTransitionFailedException
+import ru.girchev.fsm.impl.AbstractFsm
 
-open class ExFSM<STATE, EVENT> :
-    AbstractFSM<STATE, ExTransition<STATE, EVENT>,
-            ExTransitionTable<STATE, EVENT>>,
-    EventSupport<EVENT> {
+open class ExFsm<STATE, EVENT> :
+    AbstractFsm<STATE, ExTransition<STATE, EVENT>, ExTransitionTable<STATE, EVENT>>, EventSupport<EVENT> {
 
     final override val transitionTable: ExTransitionTable<STATE, EVENT>
     private val autoTransitionEnabled: Boolean
@@ -27,7 +25,7 @@ open class ExFSM<STATE, EVENT> :
     }
 
     constructor(
-        context: FSMContext<STATE>,
+        context: StateContext<STATE>,
         transitionTable: ExTransitionTable<STATE, EVENT>,
         autoTransitionEnabled: Boolean = true,
     ) : super(
@@ -40,7 +38,7 @@ open class ExFSM<STATE, EVENT> :
 
     override fun onEvent(event: EVENT) {
         transitionTable.getTransitionByEvent(context, event).also {
-            if (it == null) throw FSMEventSourcingTransitionFailedException(context.state.toString(), event.toString())
+            if (it == null) throw FsmEventSourcingTransitionFailedException(context.state.toString(), event.toString())
             changeState(it)
         }
     }
@@ -55,7 +53,7 @@ open class ExFSM<STATE, EVENT> :
     private fun getAutoTransition(): ExTransition<STATE, EVENT>? {
         return transitionTable.transitions[context.state]
             ?.firstOrNull {
-                it.event == null && it.condition?.invoke(context) != false
+                it.event == null && it.to.condition?.invoke(context) != false
             }
     }
 }

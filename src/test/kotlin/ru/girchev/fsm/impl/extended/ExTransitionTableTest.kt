@@ -23,7 +23,7 @@ class ExTransitionTableTest {
     @DisplayName("Should throw an exception when the transition is already added")
     fun addWhenTransitionIsAlreadyAddedThenThrowException() {
         val builder = ExTransitionTable.Builder<String, String>()
-        val transition = ExTransition("from", "event", "to")
+        val transition = ExTransition("from", "to", "event")
         builder.add(transition)
 
         val exception = assertThrows(DuplicateTransitionException::class.java) {

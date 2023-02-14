@@ -1,6 +1,6 @@
 package ru.girchev.fsm.exception
 
-import ru.girchev.fsm.impl.basic.BaTransition
+import ru.girchev.fsm.impl.basic.BTransition
 
-class DuplicateTransitionException(transition: BaTransition<*>) :
-    FSMException("Can't add duplicate transition [${transition.from}]->[${transition.to}]")
+class DuplicateTransitionException(transition: BTransition<*>) :
+    FsmException("Can't add duplicate transition [${transition.from}]->[${transition.to.state}]")
