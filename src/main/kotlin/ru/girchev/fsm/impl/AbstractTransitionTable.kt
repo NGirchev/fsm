@@ -1,17 +1,16 @@
 package ru.girchev.fsm.impl
 
-import ru.girchev.fsm.FSMContext
+import ru.girchev.fsm.StateContext
 import ru.girchev.fsm.TransitionTable
-import ru.girchev.fsm.impl.basic.BaTransition
 
-abstract class AbstractTransitionTable<STATE, TRANSITION : BaTransition<STATE>>
+abstract class AbstractTransitionTable<STATE, TRANSITION : AbstractTransition<STATE>>
 internal constructor(
     override val transitions: Map<STATE, LinkedHashSet<out TRANSITION>>
 ) : TransitionTable<STATE, TRANSITION> {
 
-    override fun getTransitionByState(context: FSMContext<STATE>, newState: STATE): TRANSITION? {
+    override fun getTransitionByState(context: StateContext<STATE>, newState: STATE): TRANSITION? {
         return transitions[context.state]?.singleOrNull {
-            it.to == newState && it.condition?.invoke(context) ?: true
+            it.to.state == newState && it.to.condition?.invoke(context) ?: true
         }
     }
 }

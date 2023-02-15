@@ -1,13 +1,13 @@
 package ru.girchev.fsm
 
 interface TransitionTable<STATE, TRANSITION : Transition<STATE>> {
-    val transitions: Map<STATE, LinkedHashSet<out Transition<STATE>>>
-    fun getTransitionByState(context: FSMContext<STATE>, newState: STATE): TRANSITION?
+    val transitions: Map<STATE, LinkedHashSet<out TRANSITION>>
 
-    data class To<STATE>(
-        val to: STATE,
-        val condition: Guard<in FSMContext<STATE>>? = null,
-        val action: Action<in FSMContext<STATE>>? = null,
-        val timeout: Timeout? = null
-    )
+    /**
+     * get transition by target state.
+     */
+    fun getTransitionByState(context: StateContext<STATE>, newState: STATE): TRANSITION?
+
+    fun createFsm(initialState: STATE): StateSupport<STATE>
+    fun <DOMAIN : StateContext<STATE>> createDomainFsm(): DomainSupport<DOMAIN, STATE>
 }

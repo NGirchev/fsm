@@ -1,7 +1,7 @@
 # FSM
 This small library contains several implementations for common use cases.
-- `ru.girchev.fsm.impl.extended.ExFSM` - a simple fsm that has a status, and it changes the status by events. Has state.
-- `ru.girchev.fsm.impl.extended.ExDomainFSM` - if you have some domain with a status, and you want to change this status using events. Has no own state.
+- `ru.girchev.fsm.impl.extended.ExFsm` - a simple fsm that has a status, and it changes the status by events. Has state.
+- `ru.girchev.fsm.impl.extended.ExDomainFsm` - if you have some domain with a status, and you want to change this status using events. Has no own state.
 
 You can also use the `ru.girchev.fsm.impl` package with basic implementations.
 
@@ -18,32 +18,30 @@ enum class DocumentState {
     NEW, READY_FOR_SIGN, SIGNED, AUTO_SENT, DONE, CANCELED
 }
 ```
-### Example of very simple use `ru.girchev.fsm.impl.extended.ExFSM`
+### Example of very simple use `ru.girchev.fsm.impl.extended.ExFsm`
 ```
-    fun main() {
-        val fsm = ExFSM(
-            "NEW",
-            ExTransitionTable.Builder<String, String>()
-                .add(ExTransition(from = "NEW", to = "READY_FOR_SIGN", event = "TO_READY"))
-                .add(ExTransition(from = "READY_FOR_SIGN", to = "SIGNED", event = "USER_SIGN"))
-                .add(ExTransition(from = "READY_FOR_SIGN", to = "CANCELED", event = "FAILED_EVENT"))
-                .add(ExTransition(from = "SIGNED", to = "AUTO_SENT"))
-                .add(ExTransition(from = "AUTO_SENT", to = "DONE", event = "SUCCESS_EVENT"))
-                .add(ExTransition(from = "AUTO_SENT", to = "CANCELED", event = "FAILED_EVENT"))
-                .build(),
-        )
-        println("Initial state: ${fsm.getState()}")
-        try {
-            fsm.onEvent("FAILED_EVENT")
-        } catch (ex: Exception) {
-            println("$ex")
-        }
-        println("State still the same: ${fsm.getState()}")
-        fsm.onEvent("TO_READY")
-        fsm.onEvent("USER_SIGN")
-        fsm.onEvent("SUCCESS_EVENT")
-        println("Terminal state is DONE = ${fsm.getState()}")
+fun main() {
+    val fsm = FsmFactory.statesWithEvents<String, String>()
+        .add(from = "NEW", to = "READY_FOR_SIGN", event = "TO_READY")
+        .add(from = "READY_FOR_SIGN", to = "SIGNED", event = "USER_SIGN")
+        .add(from = "READY_FOR_SIGN", to = "CANCELED", event = "FAILED_EVENT")
+        .add(from = "SIGNED", to = "AUTO_SENT")
+        .add(from = "AUTO_SENT", to = "DONE", event = "SUCCESS_EVENT")
+        .add(from = "AUTO_SENT", to = "CANCELED", event = "FAILED_EVENT")
+        .build()
+        .createFsm("NEW")
+    println("Initial state: ${fsm.getState()}")
+    try {
+        fsm.onEvent("FAILED_EVENT")
+    } catch (ex: Exception) {
+        println("$ex")
     }
+    println("State still the same: ${fsm.getState()}")
+    fsm.onEvent("TO_READY")
+    fsm.onEvent("USER_SIGN")
+    fsm.onEvent("SUCCESS_EVENT")
+    println("Terminal state is DONE = ${fsm.getState()}")
+}
 ```
 There are two transitions from the status `READY_FOR_SIGN`:
 - `SIGNED` if event `USER_SIGN` will be thrown.
@@ -53,26 +51,26 @@ And two transitions from the status `AUTO_SENT`:
 - `CANCELED` if event `FAILED_EVENT` will be thrown.
 
 
-### Example for `ru.girchev.fsm.impl.extended.ExDomainFSM`.
+### Example for `ru.girchev.fsm.impl.extended.ExDomainFsm`.
 
 ```
 fun main() {
     val document = Document(signRequired = true)
-    val fsm = ExDomainFSM(
-        ExTransitionTable.Builder<DocumentState, String>()
-            .add(from = NEW, event = "TO_READY", to = READY_FOR_SIGN)
-            .add(from = READY_FOR_SIGN, event = "USER_SIGN", to = SIGNED)
-            .add(from = READY_FOR_SIGN, event = "FAILED_EVENT", to = CANCELED)
-            .add(from = SIGNED, event = "FAILED_EVENT", to = CANCELED)
-            .add(
-                from = SIGNED, event = "TO_END",                                        // switch case example
-                TransitionTable.To(AUTO_SENT, condition = { document.signRequired }),   // first
-                TransitionTable.To(DONE, condition = { !document.signRequired }),       // second
-                TransitionTable.To(CANCELED)                                            // else
-            )
-            .add(from = AUTO_SENT, event = "TO_END", to = DONE)
-            .build()
-    )
+    val fsm = FsmFactory
+        .statesWithEvents<DocumentState, String>()
+        .add(from = NEW, event = "TO_READY", to = READY_FOR_SIGN)
+        .add(from = READY_FOR_SIGN, event = "USER_SIGN", to = SIGNED)
+        .add(from = READY_FOR_SIGN, event = "FAILED_EVENT", to = CANCELED)
+        .add(from = SIGNED, event = "FAILED_EVENT", to = CANCELED)
+        .add(
+            from = SIGNED, event = "TO_END",                                        // switch case example
+            To(AUTO_SENT, condition = { document.signRequired }),                   // first
+            To(DONE, condition = { !document.signRequired }),                       // second
+            To(CANCELED)                                                            // else
+        )
+        .add(from = AUTO_SENT, event = "TO_END", to = DONE)
+        .build()
+        .createDomainFsm<Document>()
     try {
         fsm.handle(document, "FAILED_EVENT")
     } catch (ex: Exception) {
@@ -104,8 +102,7 @@ We rewrite code with the same transitions
 ```
 fun main() {
     val document = Document(signRequired = true)
-    val fsm = ExDomainFSM(
-        ExTransitionTable.Builder<DocumentState, String>()
+    val fsm = FsmFactory.statesWithEvents<DocumentState, String>()
             .from(NEW).to(READY_FOR_SIGN).event("TO_READY").end()
 
             .from(READY_FOR_SIGN).toMultiple()
@@ -120,8 +117,7 @@ fun main() {
             .endMultiple()
 
             .from(AUTO_SENT).event("TO_END").to(DONE).end()
-            .build()
-    )
+            .build().createDomainFsm<Document>()
     try {
         fsm.handle(document, "FAILED_EVENT")
     } catch (ex: Exception) {
@@ -145,11 +141,11 @@ fun main() {
 ### Example with timers - traffic light.
 ```
 fun main() {
-    val fsm = ExFSM("INITIAL", ExTransitionTable.Builder<String, String>()
+    val fsm = ExFsm("INITIAL", ExTransitionTable.Builder<String, String>()
         .add(ExTransition(from = "INITIAL", to = "GREEN", event = "RUN"))
-        .add(ExTransition(from = "RED", to = "GREEN", timeout = Timeout(3), action = { println(it) }))
-        .add(ExTransition(from = "GREEN", to = "YELLOW", timeout = Timeout(3), action = { println(it) }))
-        .add(ExTransition(from = "YELLOW", to = "RED", timeout = Timeout(3), action = { println(it) }))
+        .add(ExTransition(from = "RED", to = To("GREEN", timeout = Timeout(3), action = { println(it) })))
+        .add(ExTransition(from = "GREEN", to = To("YELLOW", timeout = Timeout(3), action = { println(it) })))
+        .add(ExTransition(from = "YELLOW", to = To("RED", timeout = Timeout(3), action = { println(it) })))
         .build())
 
     fsm.onEvent("RUN")
@@ -158,14 +154,12 @@ fun main() {
 OR
 ```
 fun main() {
-    val fsm = ExFSM(
-        "INITIAL", ExTransitionTable.Builder<String, String>()
+    val fsm = FsmFactory.statesWithEvents<String, String>()
             .from("INITIAL").to("GREEN").event("RUN").end()
             .from("RED").to("GREEN").timeout(Timeout(3)).action { println(it) }.end()
             .from("GREEN").to("YELLOW").timeout(Timeout(3)).action { println(it) }.end()
             .from("YELLOW").to("RED").timeout(Timeout(3)).action { println(it) }.end()
-            .build()
-    )
+            .build().createFsm("INITIAL")
 
     fsm.onEvent("RUN")
 }

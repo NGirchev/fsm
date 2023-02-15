@@ -8,15 +8,16 @@ import org.junit.jupiter.api.TestInstance
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.Arguments
 import org.junit.jupiter.params.provider.MethodSource
-import ru.girchev.fsm.impl.extended.ExDomainFSM
+import ru.girchev.fsm.impl.extended.ExDomainFsm
 import ru.girchev.fsm.impl.extended.ExTransitionTable
-import ru.girchev.fsm.impl.basic.BaTransitionTable.*
+import ru.girchev.fsm.impl.basic.BTransitionTable.*
 import ru.girchev.fsm.impl.AbstractTransitionTable.*
-import ru.girchev.fsm.FSMContext
+import ru.girchev.fsm.StateContext
 import ru.girchev.fsm.TransitionTable.*
 import ru.girchev.fsm.Timeout
-import ru.girchev.fsm.exception.FSMEventSourcingTransitionFailedException
-import ru.girchev.fsm.exception.FSMException
+import ru.girchev.fsm.To
+import ru.girchev.fsm.exception.FsmEventSourcingTransitionFailedException
+import ru.girchev.fsm.exception.FsmException
 import ru.girchev.fsm.impl.extended.from
 import ru.girchev.fsm.it.document.Document
 import ru.girchev.fsm.it.document.DocumentState
@@ -39,7 +40,7 @@ internal class ExDomainFsmIT {
     private fun provideTransitions(): Stream<Arguments?>? {
         return Stream.of(
             Arguments.of(
-                ExDomainFSM(
+                ExDomainFsm(
                 ExTransitionTable.Builder<DocumentState, String>()
                     .add(from = NEW, event = "TO_READY", to = READY_FOR_SIGN)
                     .add(from = READY_FOR_SIGN, event = "USER_SIGN", to = SIGNED, timeout = Timeout(1))
@@ -56,7 +57,7 @@ internal class ExDomainFsmIT {
             )
             ),
             Arguments.of(
-                ExDomainFSM(
+                ExDomainFsm(
                 ExTransitionTable.Builder<DocumentState, String>()
                     .from(NEW).to(READY_FOR_SIGN).event("TO_READY").end()
                     .from(READY_FOR_SIGN).toMultiple()
@@ -81,10 +82,10 @@ internal class ExDomainFsmIT {
 
     @ParameterizedTest
     @MethodSource("provideTransitions")
-    fun shouldThrowFSMExceptionWhenFailedEvent(fsm: ExDomainFSM<Document, DocumentState, String>) {
+    fun shouldThrowFsmExceptionWhenFailedEvent(fsm: ExDomainFsm<Document, DocumentState, String>) {
         // given
         // when
-        Assertions.assertThrows(FSMException::class.java) {
+        Assertions.assertThrows(FsmException::class.java) {
             fsm.handle(document, "FAILED_EVENT")
         }
         assertEquals(NEW, document.state)
@@ -92,7 +93,7 @@ internal class ExDomainFsmIT {
 
     @ParameterizedTest
     @MethodSource("provideTransitions")
-    fun shouldChangeStatusToReadyForSignWhenToReadyEvent(fsm: ExDomainFSM<Document, DocumentState, String>) {
+    fun shouldChangeStatusToReadyForSignWhenToReadyEvent(fsm: ExDomainFsm<Document, DocumentState, String>) {
         // given
         document.state = NEW
         // when
@@ -103,7 +104,7 @@ internal class ExDomainFsmIT {
 
     @ParameterizedTest
     @MethodSource("provideTransitions")
-    fun shouldChangeStatusToAutoSentWhenUserSignEvent(fsm: ExDomainFSM<Document, DocumentState, String>) {
+    fun shouldChangeStatusToAutoSentWhenUserSignEvent(fsm: ExDomainFsm<Document, DocumentState, String>) {
         // given
         document.state = READY_FOR_SIGN
         // when
@@ -114,7 +115,7 @@ internal class ExDomainFsmIT {
 
     @ParameterizedTest
     @MethodSource("provideTransitions")
-    fun shouldChangeStatusToDoneWhenToEndEvent(fsm: ExDomainFSM<Document, DocumentState, String>) {
+    fun shouldChangeStatusToDoneWhenToEndEvent(fsm: ExDomainFsm<Document, DocumentState, String>) {
         // given
         document.state = SIGNED
         // when
@@ -125,7 +126,7 @@ internal class ExDomainFsmIT {
 
     @ParameterizedTest
     @MethodSource("provideTransitions")
-    fun shouldChangeStatusToAutoSentWhenSignRequiredAndToEndEvent(fsm: ExDomainFSM<Document, DocumentState, String>) {
+    fun shouldChangeStatusToAutoSentWhenSignRequiredAndToEndEvent(fsm: ExDomainFsm<Document, DocumentState, String>) {
         // given
         document = Document(signRequired = true)
         document.state = SIGNED
@@ -138,7 +139,7 @@ internal class ExDomainFsmIT {
 
     @ParameterizedTest
     @MethodSource("provideTransitions")
-    fun shouldChangeStatusToDoneWhenSignRequiredAndToEndEvent(fsm: ExDomainFSM<Document, DocumentState, String>) {
+    fun shouldChangeStatusToDoneWhenSignRequiredAndToEndEvent(fsm: ExDomainFsm<Document, DocumentState, String>) {
         // given
         document = Document(signRequired = true)
         document.state = AUTO_SENT
@@ -151,7 +152,7 @@ internal class ExDomainFsmIT {
     @Test
     fun shouldChangeStatusToCancelledWhenBothConditionIsFalse() {
         // given
-        val fsm = ExDomainFSM(
+        val fsm = ExDomainFsm(
             ExTransitionTable.Builder<DocumentState, String>()
                 .add(from = SIGNED, event = "FAILED_EVENT", to = CANCELED)
                 .add(
@@ -173,7 +174,7 @@ internal class ExDomainFsmIT {
     @Test
     fun shouldNotChangeStatusToCancelledWhenAllConditionIsFalse() {
         // given
-        val fsm = ExDomainFSM(
+        val fsm = ExDomainFsm(
             ExTransitionTable.Builder<DocumentState, String>()
                 .add(from = SIGNED, event = "FAILED_EVENT", to = CANCELED)
                 .add(
@@ -187,7 +188,7 @@ internal class ExDomainFsmIT {
         )
         document.state = SIGNED
         // when
-        Assertions.assertThrows(FSMEventSourcingTransitionFailedException::class.java) {
+        Assertions.assertThrows(FsmEventSourcingTransitionFailedException::class.java) {
             fsm.handle(document, "TO_END")
         }
         // then
@@ -196,7 +197,7 @@ internal class ExDomainFsmIT {
 
     @Test
     fun shouldChangeStatusOnlyOnceEvenDocEachTimeIsNew() {
-        val fsm = ExDomainFSM(
+        val fsm = ExDomainFsm(
             ExTransitionTable.Builder<DocumentState, String>()
                 .add(
                     from = NEW, event = "TO_END",
@@ -219,7 +220,7 @@ internal class ExDomainFsmIT {
 
     @Test
     fun shouldChangeStatusToFirstInSwitchWhenEventIsNull() {
-        val fsm = ExDomainFSM(
+        val fsm = ExDomainFsm(
             ExTransitionTable.Builder<DocumentState, String>()
                 .add(from = NEW, event = "TO_END", to = READY_FOR_SIGN)
                 .add(
@@ -245,7 +246,7 @@ internal class ExDomainFsmIT {
     @Test
     fun shouldChangeStatusToDoneByTimeout() {
         document = Document()
-        val fsm = ExDomainFSM(
+        val fsm = ExDomainFsm(
             ExTransitionTable.Builder<DocumentState, String>()
                 .add(
                     from = NEW, event = "TO_END", to = READY_FOR_SIGN,
@@ -289,8 +290,8 @@ internal class ExDomainFsmIT {
         )
     }
 
-    private fun prt(fsmContext: FSMContext<DocumentState>) {
-        logger.info { "Transition from=[" + fsmContext.state + "] at=" + System.currentTimeMillis() }
+    private fun prt(stateContext: StateContext<DocumentState>) {
+        logger.info { "Transition from=[" + stateContext.state + "] at=" + System.currentTimeMillis() }
     }
 
     private fun allTrue(futures: List<CompletableFuture<Boolean>>): Boolean {

@@ -9,10 +9,10 @@ internal constructor(
     override val transitions: Map<STATE, LinkedHashSet<ExTransition<STATE, EVENT>>>
 ) : AbstractTransitionTable<STATE, ExTransition<STATE, EVENT>>(transitions) {
 
-    open fun getTransitionByEvent(context: FSMContext<STATE>, event: EVENT): ExTransition<STATE, EVENT>? {
+    internal fun getTransitionByEvent(context: StateContext<STATE>, event: EVENT): ExTransition<STATE, EVENT>? {
         return transitions[context.state]
             ?.filter { it.event == event }
-            ?.firstOrNull { it.condition?.invoke(context) ?: true }
+            ?.firstOrNull { it.to.condition?.invoke(context) ?: true }
     }
 
     class Builder<STATE, EVENT> {
@@ -23,13 +23,13 @@ internal constructor(
             from: STATE,
             event: EVENT? = null,
             to: STATE,
-            condition: Guard<in FSMContext<STATE>>? = null,
-            action: Action<in FSMContext<STATE>>? = null,
+            condition: Guard<in StateContext<STATE>>? = null,
+            action: Action<in StateContext<STATE>>? = null,
             timeout: Timeout? = null
         ): Builder<STATE, EVENT> {
             transitions.getOrPut(from) { LinkedHashSet() }
                 .also { transitionSet ->
-                    val transition = ExTransition(from, event, to, condition, action, timeout)
+                    val transition = ExTransition(from, To(to, condition, action, timeout), event)
                     if (!transitionSet.add(transition)) {
                         throw DuplicateTransitionException(transition)
                     }
@@ -47,11 +47,11 @@ internal constructor(
             return this
         }
 
-        fun add(from: STATE, event: EVENT? = null, vararg to: TransitionTable.To<STATE>): Builder<STATE, EVENT> {
+        fun add(from: STATE, event: EVENT? = null, vararg to: To<STATE>): Builder<STATE, EVENT> {
             for (t in to) {
                 transitions.getOrPut(from) { LinkedHashSet() }
                     .also { transitionSet ->
-                        val transition = ExTransition(from, event, t.to, t.condition, t.action, t.timeout)
+                        val transition = ExTransition(from, t, event)
                         if (!transitionSet.add(transition)) {
                             throw DuplicateTransitionException(transition)
                         }
@@ -63,5 +63,13 @@ internal constructor(
         fun build(): ExTransitionTable<STATE, EVENT> {
             return ExTransitionTable(transitions)
         }
+    }
+
+    override fun createFsm(initialState: STATE): ExFsm<STATE, EVENT> {
+        return ExFsm(initialState, this)
+    }
+
+    override fun <DOMAIN : StateContext<STATE>> createDomainFsm(): ExDomainFsm<DOMAIN, STATE, EVENT> {
+        return ExDomainFsm(this)
     }
 }

@@ -12,7 +12,7 @@ import ru.girchev.fsm.it.document.DocumentState
 import kotlin.test.assertEquals
 
 @ExtendWith(MockKExtension::class)
-class ExDomainFSMTest {
+class ExDomainFsmTest {
 
     @MockK
     lateinit var exTransitionTable: ExTransitionTable<DocumentState, String>
@@ -26,7 +26,7 @@ class ExDomainFSMTest {
             from = DocumentState.NEW,
             to = DocumentState.READY_FOR_SIGN
         )
-        val fsm = ExDomainFSM(exTransitionTable, autoTransitionEnabled = false)
+        val fsm = ExDomainFsm(exTransitionTable, autoTransitionEnabled = false)
 
         val document = Document()
         fsm.handle(document, "RUN")

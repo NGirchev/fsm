@@ -2,13 +2,13 @@ package ru.girchev.fsm.exception
 
 import java.util.*
 
-class FSMTransitionFailedException(
+class FsmEventSourcingTransitionFailedException(
     source: String,
-    target: String,
+    event: String,
     domainName: String? = null,
     text: String? = null
 ) :
-    FSMException(
+    FsmException(
         "Illegal ${domainName?.lowercase(Locale.getDefault()) ?: ""}" +
-                "state transition $source->$target" + (text?.map { ", $it" } ?: "")
+            "state transition for state=[$source] by event=[$event]" + (text?.map { ", $it" } ?: "")
     )

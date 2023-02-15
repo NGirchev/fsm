@@ -7,20 +7,21 @@ import org.junit.jupiter.api.TestInstance
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.Arguments
 import org.junit.jupiter.params.provider.MethodSource
-import ru.girchev.fsm.impl.basic.BaFSM
-import ru.girchev.fsm.impl.basic.BaTransition
-import ru.girchev.fsm.impl.basic.BaTransitionTable
-import ru.girchev.fsm.impl.basic.BaTransitionTable.*
+import ru.girchev.fsm.To
+import ru.girchev.fsm.impl.basic.BFsm
+import ru.girchev.fsm.impl.basic.BTransition
+import ru.girchev.fsm.impl.basic.BTransitionTable
+import ru.girchev.fsm.impl.basic.BTransitionTable.*
 import ru.girchev.fsm.impl.basic.from
 import ru.girchev.fsm.TransitionTable.*
 import ru.girchev.fsm.exception.DuplicateTransitionException
-import ru.girchev.fsm.exception.FSMException
+import ru.girchev.fsm.exception.FsmException
 import java.util.stream.Stream
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-internal class BaFsmIT {
+internal class BFsmIT {
     companion object : KLogging()
 
     private var autoSendEnabled: Boolean = true
@@ -38,11 +39,13 @@ internal class BaFsmIT {
                         action = { logger.info { "SIGNED SUCCESSFUL" } }),
                     To("CANCELLED")
                 )
-                .add(BaTransition(
+                .add(BTransition(
                     from = "SIGNED",
-                    to = "AUTO_SENT",
-                    condition = { autoSendEnabled },
-                    action = { successfullySent = true; logger.info { "AUTO SENT ACTION" } }
+                    To(
+                        state = "AUTO_SENT",
+                        condition = { autoSendEnabled },
+                        action = { successfullySent = true; logger.info { "AUTO SENT ACTION" } }
+                    )
                 ))
                 .add(from = "SIGNED", "DONE", "CANCELED")
                 .add(from = "AUTO_SENT", "DONE", "CANCELED")
@@ -64,11 +67,11 @@ internal class BaFsmIT {
 
     @ParameterizedTest
     @MethodSource("provideTransitions")
-    fun shouldThrowFSMExceptionWhenTryToSign(transitions: BaTransitionTable<String>) {
+    fun shouldThrowFsmExceptionWhenTryToSign(transitions: BTransitionTable<String>) {
         // given
-        val fsm = BaFSM("NEW", transitions)
+        val fsm = BFsm("NEW", transitions)
         // when
-        Assertions.assertThrows(FSMException::class.java) {
+        Assertions.assertThrows(FsmException::class.java) {
             fsm.toState("SIGNED")
         }
         assertEquals("NEW", fsm.getState())
@@ -76,9 +79,9 @@ internal class BaFsmIT {
 
     @ParameterizedTest
     @MethodSource("provideTransitions")
-    fun shouldChangeStatusToReadyForSign(transitions: BaTransitionTable<String>) {
+    fun shouldChangeStatusToReadyForSign(transitions: BTransitionTable<String>) {
         // given
-        val fsm = BaFSM("NEW", transitions)
+        val fsm = BFsm("NEW", transitions)
         // when
         fsm.toState("READY_FOR_SIGN")
         // then
@@ -87,9 +90,9 @@ internal class BaFsmIT {
 
     @ParameterizedTest
     @MethodSource("provideTransitions")
-    fun shouldChangeStatusToSigned(transitions: BaTransitionTable<String>) {
+    fun shouldChangeStatusToSigned(transitions: BTransitionTable<String>) {
         // given
-        val fsm = BaFSM("READY_FOR_SIGN", transitions)
+        val fsm = BFsm("READY_FOR_SIGN", transitions)
         // when
         fsm.toState("SIGNED")
         // then
@@ -98,9 +101,9 @@ internal class BaFsmIT {
 
     @ParameterizedTest
     @MethodSource("provideTransitions")
-    fun shouldChangeStatusToAutoSent(transitions: BaTransitionTable<String>) {
+    fun shouldChangeStatusToAutoSent(transitions: BTransitionTable<String>) {
         // given
-        val fsm = BaFSM("SIGNED", transitions)
+        val fsm = BFsm("SIGNED", transitions)
         // when
         fsm.toState("AUTO_SENT")
         // then
@@ -114,7 +117,7 @@ internal class BaFsmIT {
             exceptionClass = DuplicateTransitionException::class,
             message = "No exception found",
             block = {
-                BaFSM(
+                BFsm(
                     "NEW",
                     Builder<String>()
                         .add(from = "NEW", To("READY_FOR_SIGN"))
@@ -126,9 +129,9 @@ internal class BaFsmIT {
     }
 
     @Test
-    fun shouldThrowFSMExceptionWhenAddConditionTwice() {
+    fun shouldThrowFsmExceptionWhenAddConditionTwice() {
         assertFailsWith(
-            exceptionClass = FSMException::class,
+            exceptionClass = FsmException::class,
             message = "No exception found",
             block = {
                 Builder<String>()
@@ -140,9 +143,9 @@ internal class BaFsmIT {
     }
 
     @Test
-    fun shouldThrowFSMExceptionWhenAddActionTwice() {
+    fun shouldThrowFsmExceptionWhenAddActionTwice() {
         assertFailsWith(
-            exceptionClass = FSMException::class,
+            exceptionClass = FsmException::class,
             message = "No exception found",
             block = {
                 Builder<String>()
@@ -156,9 +159,9 @@ internal class BaFsmIT {
     }
 
     @Test
-    fun shouldThrowFSMExceptionWhenAddConditionTwiceInMultiple() {
+    fun shouldThrowFsmExceptionWhenAddConditionTwiceInMultiple() {
         assertFailsWith(
-            exceptionClass = FSMException::class,
+            exceptionClass = FsmException::class,
             message = "No exception found",
             block = {
                 Builder<String>()
@@ -172,9 +175,9 @@ internal class BaFsmIT {
     }
 
     @Test
-    fun shouldThrowFSMExceptionWhenAddActionTwiceInMultiple() {
+    fun shouldThrowFsmExceptionWhenAddActionTwiceInMultiple() {
         assertFailsWith(
-            exceptionClass = FSMException::class,
+            exceptionClass = FsmException::class,
             message = "No exception found",
             block = {
                 Builder<String>()

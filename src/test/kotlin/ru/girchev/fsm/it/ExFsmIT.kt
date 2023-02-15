@@ -2,10 +2,10 @@ package ru.girchev.fsm.it
 
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
-import ru.girchev.fsm.impl.extended.ExFSM
+import ru.girchev.fsm.impl.extended.ExFsm
 import ru.girchev.fsm.impl.extended.ExTransition
 import ru.girchev.fsm.impl.extended.ExTransitionTable
-import ru.girchev.fsm.exception.FSMException
+import ru.girchev.fsm.exception.FsmException
 import kotlin.test.assertEquals
 
 internal class ExFsmIT {
@@ -20,11 +20,11 @@ internal class ExFsmIT {
         .build()
 
     @Test
-    fun shouldThrowFSMExceptionWhenFailedEvent() {
+    fun shouldThrowFsmExceptionWhenFailedEvent() {
         // given
-        val exFsm = ExFSM("NEW", transitions)
+        val exFsm = ExFsm("NEW", transitions)
         // when
-        Assertions.assertThrows(FSMException::class.java) {
+        Assertions.assertThrows(FsmException::class.java) {
             exFsm.onEvent("FAILED_EVENT")
         }
         // then
@@ -34,7 +34,7 @@ internal class ExFsmIT {
     @Test
     fun shouldChangeStatusToReadyForSignWhenToReadyEvent() {
         // given
-        val exFsm = ExFSM("NEW", transitions)
+        val exFsm = ExFsm("NEW", transitions)
         // when
         exFsm.onEvent("TO_READY")
         // then
@@ -44,7 +44,7 @@ internal class ExFsmIT {
     @Test
     fun shouldChangeStatusToAutoSentWhenUserSignEvent() {
         // given
-        val exFsm = ExFSM("READY_FOR_SIGN", transitions)
+        val exFsm = ExFsm("READY_FOR_SIGN", transitions)
         // when
         exFsm.onEvent("USER_SIGN")
         // then
@@ -54,7 +54,7 @@ internal class ExFsmIT {
     @Test
     fun shouldChangeStatusToDoneWhenSuccessEvent() {
         // given
-        val exFsm = ExFSM("AUTO_SENT", transitions)
+        val exFsm = ExFsm("AUTO_SENT", transitions)
         // when
         exFsm.onEvent("SUCCESS_EVENT")
         // then
