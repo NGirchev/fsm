@@ -7,13 +7,12 @@ import org.junit.jupiter.api.TestInstance
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.Arguments
 import org.junit.jupiter.params.provider.MethodSource
+import ru.girchev.fsm.FsmFactory
 import ru.girchev.fsm.To
 import ru.girchev.fsm.impl.basic.BFsm
 import ru.girchev.fsm.impl.basic.BTransition
 import ru.girchev.fsm.impl.basic.BTransitionTable
-import ru.girchev.fsm.impl.basic.BTransitionTable.*
 import ru.girchev.fsm.impl.basic.from
-import ru.girchev.fsm.TransitionTable.*
 import ru.girchev.fsm.exception.DuplicateTransitionException
 import ru.girchev.fsm.exception.FsmException
 import java.util.stream.Stream
@@ -29,29 +28,30 @@ internal class BFsmIT {
 
     private fun provideTransitions(): Stream<Arguments?>? {
         return Stream.of(
-            Arguments.of(Builder<String>()
-                .add(from = "NEW", "READY_FOR_SIGN")
-                .add(
-                    from = "READY_FOR_SIGN",
-                    To(
-                        "SIGNED",
-                        condition = { true },
-                        action = { logger.info { "SIGNED SUCCESSFUL" } }),
-                    To("CANCELLED")
-                )
-                .add(BTransition(
-                    from = "SIGNED",
-                    To(
-                        state = "AUTO_SENT",
-                        condition = { autoSendEnabled },
-                        action = { successfullySent = true; logger.info { "AUTO SENT ACTION" } }
-                    )
-                ))
-                .add(from = "SIGNED", "DONE", "CANCELED")
-                .add(from = "AUTO_SENT", "DONE", "CANCELED")
-                .build()),
             Arguments.of(
-                Builder<String>().from("NEW").to("READY_FOR_SIGN").end()
+                FsmFactory.states(String::class.java)
+                    .add(from = "NEW", "READY_FOR_SIGN")
+                    .add(
+                        from = "READY_FOR_SIGN",
+                        To(
+                            "SIGNED",
+                            condition = { true },
+                            action = { logger.info { "SIGNED SUCCESSFUL" } }),
+                        To("CANCELLED")
+                    )
+                    .add(BTransition(
+                        from = "SIGNED",
+                        To(
+                            state = "AUTO_SENT",
+                            condition = { autoSendEnabled },
+                            action = { successfullySent = true; logger.info { "AUTO SENT ACTION" } }
+                        )
+                    ))
+                    .add(from = "SIGNED", "DONE", "CANCELED")
+                    .add(from = "AUTO_SENT", "DONE", "CANCELED")
+                    .build()),
+            Arguments.of(
+                FsmFactory.states<String>().from("NEW").to("READY_FOR_SIGN").end()
                     .from("READY_FOR_SIGN").toMultiple()
                     .to("SIGNED").condition { true }.action { logger.info { "SIGNED SUCCESSFUL" } }.end()
                     .to("CANCELED").end().endMultiple()
@@ -81,7 +81,7 @@ internal class BFsmIT {
     @MethodSource("provideTransitions")
     fun shouldChangeStatusToReadyForSign(transitions: BTransitionTable<String>) {
         // given
-        val fsm = BFsm("NEW", transitions)
+        val fsm = transitions.toFsm("NEW")
         // when
         fsm.toState("READY_FOR_SIGN")
         // then
@@ -92,7 +92,7 @@ internal class BFsmIT {
     @MethodSource("provideTransitions")
     fun shouldChangeStatusToSigned(transitions: BTransitionTable<String>) {
         // given
-        val fsm = BFsm("READY_FOR_SIGN", transitions)
+        val fsm = transitions.toFsm("READY_FOR_SIGN")
         // when
         fsm.toState("SIGNED")
         // then
@@ -103,7 +103,7 @@ internal class BFsmIT {
     @MethodSource("provideTransitions")
     fun shouldChangeStatusToAutoSent(transitions: BTransitionTable<String>) {
         // given
-        val fsm = BFsm("SIGNED", transitions)
+        val fsm = transitions.toFsm("SIGNED")
         // when
         fsm.toState("AUTO_SENT")
         // then
@@ -117,13 +117,11 @@ internal class BFsmIT {
             exceptionClass = DuplicateTransitionException::class,
             message = "No exception found",
             block = {
-                BFsm(
-                    "NEW",
-                    Builder<String>()
-                        .add(from = "NEW", To("READY_FOR_SIGN"))
-                        .add(from = "NEW", To("READY_FOR_SIGN"))
-                        .build()
-                )
+                FsmFactory.states(String::class.java)
+                    .add(from = "NEW", To("READY_FOR_SIGN"))
+                    .add(from = "NEW", To("READY_FOR_SIGN"))
+                    .build()
+                    .toFsm("NEW")
             }
         )
     }
@@ -134,7 +132,7 @@ internal class BFsmIT {
             exceptionClass = FsmException::class,
             message = "No exception found",
             block = {
-                Builder<String>()
+                FsmFactory.states(String::class.java)
                     .from("NEW").to("READY_FOR_SIGN").end()
                     .from("READY_FOR_SIGN").to("SIGNED").condition { true }.condition { true }.end()
                     .build()
@@ -148,7 +146,7 @@ internal class BFsmIT {
             exceptionClass = FsmException::class,
             message = "No exception found",
             block = {
-                Builder<String>()
+                FsmFactory.states(String::class.java)
                     .from("NEW").to("READY_FOR_SIGN").end()
                     .from("READY_FOR_SIGN").to("SIGNED")
                     .action { logger.info { "Action" } }
@@ -164,7 +162,7 @@ internal class BFsmIT {
             exceptionClass = FsmException::class,
             message = "No exception found",
             block = {
-                Builder<String>()
+                FsmFactory.states(String::class.java)
                     .from("NEW").to("READY_FOR_SIGN").end()
                     .from("READY_FOR_SIGN").toMultiple()
                     .to("SIGNED").action { logger.info { "Action" } }.action { logger.info { "Action" } }.end()
@@ -180,7 +178,7 @@ internal class BFsmIT {
             exceptionClass = FsmException::class,
             message = "No exception found",
             block = {
-                Builder<String>()
+                FsmFactory.states(String::class.java)
                     .from("NEW").to("READY_FOR_SIGN").end()
                     .from("READY_FOR_SIGN").toMultiple()
                     .to("SIGNED").action { logger.info { "Action" } }.action { logger.info { "Action" } }.end()

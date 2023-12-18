@@ -3,6 +3,7 @@ package ru.girchev.fsm.impl.extended
 import ru.girchev.fsm.*
 import ru.girchev.fsm.exception.DuplicateTransitionException
 import ru.girchev.fsm.impl.AbstractTransitionTable
+import kotlin.reflect.KClass
 
 open class ExTransitionTable<STATE, EVENT>
 internal constructor(
@@ -65,11 +66,11 @@ internal constructor(
         }
     }
 
-    override fun createFsm(initialState: STATE): ExFsm<STATE, EVENT> {
+    override fun toFsm(initialState: STATE): ExFsm<STATE, EVENT> {
         return ExFsm(initialState, this)
     }
 
-    override fun <DOMAIN : StateContext<STATE>> createDomainFsm(): ExDomainFsm<DOMAIN, STATE, EVENT> {
+    override fun <DOMAIN : StateContext<STATE>> toDomainFsm(domainClass : KClass<DOMAIN>?): ExDomainFsm<DOMAIN, STATE, EVENT> {
         return ExDomainFsm(this)
     }
 }

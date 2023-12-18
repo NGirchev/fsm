@@ -2,15 +2,15 @@ package ru.girchev.fsm.it
 
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
+import ru.girchev.fsm.FsmFactory
+import ru.girchev.fsm.exception.FsmException
 import ru.girchev.fsm.impl.extended.ExFsm
 import ru.girchev.fsm.impl.extended.ExTransition
-import ru.girchev.fsm.impl.extended.ExTransitionTable
-import ru.girchev.fsm.exception.FsmException
 import kotlin.test.assertEquals
 
 internal class ExFsmIT {
 
-    private val transitions = ExTransitionTable.Builder<String, String>()
+    private val transitions = FsmFactory.statesWithEvents(String::class.java, String::class.java)
         .add(ExTransition(from = "NEW", to = "READY_FOR_SIGN", event = "TO_READY"))
         .add(ExTransition(from = "READY_FOR_SIGN", to = "SIGNED", event = "USER_SIGN"))
         .add(ExTransition(from = "READY_FOR_SIGN", to = "CANCELED", event = "FAILED_EVENT"))

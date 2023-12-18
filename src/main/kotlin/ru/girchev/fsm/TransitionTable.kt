@@ -1,5 +1,7 @@
 package ru.girchev.fsm
 
+import kotlin.reflect.KClass
+
 interface TransitionTable<STATE, TRANSITION : Transition<STATE>> {
     val transitions: Map<STATE, LinkedHashSet<out TRANSITION>>
 
@@ -8,6 +10,6 @@ interface TransitionTable<STATE, TRANSITION : Transition<STATE>> {
      */
     fun getTransitionByState(context: StateContext<STATE>, newState: STATE): TRANSITION?
 
-    fun createFsm(initialState: STATE): StateSupport<STATE>
-    fun <DOMAIN : StateContext<STATE>> createDomainFsm(): DomainSupport<DOMAIN, STATE>
+    fun toFsm(initialState: STATE): StateSupport<STATE>
+    fun <DOMAIN : StateContext<STATE>> toDomainFsm(domainClass : KClass<DOMAIN>? = null): DomainSupport<DOMAIN, STATE>
 }

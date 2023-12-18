@@ -5,6 +5,7 @@ import ru.girchev.fsm.StateContext
 import ru.girchev.fsm.To
 import ru.girchev.fsm.exception.DuplicateTransitionException
 import ru.girchev.fsm.impl.AbstractTransitionTable
+import kotlin.reflect.KClass
 
 open class BTransitionTable<STATE>
 internal constructor(
@@ -52,11 +53,11 @@ internal constructor(
         }
     }
 
-    override fun createFsm(initialState: STATE): BFsm<STATE> {
+    override fun toFsm(initialState: STATE): BFsm<STATE> {
         return BFsm(initialState, this)
     }
 
-    override fun <DOMAIN : StateContext<STATE>> createDomainFsm(): DomainSupport<DOMAIN, STATE> {
+    override fun <DOMAIN : StateContext<STATE>> toDomainFsm(domainClass: KClass<DOMAIN>?): DomainSupport<DOMAIN, STATE> {
         return BDomainFsm(this)
     }
 }

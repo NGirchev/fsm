@@ -3,6 +3,8 @@ package ru.girchev.fsm.it
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import ru.girchev.fsm.DomainSupport
+import ru.girchev.fsm.FsmFactory
 import ru.girchev.fsm.StateContext
 import ru.girchev.fsm.impl.basic.BDomainFsm
 import ru.girchev.fsm.impl.basic.BTransitionTable
@@ -15,8 +17,8 @@ import kotlin.test.assertEquals
 internal class BDomainFsmIT {
 
     private lateinit var document: Document
-    private val fsm: BDomainFsm<StateContext<DocumentState>, DocumentState> = BDomainFsm(
-        BTransitionTable.Builder<DocumentState>()
+    private val fsm: DomainSupport<StateContext<DocumentState>, DocumentState> =
+        FsmFactory.states(DocumentState::class.java)
             .add(from = NEW, READY_FOR_SIGN)
             .add(
                 from = READY_FOR_SIGN,
@@ -27,7 +29,8 @@ internal class BDomainFsmIT {
                 DONE, CANCELED
             )
             .build()
-    )
+            .toDomainFsm()
+
 
     @BeforeEach
     fun init() {
