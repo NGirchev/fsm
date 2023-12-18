@@ -10,7 +10,6 @@ import org.junit.jupiter.params.provider.Arguments
 import org.junit.jupiter.params.provider.MethodSource
 import ru.girchev.fsm.FsmFactory
 import ru.girchev.fsm.impl.extended.ExDomainFsm
-import ru.girchev.fsm.impl.extended.ExTransitionTable
 import ru.girchev.fsm.StateContext
 import ru.girchev.fsm.Timeout
 import ru.girchev.fsm.To

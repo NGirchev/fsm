@@ -11,5 +11,5 @@ interface TransitionTable<STATE, TRANSITION : Transition<STATE>> {
     fun getTransitionByState(context: StateContext<STATE>, newState: STATE): TRANSITION?
 
     fun toFsm(initialState: STATE): StateSupport<STATE>
-    fun <DOMAIN : StateContext<STATE>> toDomainFsm(domainClass : KClass<DOMAIN>? = null): DomainSupport<DOMAIN, STATE>
+    fun <DOMAIN : StateContext<STATE>> toDomainFsm(domainClass: KClass<DOMAIN>? = null): DomainSupport<DOMAIN, STATE>
 }

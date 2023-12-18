@@ -70,7 +70,7 @@ internal constructor(
         return ExFsm(initialState, this)
     }
 
-    override fun <DOMAIN : StateContext<STATE>> toDomainFsm(domainClass : KClass<DOMAIN>?): ExDomainFsm<DOMAIN, STATE, EVENT> {
+    override fun <DOMAIN : StateContext<STATE>> toDomainFsm(domainClass: KClass<DOMAIN>?): ExDomainFsm<DOMAIN, STATE, EVENT> {
         return ExDomainFsm(this)
     }
 }

@@ -6,8 +6,6 @@ import org.junit.jupiter.api.Test
 import ru.girchev.fsm.DomainSupport
 import ru.girchev.fsm.FsmFactory
 import ru.girchev.fsm.StateContext
-import ru.girchev.fsm.impl.basic.BDomainFsm
-import ru.girchev.fsm.impl.basic.BTransitionTable
 import ru.girchev.fsm.exception.FsmException
 import ru.girchev.fsm.it.document.Document
 import ru.girchev.fsm.it.document.DocumentState
@@ -30,7 +28,6 @@ internal class BDomainFsmIT {
             )
             .build()
             .toDomainFsm()
-
 
     @BeforeEach
     fun init() {

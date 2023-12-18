@@ -1,13 +1,11 @@
 package ru.girchev.fsm
 
 import ru.girchev.fsm.impl.basic.BTransitionTable
-import ru.girchev.fsm.impl.extended.ExFsm
 import ru.girchev.fsm.impl.extended.ExTransitionTable
 
 object FsmFactory {
 
-    fun <STATE> states(stateType: Class<STATE>? = null)
-            : BTransitionTable.Builder<STATE> {
+    fun <STATE> states(stateType: Class<STATE>? = null): BTransitionTable.Builder<STATE> {
         return BTransitionTable.Builder()
     }
 
