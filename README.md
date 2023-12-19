@@ -29,7 +29,7 @@ fun main() {
         .add(from = "AUTO_SENT", to = "DONE", event = "SUCCESS_EVENT")
         .add(from = "AUTO_SENT", to = "CANCELED", event = "FAILED_EVENT")
         .build()
-        .createFsm("NEW")
+        .toFsm("NEW")
     println("Initial state: ${fsm.getState()}")
     try {
         fsm.onEvent("FAILED_EVENT")
@@ -70,7 +70,7 @@ fun main() {
         )
         .add(from = AUTO_SENT, event = "TO_END", to = DONE)
         .build()
-        .createDomainFsm<Document>()
+        .toDomainFsm<Document>()
     try {
         fsm.handle(document, "FAILED_EVENT")
     } catch (ex: Exception) {
@@ -117,7 +117,7 @@ fun main() {
             .endMultiple()
 
             .from(AUTO_SENT).event("TO_END").to(DONE).end()
-            .build().createDomainFsm<Document>()
+            .build().toDomainFsm<Document>()
     try {
         fsm.handle(document, "FAILED_EVENT")
     } catch (ex: Exception) {
@@ -159,7 +159,7 @@ fun main() {
             .from("RED").to("GREEN").timeout(Timeout(3)).action { println(it) }.end()
             .from("GREEN").to("YELLOW").timeout(Timeout(3)).action { println(it) }.end()
             .from("YELLOW").to("RED").timeout(Timeout(3)).action { println(it) }.end()
-            .build().createFsm("INITIAL")
+            .build().toFsm("INITIAL")
 
     fsm.onEvent("RUN")
 }
