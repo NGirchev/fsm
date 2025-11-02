@@ -6,10 +6,11 @@ plugins {
     kotlin("jvm") version "1.6.21"
     id("io.gitlab.arturbosch.detekt") version "1.21.0-RC2"
     id("org.jmailen.kotlinter") version "3.6.0"
+    id("maven-publish")
 }
 
 group = "ru.girchev"
-version = "0.1.3a"
+version = "0.1.4a-SNAPSHOT"
 
 repositories {
     mavenCentral()
@@ -17,11 +18,40 @@ repositories {
 
 dependencies {
     implementation("io.github.microutils:kotlin-logging-jvm:2.0.11")
-    implementation("ch.qos.logback:logback-classic:1.2.3")
+    implementation("ch.qos.logback:logback-classic:1.5.19")
     testImplementation("org.mockito.kotlin:mockito-kotlin:3.2.0")
     testImplementation("io.mockk:mockk:1.9.3")
     testImplementation("org.junit.jupiter", "junit-jupiter-params","5.8.1")
     testImplementation(kotlin("test"))
+}
+
+java {
+    withSourcesJar()
+}
+
+publishing {
+    publications {
+        create<MavenPublication>("mavenJava") {
+            from(components["java"]) // works for Kotlin/JVM too
+            pom {
+                name.set("fsm")
+                description.set("Finite state machine utilities")
+            }
+        }
+    }
+    repositories {
+        // enable install to ~/.m2 via task publishToMavenLocal
+        mavenLocal()
+        // Example of a remote repo (optional). Replace URL/creds or remove block.
+        // maven {
+        //     name = "myRepo"
+        //     url = uri("https://your.repo.url/repository/maven-releases/")
+        //     credentials {
+        //         username = findProperty("repoUser") as String? ?: System.getenv("REPO_USER")
+        //         password = findProperty("repoPassword") as String? ?: System.getenv("REPO_PASSWORD")
+        //     }
+        // }
+    }
 }
 
 kotlinter {
