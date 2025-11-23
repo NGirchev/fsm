@@ -12,7 +12,7 @@ data class Document(
     val id: String = UUID.randomUUID().toString(),
     override var state: DocumentState = DocumentState.NEW,
     val signRequired: Boolean = false
-) : FSMContext<DocumentState>
+) : StateContext<DocumentState>
 
 enum class DocumentState {
     NEW, READY_FOR_SIGN, SIGNED, AUTO_SENT, DONE, CANCELED
