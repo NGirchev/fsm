@@ -10,15 +10,11 @@ import org.junit.jupiter.params.provider.Arguments
 import org.junit.jupiter.params.provider.MethodSource
 import ru.girchev.fsm.impl.extended.ExDomainFsm
 import ru.girchev.fsm.impl.extended.ExTransitionTable
-import ru.girchev.fsm.impl.basic.BTransitionTable.*
-import ru.girchev.fsm.impl.AbstractTransitionTable.*
 import ru.girchev.fsm.StateContext
-import ru.girchev.fsm.TransitionTable.*
 import ru.girchev.fsm.Timeout
 import ru.girchev.fsm.To
 import ru.girchev.fsm.exception.FsmEventSourcingTransitionFailedException
 import ru.girchev.fsm.exception.FsmException
-import ru.girchev.fsm.impl.extended.from
 import ru.girchev.fsm.it.document.Document
 import ru.girchev.fsm.it.document.DocumentState
 import ru.girchev.fsm.it.document.DocumentState.*

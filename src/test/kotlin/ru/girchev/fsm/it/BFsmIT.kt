@@ -12,8 +12,6 @@ import ru.girchev.fsm.impl.basic.BFsm
 import ru.girchev.fsm.impl.basic.BTransition
 import ru.girchev.fsm.impl.basic.BTransitionTable
 import ru.girchev.fsm.impl.basic.BTransitionTable.*
-import ru.girchev.fsm.impl.basic.from
-import ru.girchev.fsm.TransitionTable.*
 import ru.girchev.fsm.exception.DuplicateTransitionException
 import ru.girchev.fsm.exception.FsmException
 import java.util.stream.Stream
