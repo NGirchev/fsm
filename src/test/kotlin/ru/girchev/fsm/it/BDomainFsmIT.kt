@@ -4,9 +4,9 @@ import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import ru.girchev.fsm.StateContext
+import ru.girchev.fsm.exception.FsmException
 import ru.girchev.fsm.impl.basic.BDomainFsm
 import ru.girchev.fsm.impl.basic.BTransitionTable
-import ru.girchev.fsm.exception.FsmException
 import ru.girchev.fsm.it.document.Document
 import ru.girchev.fsm.it.document.DocumentState
 import ru.girchev.fsm.it.document.DocumentState.*
@@ -17,6 +17,7 @@ internal class BDomainFsmIT {
     private lateinit var document: Document
     private val fsm: BDomainFsm<StateContext<DocumentState>, DocumentState> = BDomainFsm(
         BTransitionTable.Builder<DocumentState>()
+            .autoTransitionEnabled(false)
             .add(from = NEW, READY_FOR_SIGN)
             .add(
                 from = READY_FOR_SIGN,
@@ -51,6 +52,53 @@ internal class BDomainFsmIT {
         fsm.changeState(document, READY_FOR_SIGN)
         // then
         assertEquals(READY_FOR_SIGN, document.state)
+    }
+
+    @Test
+    fun shouldChangeStatusToReadyForSignWithAutoTransition() {
+        val fsm: BDomainFsm<StateContext<DocumentState>, DocumentState> = BDomainFsm(
+            BTransitionTable.Builder<DocumentState>()
+                .autoTransitionEnabled(true)
+                .add(from = NEW, READY_FOR_SIGN)
+                .add(
+                    from = READY_FOR_SIGN,
+                    SIGNED, CANCELED
+                )
+                .add(
+                    from = SIGNED,
+                    DONE, CANCELED
+                )
+                .build()
+        )
+        // given
+        // when
+        fsm.changeState(document, READY_FOR_SIGN)
+        // then
+        assertEquals(DONE, document.state)
+    }
+
+    @Test
+    fun shouldChangeStatusToReadyForSignWithAutoTransitionOnFsm() {
+        val fsm: BDomainFsm<StateContext<DocumentState>, DocumentState> = BDomainFsm(
+            BTransitionTable.Builder<DocumentState>()
+                .autoTransitionEnabled(false)
+                .add(from = NEW, READY_FOR_SIGN)
+                .add(
+                    from = READY_FOR_SIGN,
+                    SIGNED, CANCELED
+                )
+                .add(
+                    from = SIGNED,
+                    DONE, CANCELED
+                )
+                .build(),
+            autoTransitionEnabled = true
+        )
+        // given
+        // when
+        fsm.changeState(document, READY_FOR_SIGN)
+        // then
+        assertEquals(DONE, document.state)
     }
 
     @Test

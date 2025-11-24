@@ -1,18 +1,32 @@
 package ru.girchev.fsm.impl.basic
 
-import ru.girchev.fsm.*
+import ru.girchev.fsm.Action
+import ru.girchev.fsm.Guard
+import ru.girchev.fsm.StateContext
+import ru.girchev.fsm.To
 import ru.girchev.fsm.exception.DuplicateTransitionException
 import ru.girchev.fsm.exception.FsmException
 import ru.girchev.fsm.impl.AbstractTransitionTable
 
 open class BTransitionTable<STATE>
 internal constructor(
-    override val transitions: Map<STATE, LinkedHashSet<out BTransition<STATE>>>
+    override val transitions: MutableMap<STATE, LinkedHashSet<BTransition<STATE>>>,
+    val autoTransitionEnabled: Boolean
 ) : AbstractTransitionTable<STATE, BTransition<STATE>>(transitions) {
 
     class Builder<STATE> {
 
         private val transitions: MutableMap<STATE, LinkedHashSet<BTransition<STATE>>> = hashMapOf()
+        private var autoTransitionEnabled: Boolean = false
+
+        /**
+         * Placeholder for symmetry with extended FSM DSL.
+         * For basic FSM auto transitions управляются через параметр конструктора `BFsm`.
+         */
+        fun autoTransitionEnabled(enabled: Boolean): Builder<STATE> {
+            this.autoTransitionEnabled = enabled
+            return this
+        }
 
         fun add(from: STATE, vararg to: STATE): Builder<STATE> {
             val list: List<BTransition<STATE>> = to.map { BTransition(from, To(it)) }
@@ -51,16 +65,23 @@ internal constructor(
         }
 
         fun build(): BTransitionTable<STATE> {
-            return BTransitionTable(transitions)
+            return BTransitionTable(transitions, autoTransitionEnabled)
         }
     }
 
     override fun createFsm(initialState: STATE): BFsm<STATE> {
-        return BFsm(initialState, this)
+        return BFsm(initialState, this, autoTransitionEnabled)
     }
 
     override fun <DOMAIN : StateContext<STATE>> createDomainFsm(): BDomainFsm<DOMAIN, STATE> {
-        return BDomainFsm(this)
+        return BDomainFsm(this, autoTransitionEnabled)
+    }
+
+    override fun getAutoTransition(context: StateContext<STATE>): BTransition<STATE>? {
+        return transitions[context.state]
+            ?.firstOrNull {
+                it.to.condition?.invoke(context) != false
+            }
     }
 }
 

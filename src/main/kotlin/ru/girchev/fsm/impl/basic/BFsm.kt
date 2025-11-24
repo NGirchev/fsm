@@ -10,10 +10,12 @@ open class BFsm<STATE> : AbstractFsm<STATE, BTransition<STATE>, BTransitionTable
     constructor(
         state: STATE,
         transitionTable: BTransitionTable<STATE>,
-    ) : super(state, transitionTable)
+        autoTransitionEnabled: Boolean = false
+    ) : super(state, transitionTable, autoTransitionEnabled)
 
     constructor(
         context: StateContext<STATE>,
         transitionTable: BTransitionTable<STATE>,
-    ) : super(context, transitionTable)
+        autoTransitionEnabled: Boolean = false
+    ) : super(context, transitionTable, autoTransitionEnabled)
 }

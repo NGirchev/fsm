@@ -7,7 +7,8 @@ import ru.girchev.fsm.impl.AbstractTransitionTable
 
 open class ExTransitionTable<STATE, EVENT>
 internal constructor(
-    override val transitions: Map<STATE, LinkedHashSet<ExTransition<STATE, EVENT>>>
+    override val transitions: Map<STATE, LinkedHashSet<ExTransition<STATE, EVENT>>>,
+    val autoTransitionEnabled: Boolean = true
 ) : AbstractTransitionTable<STATE, ExTransition<STATE, EVENT>>(transitions) {
 
     internal fun getTransitionByEvent(context: StateContext<STATE>, event: EVENT): ExTransition<STATE, EVENT>? {
@@ -16,9 +17,22 @@ internal constructor(
             ?.firstOrNull { it.to.condition?.invoke(context) ?: true }
     }
 
+    override fun getAutoTransition(context: StateContext<STATE>): ExTransition<STATE, EVENT>? {
+        return transitions[context.state]
+            ?.firstOrNull {
+                it.event == null && it.to.condition?.invoke(context) != false
+            }
+    }
+
     class Builder<STATE, EVENT> {
 
         internal val transitions: MutableMap<STATE, LinkedHashSet<ExTransition<STATE, EVENT>>> = hashMapOf()
+        private var autoTransitionEnabled: Boolean = true
+
+        fun autoTransitionEnabled(enabled: Boolean): Builder<STATE, EVENT> {
+            this.autoTransitionEnabled = enabled
+            return this
+        }
 
         fun add(
             from: STATE,
@@ -66,16 +80,16 @@ internal constructor(
         }
 
         fun build(): ExTransitionTable<STATE, EVENT> {
-            return ExTransitionTable(transitions)
+            return ExTransitionTable(transitions, autoTransitionEnabled)
         }
     }
 
     override fun createFsm(initialState: STATE): ExFsm<STATE, EVENT> {
-        return ExFsm(initialState, this)
+        return ExFsm(initialState, this, autoTransitionEnabled)
     }
 
     override fun <DOMAIN : StateContext<STATE>> createDomainFsm(): ExDomainFsm<DOMAIN, STATE, EVENT> {
-        return ExDomainFsm(this)
+        return ExDomainFsm(this, autoTransitionEnabled)
     }
 }
 

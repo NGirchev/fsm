@@ -27,29 +27,34 @@ internal class BFsmIT {
 
     private fun provideTransitions(): Stream<Arguments?>? {
         return Stream.of(
-            Arguments.of(Builder<String>()
-                .add(from = "NEW", "READY_FOR_SIGN")
-                .add(
-                    from = "READY_FOR_SIGN",
-                    To(
-                        "SIGNED",
-                        condition = { true },
-                        action = { logger.info { "SIGNED SUCCESSFUL" } }),
-                    To("CANCELLED")
-                )
-                .add(BTransition(
-                    from = "SIGNED",
-                    To(
-                        state = "AUTO_SENT",
-                        condition = { autoSendEnabled },
-                        action = { successfullySent = true; logger.info { "AUTO SENT ACTION" } }
-                    )
-                ))
-                .add(from = "SIGNED", "DONE", "CANCELED")
-                .add(from = "AUTO_SENT", "DONE", "CANCELED")
-                .build()),
             Arguments.of(
-                Builder<String>().from("NEW").to("READY_FOR_SIGN").end()
+                Builder<String>()
+                    .autoTransitionEnabled(true)
+                    .add(from = "NEW", "READY_FOR_SIGN")
+                    .add(
+                        from = "READY_FOR_SIGN",
+                        To(
+                            "SIGNED",
+                            condition = { true },
+                            action = { logger.info { "SIGNED SUCCESSFUL" } }),
+                        To("CANCELLED")
+                    )
+                    .add(
+                        BTransition(
+                            from = "SIGNED",
+                        To(
+                            state = "AUTO_SENT",
+                            condition = { autoSendEnabled },
+                            action = { successfullySent = true; logger.info { "AUTO SENT ACTION" } }
+                        )
+                    ))
+                    .add(from = "SIGNED", "DONE", "CANCELED")
+                    .add(from = "AUTO_SENT", "DONE", "CANCELED")
+                    .build()),
+            Arguments.of(
+                Builder<String>()
+                    .autoTransitionEnabled(true)
+                    .from("NEW").to("READY_FOR_SIGN").end()
                     .from("READY_FOR_SIGN").toMultiple()
                     .to("SIGNED").condition { true }.action { logger.info { "SIGNED SUCCESSFUL" } }.end()
                     .to("CANCELED").end().endMultiple()
@@ -106,6 +111,18 @@ internal class BFsmIT {
         fsm.toState("AUTO_SENT")
         // then
         assertEquals("AUTO_SENT", fsm.getState())
+        assertEquals(true, successfullySent)
+    }
+
+    @ParameterizedTest
+    @MethodSource("provideTransitions")
+    fun shouldChangeStatusToDone(transitions: BTransitionTable<String>) {
+        // given
+        val fsm = transitions.createFsm("READY_FOR_SIGN")
+        // when
+        fsm.toState("SIGNED")
+        // then
+        assertEquals("DONE", fsm.getState())
         assertEquals(true, successfullySent)
     }
 

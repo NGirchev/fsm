@@ -16,21 +16,29 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
     companion object : KLogging()
 
     internal open val transitionTable: TRANSITION_TABLE
+    /**
+     * Enable auto transitions based on transition table.
+     */
+    private val autoTransitionEnabled: Boolean
 
     constructor(
         state: STATE,
         transitionTable: TRANSITION_TABLE,
+        autoTransitionEnabled: Boolean = false,
     ) {
         transitionTable.also { this.transitionTable = it }
         this.context = DefaultStateContext(state)
+        this.autoTransitionEnabled = autoTransitionEnabled
     }
 
     constructor(
         context: StateContext<STATE>,
         transitionTable: TRANSITION_TABLE,
+        autoTransitionEnabled: Boolean = false
     ) {
         transitionTable.also { this.transitionTable = it }
         this.context = context
+        this.autoTransitionEnabled = autoTransitionEnabled
     }
 
     internal val context: StateContext<STATE>
@@ -51,6 +59,13 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
     }
 
     override fun toState(transition: TRANSITION) {
+        executeSingleTransition(transition)
+        if (autoTransitionEnabled) {
+            performAutoTransitions()
+        }
+    }
+
+    private fun executeSingleTransition(transition: TRANSITION) {
         val oldState = context.state
         if (transition.from != oldState) throw FsmException(
             "Current state $oldState doesn't fit " +
@@ -60,6 +75,13 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
             Thread.sleep(it * 1000)
         }
         transitionExecution(transition)
+    }
+
+    private fun performAutoTransitions() {
+        while (true) {
+            val autoTransition = transitionTable.getAutoTransition(context) ?: return
+            executeSingleTransition(autoTransition)
+        }
     }
 
     private fun transitionExecution(transition: TRANSITION) {

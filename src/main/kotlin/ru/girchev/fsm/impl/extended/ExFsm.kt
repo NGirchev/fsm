@@ -9,7 +9,6 @@ open class ExFsm<STATE, EVENT> :
     AbstractFsm<STATE, ExTransition<STATE, EVENT>, ExTransitionTable<STATE, EVENT>>, EventSupport<EVENT> {
 
     final override val transitionTable: ExTransitionTable<STATE, EVENT>
-    private val autoTransitionEnabled: Boolean
 
     constructor(
         state: STATE,
@@ -18,10 +17,9 @@ open class ExFsm<STATE, EVENT> :
     ) : super(
         state,
         transitionTable,
+        autoTransitionEnabled
     ) {
-
         this.transitionTable = transitionTable
-        this.autoTransitionEnabled = autoTransitionEnabled
     }
 
     constructor(
@@ -31,29 +29,14 @@ open class ExFsm<STATE, EVENT> :
     ) : super(
         context,
         transitionTable,
+        autoTransitionEnabled
     ) {
         this.transitionTable = transitionTable
-        this.autoTransitionEnabled = autoTransitionEnabled
     }
 
     override fun onEvent(event: EVENT) {
-        transitionTable.getTransitionByEvent(context, event).also {
-            if (it == null) throw FsmEventSourcingTransitionFailedException(context.state.toString(), event.toString())
-            changeState(it)
-        }
-    }
-
-    private fun changeState(transition: ExTransition<STATE, EVENT>) {
-        super.toState(transition)
-        if (autoTransitionEnabled) {
-            getAutoTransition()?.also { changeState(it) }
-        }
-    }
-
-    private fun getAutoTransition(): ExTransition<STATE, EVENT>? {
-        return transitionTable.transitions[context.state]
-            ?.firstOrNull {
-                it.event == null && it.to.condition?.invoke(context) != false
-            }
+        val transition = transitionTable.getTransitionByEvent(context, event)
+            ?: throw FsmEventSourcingTransitionFailedException(context.state.toString(), event.toString())
+        toState(transition)
     }
 }
