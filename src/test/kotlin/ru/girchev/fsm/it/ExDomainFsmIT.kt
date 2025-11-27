@@ -38,33 +38,33 @@ internal class ExDomainFsmIT {
             Arguments.of(
                 ExDomainFsm(
                     ExTransitionTable.Builder<DocumentState, String>()
-                        .add(from = NEW, event = "TO_READY", to = READY_FOR_SIGN)
-                        .add(from = READY_FOR_SIGN, event = "USER_SIGN", to = SIGNED, timeout = Timeout(1))
-                        .add(from = READY_FOR_SIGN, event = "FAILED_EVENT", to = CANCELED)
-                        .add(from = SIGNED, event = "FAILED_EVENT", to = CANCELED)
+                        .add(from = NEW, onEvent = "TO_READY", to = READY_FOR_SIGN)
+                        .add(from = READY_FOR_SIGN, onEvent = "USER_SIGN", to = SIGNED, timeout = Timeout(1))
+                        .add(from = READY_FOR_SIGN, onEvent = "FAILED_EVENT", to = CANCELED)
+                        .add(from = SIGNED, onEvent = "FAILED_EVENT", to = CANCELED)
                         .add(
-                            from = SIGNED, event = "TO_END",                        // switch case example
+                            from = SIGNED, onEvent = "TO_END",                        // switch case example
                             To(AUTO_SENT, condition = { document.signRequired }),   // first
                             To(DONE, condition = { !document.signRequired }),       // second
                             To(CANCELED)                                            // else
                         )
-                        .add(from = AUTO_SENT, event = "TO_END", to = DONE)
+                        .add(from = AUTO_SENT, onEvent = "TO_END", to = DONE)
                         .build()
                 )
             ),
             Arguments.of(
                 ExDomainFsm(
                     ExTransitionTable.Builder<DocumentState, String>()
-                        .from(NEW).to(READY_FOR_SIGN).event("TO_READY").end()
+                        .from(NEW).to(READY_FOR_SIGN).onEvent("TO_READY").end()
                         .from(READY_FOR_SIGN).toMultiple()
-                        .to(SIGNED).event("USER_SIGN").timeout(Timeout(1)).end()
-                        .to(CANCELED).event("FAILED_EVENT").end().endMultiple()
-                        .from(SIGNED).event("FAILED_EVENT").to(CANCELED).end()
-                        .from(SIGNED).event("TO_END").toMultiple()                  // switch case example
+                        .to(SIGNED).onEvent("USER_SIGN").timeout(Timeout(1)).end()
+                        .to(CANCELED).onEvent("FAILED_EVENT").end().endMultiple()
+                        .from(SIGNED).onEvent("FAILED_EVENT").to(CANCELED).end()
+                        .from(SIGNED).onEvent("TO_END").toMultiple()                  // switch case example
                         .to(AUTO_SENT).condition { document.signRequired }.end()    // first
                         .to(DONE).condition { !document.signRequired }.end()        // second
                         .to(CANCELED).end().endMultiple()                           // else
-                        .from(AUTO_SENT).event("TO_END").to(DONE).end()
+                        .from(AUTO_SENT).onEvent("TO_END").to(DONE).end()
                         .build()
                 )
             )
@@ -150,14 +150,14 @@ internal class ExDomainFsmIT {
         // given
         val fsm = ExDomainFsm(
             ExTransitionTable.Builder<DocumentState, String>()
-                .add(from = SIGNED, event = "FAILED_EVENT", to = CANCELED)
+                .add(from = SIGNED, onEvent = "FAILED_EVENT", to = CANCELED)
                 .add(
-                    from = SIGNED, event = "TO_END",                        // switch case example
+                    from = SIGNED, onEvent = "TO_END",                        // switch case example
                     To(AUTO_SENT, condition = { false }),                   // first
                     To(DONE, condition = { false }),                        // second
                     To(CANCELED)                                            // else
                 )
-                .add(from = AUTO_SENT, event = "TO_END", to = DONE)
+                .add(from = AUTO_SENT, onEvent = "TO_END", to = DONE)
                 .build()
         )
         document.state = SIGNED
@@ -172,14 +172,14 @@ internal class ExDomainFsmIT {
         // given
         val fsm = ExDomainFsm(
             ExTransitionTable.Builder<DocumentState, String>()
-                .add(from = SIGNED, event = "FAILED_EVENT", to = CANCELED)
+                .add(from = SIGNED, onEvent = "FAILED_EVENT", to = CANCELED)
                 .add(
-                    from = SIGNED, event = "TO_END",                        // switch case example
+                    from = SIGNED, onEvent = "TO_END",                        // switch case example
                     To(AUTO_SENT, condition = { false }),                   // first
                     To(DONE, condition = { false }),                        // second
                     To(CANCELED, condition = { false })                     // third
                 )
-                .add(from = AUTO_SENT, event = "TO_END", to = DONE)
+                .add(from = AUTO_SENT, onEvent = "TO_END", to = DONE)
                 .build()
         )
         document.state = SIGNED
@@ -196,7 +196,7 @@ internal class ExDomainFsmIT {
         val fsm = ExDomainFsm(
             ExTransitionTable.Builder<DocumentState, String>()
                 .add(
-                    from = NEW, event = "TO_END",
+                    from = NEW, onEvent = "TO_END",
                     To(READY_FOR_SIGN, condition = { true }),
                     To(SIGNED, condition = { true }),
                     To(CANCELED)
@@ -218,9 +218,9 @@ internal class ExDomainFsmIT {
     fun shouldChangeStatusToFirstInSwitchWhenEventIsNull() {
         val fsm = ExDomainFsm(
             ExTransitionTable.Builder<DocumentState, String>()
-                .add(from = NEW, event = "TO_END", to = READY_FOR_SIGN)
+                .add(from = NEW, onEvent = "TO_END", to = READY_FOR_SIGN)
                 .add(
-                    from = READY_FOR_SIGN, event = null,
+                    from = READY_FOR_SIGN, onEvent = null,
                     To(SIGNED, condition = { true }),
                     To(AUTO_SENT, condition = { true }),
                     To(DONE, condition = { true }),
@@ -245,12 +245,12 @@ internal class ExDomainFsmIT {
         val fsm = ExDomainFsm(
             ExTransitionTable.Builder<DocumentState, String>()
                 .add(
-                    from = NEW, event = "TO_END", to = READY_FOR_SIGN,
+                    from = NEW, onEvent = "TO_END", to = READY_FOR_SIGN,
                     action = { prt(it) },
                     timeout = Timeout(1)
                 )
                 .add(
-                    from = READY_FOR_SIGN, event = null,
+                    from = READY_FOR_SIGN, onEvent = null,
                     To(
                         CANCELED, condition = { false },
                         action = { prt(it) },
@@ -310,7 +310,7 @@ internal class ExDomainFsmIT {
 
         val fsm = ExDomainFsm(
             ExTransitionTable.Builder<DocumentState, String>()
-                .from(NEW).event("PROCESS").to(READY_FOR_SIGN)
+                .from(NEW).onEvent("PROCESS").to(READY_FOR_SIGN)
                 .condition { conditionCallCount++; true }
                 .condition { conditionCallCount++; true }
                 .action { actionCallCount++ }
@@ -342,7 +342,7 @@ internal class ExDomainFsmIT {
 
         val fsm = ExDomainFsm(
             ExTransitionTable.Builder<DocumentState, String>()
-                .from(NEW).event("PROCESS").to(READY_FOR_SIGN)
+                .from(NEW).onEvent("PROCESS").to(READY_FOR_SIGN)
                 .condition { condition1Called = true; true }
                 .condition { condition2Called = true; false }  // This one returns false
                 .end()

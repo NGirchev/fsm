@@ -7,12 +7,12 @@ open class ExTransition<STATE, EVENT> : BTransition<STATE> {
 
     val event: EVENT?
 
-    constructor(from: STATE, to: STATE, event: EVENT? = null) : super(from, To(to)) {
-        this.event = event
+    constructor(from: STATE, to: STATE, onEvent: EVENT? = null) : super(from, To(to)) {
+        this.event = onEvent
     }
 
-    constructor(from: STATE, to: To<STATE>, event: EVENT? = null) : super(from, to) {
-        this.event = event
+    constructor(from: STATE, to: To<STATE>, onEvent: EVENT? = null) : super(from, to) {
+        this.event = onEvent
     }
 
     override fun equals(other: Any?): Boolean {

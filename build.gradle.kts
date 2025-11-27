@@ -10,7 +10,7 @@ plugins {
 }
 
 group = "ru.girchev"
-version = "0.1.5a-SNAPSHOT"
+version = "0.2.0a-SNAPSHOT"
 
 repositories {
     mavenCentral()

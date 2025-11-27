@@ -21,14 +21,14 @@ class JavaExDomainFsmIT {
 
         ExDomainFsm<Document, DocumentState, String> fsm =
                 FsmFactory.INSTANCE.<DocumentState, String>statesWithEvents()
-                        .from(NEW).to(READY_FOR_SIGN).event("TO_READY").end()
+                        .from(NEW).to(READY_FOR_SIGN).onEvent("TO_READY").end()
 
                         .from(READY_FOR_SIGN).toMultiple()
-                        .to(SIGNED).event("USER_SIGN").end()
-                        .to(CANCELED).event("FAILED_EVENT").end()
+                        .to(SIGNED).onEvent("USER_SIGN").end()
+                        .to(CANCELED).onEvent("FAILED_EVENT").end()
                         .endMultiple()
 
-                        .from(SIGNED).event("TO_END").toMultiple()
+                        .from(SIGNED).onEvent("TO_END").toMultiple()
                         .to(AUTO_SENT).condition(ctx -> ((Document) ctx).getSignRequired())
                         .action(ctx -> {
                             System.out.println("AUTO_SENT");
@@ -39,7 +39,7 @@ class JavaExDomainFsmIT {
                         .to(CANCELED).end()
                         .endMultiple()
 
-                        .from(AUTO_SENT).event("TO_END").to(DONE).end()
+                        .from(AUTO_SENT).onEvent("TO_END").to(DONE).end()
                         .build()
                         .createDomainFsm();
 

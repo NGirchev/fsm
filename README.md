@@ -22,12 +22,12 @@ enum class DocumentState {
 ```
 fun main() {
     val fsm = FsmFactory.statesWithEvents<String, String>()
-        .add(from = "NEW", to = "READY_FOR_SIGN", event = "TO_READY")
-        .add(from = "READY_FOR_SIGN", to = "SIGNED", event = "USER_SIGN")
-        .add(from = "READY_FOR_SIGN", to = "CANCELED", event = "FAILED_EVENT")
+        .add(from = "NEW", to = "READY_FOR_SIGN", onEvent = "TO_READY")
+        .add(from = "READY_FOR_SIGN", to = "SIGNED", onEvent = "USER_SIGN")
+        .add(from = "READY_FOR_SIGN", to = "CANCELED", onEvent = "FAILED_EVENT")
         .add(from = "SIGNED", to = "AUTO_SENT")
-        .add(from = "AUTO_SENT", to = "DONE", event = "SUCCESS_EVENT")
-        .add(from = "AUTO_SENT", to = "CANCELED", event = "FAILED_EVENT")
+        .add(from = "AUTO_SENT", to = "DONE", onEvent = "SUCCESS_EVENT")
+        .add(from = "AUTO_SENT", to = "CANCELED", onEvent = "FAILED_EVENT")
         .build()
         .createFsm("NEW")
     println("Initial state: ${fsm.getState()}")
@@ -58,17 +58,17 @@ fun main() {
     val document = Document(signRequired = true)
     val fsm = FsmFactory
         .statesWithEvents<DocumentState, String>()
-        .add(from = NEW, event = "TO_READY", to = READY_FOR_SIGN)
-        .add(from = READY_FOR_SIGN, event = "USER_SIGN", to = SIGNED)
-        .add(from = READY_FOR_SIGN, event = "FAILED_EVENT", to = CANCELED)
-        .add(from = SIGNED, event = "FAILED_EVENT", to = CANCELED)
+        .add(from = NEW, onEvent = "TO_READY", to = READY_FOR_SIGN)
+        .add(from = READY_FOR_SIGN, onEvent = "USER_SIGN", to = SIGNED)
+        .add(from = READY_FOR_SIGN, onEvent = "FAILED_EVENT", to = CANCELED)
+        .add(from = SIGNED, onEvent = "FAILED_EVENT", to = CANCELED)
         .add(
-            from = SIGNED, event = "TO_END",                                        // switch case example
+            from = SIGNED, onEvent = "TO_END",                                        // switch case example
             To(AUTO_SENT, condition = { document.signRequired }),                   // first
             To(DONE, condition = { !document.signRequired }),                       // second
             To(CANCELED)                                                            // else
         )
-        .add(from = AUTO_SENT, event = "TO_END", to = DONE)
+        .add(from = AUTO_SENT, onEvent = "TO_END", to = DONE)
         .build()
         .createDomainFsm<Document>()
     try {
@@ -103,20 +103,20 @@ We rewrite code with the same transitions
 fun main() {
     val document = Document(signRequired = true)
     val fsm = FsmFactory.statesWithEvents<DocumentState, String>()
-            .from(NEW).to(READY_FOR_SIGN).event("TO_READY").end()
+            .from(NEW).to(READY_FOR_SIGN).onEvent("TO_READY").end()
 
             .from(READY_FOR_SIGN).toMultiple()
-            .to(SIGNED).event("USER_SIGN").end()
-            .to(CANCELED).event("FAILED_EVENT").end()
+            .to(SIGNED).onEvent("USER_SIGN").end()
+            .to(CANCELED).onEvent("FAILED_EVENT").end()
             .endMultiple()
 
-            .from(SIGNED).event("TO_END").toMultiple()
+            .from(SIGNED).onEvent("TO_END").toMultiple()
             .to(AUTO_SENT).condition { document.signRequired }.end()
             .to(DONE).condition { !document.signRequired }.end()
             .to(CANCELED).end()
             .endMultiple()
 
-            .from(AUTO_SENT).event("TO_END").to(DONE).end()
+            .from(AUTO_SENT).onEvent("TO_END").to(DONE).end()
             .build().createDomainFsm<Document>()
     try {
         fsm.handle(document, "FAILED_EVENT")
@@ -142,7 +142,7 @@ fun main() {
 ```
 fun main() {
     val fsm = ExFsm("INITIAL", ExTransitionTable.Builder<String, String>()
-        .add(ExTransition(from = "INITIAL", to = "GREEN", event = "RUN"))
+        .add(ExTransition(from = "INITIAL", to = "GREEN", onEvent = "RUN"))
         .add(ExTransition(from = "RED", to = To("GREEN", timeout = Timeout(3), action = { println(it) })))
         .add(ExTransition(from = "GREEN", to = To("YELLOW", timeout = Timeout(3), action = { println(it) })))
         .add(ExTransition(from = "YELLOW", to = To("RED", timeout = Timeout(3), action = { println(it) })))
@@ -155,7 +155,7 @@ OR
 ```
 fun main() {
     val fsm = FsmFactory.statesWithEvents<String, String>()
-            .from("INITIAL").to("GREEN").event("RUN").end()
+            .from("INITIAL").to("GREEN").onEvent("RUN").end()
             .from("RED").to("GREEN").timeout(Timeout(3)).action { println(it) }.end()
             .from("GREEN").to("YELLOW").timeout(Timeout(3)).action { println(it) }.end()
             .from("YELLOW").to("RED").timeout(Timeout(3)).action { println(it) }.end()

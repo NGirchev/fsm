@@ -11,12 +11,12 @@ import kotlin.test.assertEquals
 internal class ExFsmIT {
 
     private val transitions = ExTransitionTable.Builder<String, String>()
-        .add(ExTransition(from = "NEW", to = "READY_FOR_SIGN", event = "TO_READY"))
-        .add(ExTransition(from = "READY_FOR_SIGN", to = "SIGNED", event = "USER_SIGN"))
-        .add(ExTransition(from = "READY_FOR_SIGN", to = "CANCELED", event = "FAILED_EVENT"))
+        .add(ExTransition(from = "NEW", to = "READY_FOR_SIGN", onEvent = "TO_READY"))
+        .add(ExTransition(from = "READY_FOR_SIGN", to = "SIGNED", onEvent = "USER_SIGN"))
+        .add(ExTransition(from = "READY_FOR_SIGN", to = "CANCELED", onEvent = "FAILED_EVENT"))
         .add(ExTransition(from = "SIGNED", to = "AUTO_SENT"))
-        .add(ExTransition(from = "AUTO_SENT", to = "DONE", event = "SUCCESS_EVENT"))
-        .add(ExTransition(from = "AUTO_SENT", to = "CANCELED", event = "FAILED_EVENT"))
+        .add(ExTransition(from = "AUTO_SENT", to = "DONE", onEvent = "SUCCESS_EVENT"))
+        .add(ExTransition(from = "AUTO_SENT", to = "CANCELED", onEvent = "FAILED_EVENT"))
         .build()
 
     @Test

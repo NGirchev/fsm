@@ -36,7 +36,7 @@ internal constructor(
 
         fun add(
             from: STATE,
-            event: EVENT? = null,
+            onEvent: EVENT? = null,
             to: STATE,
             condition: Guard<in StateContext<STATE>>? = null,
             action: Action<in StateContext<STATE>>? = null,
@@ -45,7 +45,7 @@ internal constructor(
         ): Builder<STATE, EVENT> {
             transitions.getOrPut(from) { LinkedHashSet() }
                 .also { transitionSet ->
-                    val transition = ExTransition(from, To(to, condition, action, postAction, timeout), event)
+                    val transition = ExTransition(from, To(to, condition, action, postAction, timeout), onEvent)
                     if (!transitionSet.add(transition)) {
                         throw DuplicateTransitionException(transition)
                     }
@@ -63,11 +63,11 @@ internal constructor(
             return this
         }
 
-        fun add(from: STATE, event: EVENT? = null, vararg to: To<STATE>): Builder<STATE, EVENT> {
+        fun add(from: STATE, onEvent: EVENT? = null, vararg to: To<STATE>): Builder<STATE, EVENT> {
             for (t in to) {
                 transitions.getOrPut(from) { LinkedHashSet() }
                     .also { transitionSet ->
-                        val transition = ExTransition(from, t, event)
+                        val transition = ExTransition(from, t, onEvent)
                         if (!transitionSet.add(transition)) {
                             throw DuplicateTransitionException(transition)
                         }
@@ -100,7 +100,7 @@ class FromBuilder<STATE, EVENT>(
 ) {
     private var event: EVENT? = null
 
-    fun event(event: EVENT): FromBuilder<STATE, EVENT> {
+    fun onEvent(event: EVENT): FromBuilder<STATE, EVENT> {
         if (this.event != null) {
             throw FsmException("Already has event")
         }
@@ -128,7 +128,7 @@ class ToBuilder<STATE, EVENT>(
     private val postActions: MutableList<Action<in StateContext<STATE>>> = mutableListOf()
     private var timeout: Timeout? = null
 
-    fun event(event: EVENT): ToBuilder<STATE, EVENT> {
+    fun onEvent(event: EVENT): ToBuilder<STATE, EVENT> {
         if (this.event != null) {
             throw FsmException("Already has event")
         }
@@ -199,7 +199,7 @@ class ToMultipleTransitionBuilder<STATE, EVENT>(
     private val postActions: MutableList<Action<in StateContext<STATE>>> = mutableListOf()
     private var timeout: Timeout? = null
 
-    fun event(event: EVENT): ToMultipleTransitionBuilder<STATE, EVENT> {
+    fun onEvent(event: EVENT): ToMultipleTransitionBuilder<STATE, EVENT> {
         if (this.event != null) {
             throw FsmException("Already has event")
         }
