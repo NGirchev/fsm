@@ -37,36 +37,36 @@ internal class ExDomainFsmIT {
         return Stream.of(
             Arguments.of(
                 ExDomainFsm(
-                ExTransitionTable.Builder<DocumentState, String>()
-                    .add(from = NEW, event = "TO_READY", to = READY_FOR_SIGN)
-                    .add(from = READY_FOR_SIGN, event = "USER_SIGN", to = SIGNED, timeout = Timeout(1))
-                    .add(from = READY_FOR_SIGN, event = "FAILED_EVENT", to = CANCELED)
-                    .add(from = SIGNED, event = "FAILED_EVENT", to = CANCELED)
-                    .add(
-                        from = SIGNED, event = "TO_END",                        // switch case example
-                        To(AUTO_SENT, condition = { document.signRequired }),   // first
-                        To(DONE, condition = { !document.signRequired }),       // second
-                        To(CANCELED)                                            // else
-                    )
-                    .add(from = AUTO_SENT, event = "TO_END", to = DONE)
-                    .build()
-            )
+                    ExTransitionTable.Builder<DocumentState, String>()
+                        .add(from = NEW, event = "TO_READY", to = READY_FOR_SIGN)
+                        .add(from = READY_FOR_SIGN, event = "USER_SIGN", to = SIGNED, timeout = Timeout(1))
+                        .add(from = READY_FOR_SIGN, event = "FAILED_EVENT", to = CANCELED)
+                        .add(from = SIGNED, event = "FAILED_EVENT", to = CANCELED)
+                        .add(
+                            from = SIGNED, event = "TO_END",                        // switch case example
+                            To(AUTO_SENT, condition = { document.signRequired }),   // first
+                            To(DONE, condition = { !document.signRequired }),       // second
+                            To(CANCELED)                                            // else
+                        )
+                        .add(from = AUTO_SENT, event = "TO_END", to = DONE)
+                        .build()
+                )
             ),
             Arguments.of(
                 ExDomainFsm(
-                ExTransitionTable.Builder<DocumentState, String>()
-                    .from(NEW).to(READY_FOR_SIGN).event("TO_READY").end()
-                    .from(READY_FOR_SIGN).toMultiple()
-                    .to(SIGNED).event("USER_SIGN").timeout(Timeout(1)).end()
-                    .to(CANCELED).event("FAILED_EVENT").end().endMultiple()
-                    .from(SIGNED).event("FAILED_EVENT").to(CANCELED).end()
-                    .from(SIGNED).event("TO_END").toMultiple()                  // switch case example
-                    .to(AUTO_SENT).condition { document.signRequired }.end()    // first
-                    .to(DONE).condition { !document.signRequired }.end()        // second
-                    .to(CANCELED).end().endMultiple()                           // else
-                    .from(AUTO_SENT).event("TO_END").to(DONE).end()
-                    .build()
-            )
+                    ExTransitionTable.Builder<DocumentState, String>()
+                        .from(NEW).to(READY_FOR_SIGN).event("TO_READY").end()
+                        .from(READY_FOR_SIGN).toMultiple()
+                        .to(SIGNED).event("USER_SIGN").timeout(Timeout(1)).end()
+                        .to(CANCELED).event("FAILED_EVENT").end().endMultiple()
+                        .from(SIGNED).event("FAILED_EVENT").to(CANCELED).end()
+                        .from(SIGNED).event("TO_END").toMultiple()                  // switch case example
+                        .to(AUTO_SENT).condition { document.signRequired }.end()    // first
+                        .to(DONE).condition { !document.signRequired }.end()        // second
+                        .to(CANCELED).end().endMultiple()                           // else
+                        .from(AUTO_SENT).event("TO_END").to(DONE).end()
+                        .build()
+                )
             )
         )
     }
@@ -307,7 +307,7 @@ internal class ExDomainFsmIT {
         var conditionCallCount = 0
         var actionCallCount = 0
         var postActionCallCount = 0
-        
+
         val fsm = ExDomainFsm(
             ExTransitionTable.Builder<DocumentState, String>()
                 .from(NEW).event("PROCESS").to(READY_FOR_SIGN)
@@ -320,13 +320,13 @@ internal class ExDomainFsmIT {
                 .end()
                 .build()
         )
-        
+
         document = Document()
         document.state = NEW
-        
+
         // when
         fsm.handle(document, "PROCESS")
-        
+
         // then
         assertEquals(READY_FOR_SIGN, document.state)
         assertEquals(2, conditionCallCount, "Both conditions should be checked")
@@ -339,7 +339,7 @@ internal class ExDomainFsmIT {
         // Test that if one of multiple conditions is false, transition fails
         var condition1Called = false
         var condition2Called = false
-        
+
         val fsm = ExDomainFsm(
             ExTransitionTable.Builder<DocumentState, String>()
                 .from(NEW).event("PROCESS").to(READY_FOR_SIGN)
@@ -348,15 +348,15 @@ internal class ExDomainFsmIT {
                 .end()
                 .build()
         )
-        
+
         document = Document()
         document.state = NEW
-        
+
         // when - should throw exception because one condition is false
         Assertions.assertThrows(FsmException::class.java) {
             fsm.handle(document, "PROCESS")
         }
-        
+
         // then
         assertEquals(NEW, document.state, "State should not change")
         assertTrue(condition1Called, "First condition should be checked")
