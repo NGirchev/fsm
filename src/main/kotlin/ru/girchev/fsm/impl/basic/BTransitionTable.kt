@@ -52,7 +52,16 @@ internal constructor(
         fun add(from: STATE, vararg to: To<STATE>): Builder<STATE> {
             for (t in to) {
                 transitions.putIfAbsent(from, LinkedHashSet())
-                val transition = BTransition(from, To(t.state, t.condition, t.action, t.timeout))
+                val transition = BTransition(
+                    from,
+                    To(
+                        state = t.state,
+                        condition = t.condition,
+                        action = t.action,
+                        postAction = t.postAction,
+                        timeout = t.timeout,
+                    )
+                )
                 if (!transitions[from]!!.add(transition)) {
                     throw DuplicateTransitionException(transition)
                 }
@@ -105,6 +114,7 @@ class ToBuilder<STATE>(
 ) {
     private var condition: Guard<in StateContext<STATE>>? = null
     private var action: Action<in StateContext<STATE>>? = null
+    private var postAction: Action<in StateContext<STATE>>? = null
 
     fun condition(condition: Guard<in StateContext<STATE>>): ToBuilder<STATE> {
         if (this.condition != null) {
@@ -116,9 +126,17 @@ class ToBuilder<STATE>(
 
     fun action(action: Action<in StateContext<STATE>>): ToBuilder<STATE> {
         if (this.action != null) {
-            throw FsmException("Already has condition")
+            throw FsmException("Already has action")
         }
         this.action = action
+        return this
+    }
+
+    fun postAction(postAction: Action<in StateContext<STATE>>): ToBuilder<STATE> {
+        if (this.postAction != null) {
+            throw FsmException("Already has postAction")
+        }
+        this.postAction = postAction
         return this
     }
 
@@ -157,6 +175,7 @@ class ToMultipleTransitionBuilder<STATE>(
 ) {
     private var condition: Guard<in StateContext<STATE>>? = null
     private var action: Action<in StateContext<STATE>>? = null
+    private var postAction: Action<in StateContext<STATE>>? = null
 
     fun condition(condition: Guard<in StateContext<STATE>>): ToMultipleTransitionBuilder<STATE> {
         if (this.condition != null) {
@@ -171,6 +190,14 @@ class ToMultipleTransitionBuilder<STATE>(
             throw FsmException("Already has action")
         }
         this.action = action
+        return this
+    }
+
+    fun postAction(postAction: Action<in StateContext<STATE>>): ToMultipleTransitionBuilder<STATE> {
+        if (this.postAction != null) {
+            throw FsmException("Already has action")
+        }
+        this.postAction = postAction
         return this
     }
 

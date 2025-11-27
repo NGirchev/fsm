@@ -14,6 +14,7 @@ data class To<STATE>(
     val state: STATE,
     val condition: Guard<in StateContext<STATE>>? = null,
     val action: Action<in StateContext<STATE>>? = null,
+    val postAction: Action<in StateContext<STATE>>? = null,
     val timeout: Timeout? = null
 )
 

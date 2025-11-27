@@ -90,6 +90,7 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
 
         transition.to.action?.invoke(context)
         context.state = newState
+        transition.to.postAction?.invoke(context)
         notify(context, oldState, newState)
     }
 

@@ -29,6 +29,7 @@ abstract class AbstractTransition<STATE> (
         return "AbstractTransition(from=$from, to=${to.state}, " +
                 "hasCondition=${to.condition != null}, " +
                 "hasAction=${to.action != null}, " +
+                "hasPostAction=${to.postAction != null}, " +
                 "timeout=${to.timeout})"
     }
 }
