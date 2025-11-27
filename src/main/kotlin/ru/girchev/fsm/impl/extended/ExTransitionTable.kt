@@ -14,13 +14,13 @@ internal constructor(
     internal fun getTransitionByEvent(context: StateContext<STATE>, event: EVENT): ExTransition<STATE, EVENT>? {
         return transitions[context.state]
             ?.filter { it.event == event }
-            ?.firstOrNull { it.to.condition?.invoke(context) ?: true }
+            ?.firstOrNull { it.to.conditions.all { condition -> condition.invoke(context) } }
     }
 
     override fun getAutoTransition(context: StateContext<STATE>): ExTransition<STATE, EVENT>? {
         return transitions[context.state]
             ?.firstOrNull {
-                it.event == null && it.to.condition?.invoke(context) != false
+                it.event == null && it.to.conditions.all { condition -> condition.invoke(context) }
             }
     }
 
@@ -123,9 +123,9 @@ class ToBuilder<STATE, EVENT>(
     private val rootBuilder: ExTransitionTable.Builder<STATE, EVENT>,
     private var event: EVENT? = null
 ) {
-    private var condition: Guard<in StateContext<STATE>>? = null
-    private var action: Action<in StateContext<STATE>>? = null
-    private var postAction: Action<in StateContext<STATE>>? = null
+    private val conditions: MutableList<Guard<in StateContext<STATE>>> = mutableListOf()
+    private val actions: MutableList<Action<in StateContext<STATE>>> = mutableListOf()
+    private val postActions: MutableList<Action<in StateContext<STATE>>> = mutableListOf()
     private var timeout: Timeout? = null
 
     fun event(event: EVENT): ToBuilder<STATE, EVENT> {
@@ -137,26 +137,17 @@ class ToBuilder<STATE, EVENT>(
     }
 
     fun condition(condition: Guard<in StateContext<STATE>>): ToBuilder<STATE, EVENT> {
-        if (this.condition != null) {
-            throw FsmException("Already has condition")
-        }
-        this.condition = condition
+        this.conditions.add(condition)
         return this
     }
 
     fun action(action: Action<in StateContext<STATE>>): ToBuilder<STATE, EVENT> {
-        if (this.action != null) {
-            throw FsmException("Already has action")
-        }
-        this.action = action
+        this.actions.add(action)
         return this
     }
 
     fun postAction(postAction: Action<in StateContext<STATE>>): ToBuilder<STATE, EVENT> {
-        if (this.postAction != null) {
-            throw FsmException("Already has postAction")
-        }
-        this.postAction = postAction
+        this.postActions.add(postAction)
         return this
     }
 
@@ -169,7 +160,7 @@ class ToBuilder<STATE, EVENT>(
     }
 
     fun end(): ExTransitionTable.Builder<STATE, EVENT> {
-        return rootBuilder.add(ExTransition(from, To(to, condition, action, postAction, timeout), event))
+        return rootBuilder.add(ExTransition(from, To(to, conditions, actions, postActions, timeout), event))
     }
 }
 
@@ -203,9 +194,9 @@ class ToMultipleTransitionBuilder<STATE, EVENT>(
     private val multipleBuilder: ToMultipleBuilder<STATE, EVENT>,
     private var event: EVENT? = null
 ) {
-    private var condition: Guard<in StateContext<STATE>>? = null
-    private var action: Action<in StateContext<STATE>>? = null
-    private var postAction: Action<in StateContext<STATE>>? = null
+    private val conditions: MutableList<Guard<in StateContext<STATE>>> = mutableListOf()
+    private val actions: MutableList<Action<in StateContext<STATE>>> = mutableListOf()
+    private val postActions: MutableList<Action<in StateContext<STATE>>> = mutableListOf()
     private var timeout: Timeout? = null
 
     fun event(event: EVENT): ToMultipleTransitionBuilder<STATE, EVENT> {
@@ -217,26 +208,17 @@ class ToMultipleTransitionBuilder<STATE, EVENT>(
     }
 
     fun condition(condition: Guard<in StateContext<STATE>>): ToMultipleTransitionBuilder<STATE, EVENT> {
-        if (this.condition != null) {
-            throw FsmException("Already has condition")
-        }
-        this.condition = condition
+        this.conditions.add(condition)
         return this
     }
 
     fun action(action: Action<in StateContext<STATE>>): ToMultipleTransitionBuilder<STATE, EVENT> {
-        if (this.action != null) {
-            throw FsmException("Already has action")
-        }
-        this.action = action
+        this.actions.add(action)
         return this
     }
 
     fun postAction(postAction: Action<in StateContext<STATE>>): ToMultipleTransitionBuilder<STATE, EVENT> {
-        if (this.postAction != null) {
-            throw FsmException("Already has postAction")
-        }
-        this.postAction = postAction
+        this.postActions.add(postAction)
         return this
     }
 
@@ -249,6 +231,6 @@ class ToMultipleTransitionBuilder<STATE, EVENT>(
     }
 
     fun end(): ToMultipleBuilder<STATE, EVENT> {
-        return multipleBuilder.addTransition(ExTransition(from, To(to, condition, action, postAction, timeout), event))
+        return multipleBuilder.addTransition(ExTransition(from, To(to, conditions, actions, postActions, timeout), event))
     }
 }

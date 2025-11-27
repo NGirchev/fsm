@@ -88,9 +88,9 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
         val oldState = context.state
         val newState = transition.to.state
 
-        transition.to.action?.invoke(context)
+        transition.to.actions.forEach { it.invoke(context) }
         context.state = newState
-        transition.to.postAction?.invoke(context)
+        transition.to.postActions.forEach { it.invoke(context) }
         notify(context, oldState, newState)
     }
 

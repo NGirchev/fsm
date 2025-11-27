@@ -27,9 +27,9 @@ abstract class AbstractTransition<STATE> (
 
     override fun toString(): String {
         return "AbstractTransition(from=$from, to=${to.state}, " +
-                "hasCondition=${to.condition != null}, " +
-                "hasAction=${to.action != null}, " +
-                "hasPostAction=${to.postAction != null}, " +
+                "conditionsCount=${to.conditions.size}, " +
+                "actionsCount=${to.actions.size}, " +
+                "postActionsCount=${to.postActions.size}, " +
                 "timeout=${to.timeout})"
     }
 }

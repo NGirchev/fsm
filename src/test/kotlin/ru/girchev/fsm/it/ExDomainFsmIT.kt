@@ -300,4 +300,66 @@ internal class ExDomainFsmIT {
             }.join()
             .stream().allMatch { result -> result.equals(true) }
     }
+
+    @Test
+    fun shouldExecuteMultipleConditionsAndActions() {
+        // Test that multiple conditions and actions can be added and all execute
+        var conditionCallCount = 0
+        var actionCallCount = 0
+        var postActionCallCount = 0
+        
+        val fsm = ExDomainFsm(
+            ExTransitionTable.Builder<DocumentState, String>()
+                .from(NEW).event("PROCESS").to(READY_FOR_SIGN)
+                .condition { conditionCallCount++; true }
+                .condition { conditionCallCount++; true }
+                .action { actionCallCount++ }
+                .action { actionCallCount++ }
+                .postAction { postActionCallCount++ }
+                .postAction { postActionCallCount++ }
+                .end()
+                .build()
+        )
+        
+        document = Document()
+        document.state = NEW
+        
+        // when
+        fsm.handle(document, "PROCESS")
+        
+        // then
+        assertEquals(READY_FOR_SIGN, document.state)
+        assertEquals(2, conditionCallCount, "Both conditions should be checked")
+        assertEquals(2, actionCallCount, "Both actions should be executed")
+        assertEquals(2, postActionCallCount, "Both postActions should be executed")
+    }
+
+    @Test
+    fun shouldFailWhenOneConditionIsFalse() {
+        // Test that if one of multiple conditions is false, transition fails
+        var condition1Called = false
+        var condition2Called = false
+        
+        val fsm = ExDomainFsm(
+            ExTransitionTable.Builder<DocumentState, String>()
+                .from(NEW).event("PROCESS").to(READY_FOR_SIGN)
+                .condition { condition1Called = true; true }
+                .condition { condition2Called = true; false }  // This one returns false
+                .end()
+                .build()
+        )
+        
+        document = Document()
+        document.state = NEW
+        
+        // when - should throw exception because one condition is false
+        Assertions.assertThrows(FsmException::class.java) {
+            fsm.handle(document, "PROCESS")
+        }
+        
+        // then
+        assertEquals(NEW, document.state, "State should not change")
+        assertTrue(condition1Called, "First condition should be checked")
+        assertTrue(condition2Called, "Second condition should be checked")
+    }
 }

@@ -42,12 +42,12 @@ internal class BFsmIT {
                     .add(
                         BTransition(
                             from = "SIGNED",
-                        To(
-                            state = "AUTO_SENT",
-                            condition = { autoSendEnabled },
-                            action = { successfullySent = true; logger.info { "AUTO SENT ACTION" } }
-                        )
-                    ))
+                            To(
+                                state = "AUTO_SENT",
+                                condition = { autoSendEnabled },
+                                action = { successfullySent = true; logger.info { "AUTO SENT ACTION" } }
+                            )
+                        ))
                     .add(from = "SIGNED", "DONE", "CANCELED")
                     .add(from = "AUTO_SENT", "DONE", "CANCELED")
                     .build()),
@@ -144,64 +144,73 @@ internal class BFsmIT {
     }
 
     @Test
-    fun shouldThrowFsmExceptionWhenAddConditionTwice() {
-        assertFailsWith(
-            exceptionClass = FsmException::class,
-            message = "No exception found",
-            block = {
-                Builder<String>()
-                    .from("NEW").to("READY_FOR_SIGN").end()
-                    .from("READY_FOR_SIGN").to("SIGNED").condition { true }.condition { true }.end()
-                    .build()
-            }
-        )
+    fun shouldAllowAddingMultipleConditions() {
+        // Now we can add multiple conditions, and all must be true
+        var conditionCallCount = 0
+        val transitions = Builder<String>()
+            .from("NEW").to("READY_FOR_SIGN").end()
+            .from("READY_FOR_SIGN").to("SIGNED")
+            .condition { conditionCallCount++; true }
+            .condition { conditionCallCount++; true }.end()
+            .build()
+        val fsm = BFsm("READY_FOR_SIGN", transitions)
+        fsm.toState("SIGNED")
+        assertEquals("SIGNED", fsm.getState())
+        assertEquals(2, conditionCallCount) // Both conditions should be checked
     }
 
     @Test
-    fun shouldThrowFsmExceptionWhenAddActionTwice() {
-        assertFailsWith(
-            exceptionClass = FsmException::class,
-            message = "No exception found",
-            block = {
-                Builder<String>()
-                    .from("NEW").to("READY_FOR_SIGN").end()
-                    .from("READY_FOR_SIGN").to("SIGNED")
-                    .action { logger.info { "Action" } }
-                    .action { logger.info { "Action" } }.end()
-                    .build()
-            }
-        )
+    fun shouldAllowAddingMultipleActions() {
+        // Now we can add multiple actions, and all will be executed
+        var actionCallCount = 0
+        val transitions = Builder<String>()
+            .from("NEW").to("READY_FOR_SIGN").end()
+            .from("READY_FOR_SIGN").to("SIGNED")
+            .action { actionCallCount++ }
+            .action { actionCallCount++ }.end()
+            .build()
+
+        val fsm = BFsm("READY_FOR_SIGN", transitions)
+        fsm.toState("SIGNED")
+        assertEquals("SIGNED", fsm.getState())
+        assertEquals(2, actionCallCount) // Both actions should be executed
     }
 
     @Test
-    fun shouldThrowFsmExceptionWhenAddConditionTwiceInMultiple() {
-        assertFailsWith(
-            exceptionClass = FsmException::class,
-            message = "No exception found",
-            block = {
-                Builder<String>()
-                    .from("NEW").to("READY_FOR_SIGN").end()
-                    .from("READY_FOR_SIGN").toMultiple()
-                    .to("SIGNED").action { logger.info { "Action" } }.action { logger.info { "Action" } }.end()
-                    .endMultiple()
-                    .build()
-            }
-        )
+    fun shouldAllowAddingMultipleConditionsInMultiple() {
+        // Now we can add multiple conditions in toMultiple, and all must be true
+        var conditionCallCount = 0
+        val transitions = Builder<String>()
+            .from("NEW").to("READY_FOR_SIGN").end()
+            .from("READY_FOR_SIGN").toMultiple()
+            .to("SIGNED")
+            .condition { conditionCallCount++; true }
+            .condition { conditionCallCount++; true }.end()
+            .endMultiple()
+            .build()
+
+        val fsm = BFsm("READY_FOR_SIGN", transitions)
+        fsm.toState("SIGNED")
+        assertEquals("SIGNED", fsm.getState())
+        assertEquals(2, conditionCallCount) // Both conditions should be checked
     }
 
     @Test
-    fun shouldThrowFsmExceptionWhenAddActionTwiceInMultiple() {
-        assertFailsWith(
-            exceptionClass = FsmException::class,
-            message = "No exception found",
-            block = {
-                Builder<String>()
-                    .from("NEW").to("READY_FOR_SIGN").end()
-                    .from("READY_FOR_SIGN").toMultiple()
-                    .to("SIGNED").action { logger.info { "Action" } }.action { logger.info { "Action" } }.end()
-                    .endMultiple()
-                    .build()
-            }
-        )
+    fun shouldAllowAddingMultipleActionsInMultiple() {
+        // Now we can add multiple actions in toMultiple, and all will be executed
+        var actionCallCount = 0
+        val transitions = Builder<String>()
+            .from("NEW").to("READY_FOR_SIGN").end()
+            .from("READY_FOR_SIGN").toMultiple()
+            .to("SIGNED")
+            .action { actionCallCount++ }
+            .action { actionCallCount++ }.end()
+            .endMultiple()
+            .build()
+
+        val fsm = BFsm("READY_FOR_SIGN", transitions)
+        fsm.toState("SIGNED")
+        assertEquals("SIGNED", fsm.getState())
+        assertEquals(2, actionCallCount) // Both actions should be executed
     }
 }

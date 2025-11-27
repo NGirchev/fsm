@@ -12,10 +12,25 @@ typealias Guard<T> = (T) -> Boolean
 
 data class To<STATE>(
     val state: STATE,
-    val condition: Guard<in StateContext<STATE>>? = null,
-    val action: Action<in StateContext<STATE>>? = null,
-    val postAction: Action<in StateContext<STATE>>? = null,
+    val conditions: List<Guard<in StateContext<STATE>>>,
+    val actions: List<Action<in StateContext<STATE>>>,
+    val postActions: List<Action<in StateContext<STATE>>>,
     val timeout: Timeout? = null
+)
+
+// Top-level factory function for backwards compatibility - accepts single nullable values
+fun <STATE> To(
+    state: STATE,
+    condition: Guard<in StateContext<STATE>>? = null,
+    action: Action<in StateContext<STATE>>? = null,
+    postAction: Action<in StateContext<STATE>>? = null,
+    timeout: Timeout? = null
+): To<STATE> = To(
+    state = state,
+    conditions = listOfNotNull(condition),
+    actions = listOfNotNull(action),
+    postActions = listOfNotNull(postAction),
+    timeout = timeout
 )
 
 data class Timeout(
