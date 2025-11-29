@@ -17,7 +17,7 @@ class JavaExDomainFsmIT {
 
     @Test
     void successfulPath() {
-        Document document = new Document("1", NEW, true);
+        Document document = new Document("1", NEW, true, null);
 
         ExDomainFsm<Document, DocumentState, String> fsm =
                 FsmFactory.INSTANCE.<DocumentState, String>statesWithEvents()
@@ -30,10 +30,7 @@ class JavaExDomainFsmIT {
 
                         .from(SIGNED).onEvent("TO_END").toMultiple()
                         .to(AUTO_SENT).condition(ctx -> ((Document) ctx).getSignRequired())
-                        .action(ctx -> {
-                            System.out.println("AUTO_SENT");
-                            return null;
-                        })
+                        .action(ctx -> System.out.println("AUTO_SENT"))
                         .end()
                         .to(DONE).condition(ctx -> !((Document) ctx).getSignRequired()).end()
                         .to(CANCELED).end()

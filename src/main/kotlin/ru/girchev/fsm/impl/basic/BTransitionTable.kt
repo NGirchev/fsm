@@ -20,7 +20,7 @@ internal constructor(
 
         /**
          * Placeholder for symmetry with extended FSM DSL.
-         * For basic FSM auto transitions управляются через параметр конструктора `BFsm`.
+         * For basic FSM auto transitions are controlled via `BFsm` constructor parameter.
          */
         fun autoTransitionEnabled(enabled: Boolean): Builder<STATE> {
             this.autoTransitionEnabled = enabled

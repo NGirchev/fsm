@@ -10,7 +10,7 @@ plugins {
 }
 
 group = "ru.girchev"
-version = "0.2.0a-SNAPSHOT"
+version = "0.3.0a-SNAPSHOT"
 
 repositories {
     mavenCentral()
@@ -58,7 +58,15 @@ kotlinter {
     ignoreFailures = false
     reporters = arrayOf("html")
     experimentalRules = false
-    disabledRules = arrayOf("no-wildcard-imports", "import-ordering", "indent", "final-newline", "no-multi-spaces")
+    disabledRules = arrayOf("no-wildcard-imports", "import-ordering", "indent", "final-newline", "no-multi-spaces", "no-trailing-spaces", "string-template")
+}
+
+// Automatic formatting before checking
+tasks.named("lintKotlinMain") {
+    dependsOn("formatKotlinMain")
+}
+tasks.named("lintKotlinTest") {
+    dependsOn("formatKotlinTest")
 }
 
 detekt {

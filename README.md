@@ -164,3 +164,108 @@ fun main() {
     fsm.onEvent("RUN")
 }
 ```
+
+## FSM Diagram Visualization
+
+The library supports diagram generation in **PlantUML** and **Mermaid** formats for visualizing finite state machines.
+
+### Quick Start
+
+```kotlin
+import ru.girchev.fsm.diagram.*
+
+// Create FSM
+val transitionTable = ExTransitionTable.Builder<DocumentState, String>()
+    .from(NEW).to(READY_FOR_SIGN).onEvent("TO_READY").end()
+    .from(READY_FOR_SIGN).to(SIGNED).onEvent("USER_SIGN").timeout(Timeout(1)).end()
+    .from(SIGNED).to(DONE).onEvent("TO_END").end()
+    .build()
+
+// Generate diagrams
+println(transitionTable.toPlantUml())
+println(transitionTable.toMermaid())
+```
+
+### Named Actions and Conditions
+
+For more readable diagrams, use `NamedAction` and `NamedGuard`:
+
+```kotlin
+// Define named actions and conditions
+val chargeCard = NamedAction<Any>("ChargeCard") { /* ... */ }
+val sendReceipt = NamedAction<Any>("SendReceipt") { /* ... */ }
+val isPaymentValid = NamedGuard<Any>("IsPaymentValid") { true }
+
+// Build FSM
+val fsm = ExTransitionTable.Builder<OrderState, String>()
+    .from(NEW)
+    .onEvent("PAY")
+    .to(PAID)
+    .condition(isPaymentValid)    // Displayed on arrow: [IsPaymentValid]
+    .action(chargeCard)           // Displayed in PAID state: ▶ ChargeCard
+    .postAction(sendReceipt)      // Displayed in PAID state: ◀ SendReceipt
+    .timeout(Timeout(30))
+    .end()
+    .build()
+```
+
+### Output Example
+
+**PlantUML:**
+```plantuml
+@startuml
+
+state "NEW" as NEW
+state "PAID" as PAID {
+  PAID : ▶ ChargeCard
+  PAID : ◀ SendReceipt
+}
+
+NEW --> PAID : [PAY] [IsPaymentValid] ⏱30SECONDS
+
+@enduml
+```
+
+**Mermaid:**
+```mermaid
+stateDiagram-v2
+
+    state PAID {
+        PAID : ▶ ChargeCard
+        PAID : ◀ SendReceipt
+    }
+
+    NEW --> PAID : PAY [IsPaymentValid] ⏱30s
+```
+
+### Notation
+
+**Inside states:**
+- `▶ ActionName` - action executed when entering the state
+- `◀ PostActionName` - action executed after entering the state
+
+**On transition arrows:**
+- `[EVENT]` - transition event
+- `[ConditionName]` - transition condition
+- `⏱30s` - timeout
+
+### Diagram Visualization
+
+- **PlantUML**: [Online Editor](http://www.plantuml.com/plantuml/uml/) | [IntelliJ Plugin](https://plugins.jetbrains.com/plugin/7017-plantuml-integration)
+- **Mermaid**: [Live Editor](https://mermaid.live/) | [IntelliJ Plugin](https://plugins.jetbrains.com/plugin/20146-mermaid) | GitHub automatically renders Mermaid in markdown
+
+### Extension Functions
+
+```kotlin
+// Print to console
+transitionTable.printPlantUml()
+transitionTable.printMermaid()
+
+// Get string
+val plantUml: String = transitionTable.toPlantUml()
+val mermaid: String = transitionTable.toMermaid()
+
+// Save to file
+transitionTable.toPlantUml(Path("diagram.plantuml"))
+transitionTable.toMermaid(Path("diagram.mermaid"))
+```

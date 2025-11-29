@@ -15,7 +15,8 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
 
     companion object : KLogging()
 
-    internal open val transitionTable: TRANSITION_TABLE
+    open val transitionTable: TRANSITION_TABLE
+
     /**
      * Enable auto transitions based on transition table.
      */
@@ -88,6 +89,9 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
         val oldState = context.state
         val newState = transition.to.state
 
+        context.currentTransition = transition
+        logger.info { "Try to changed status $oldState -> $newState" }
+
         transition.to.actions.forEach { it.invoke(context) }
         context.state = newState
         transition.to.postActions.forEach { it.invoke(context) }
@@ -98,5 +102,8 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
         return Executors.newScheduledThreadPool(1)
     }
 
-    private class DefaultStateContext<STATE>(override var state: STATE) : StateContext<STATE>
+    private class DefaultStateContext<STATE>(
+        override var state: STATE,
+        override var currentTransition: Transition<STATE>? = null
+    ) : StateContext<STATE>
 }
