@@ -10,8 +10,8 @@ import ru.girchev.fsm.impl.AbstractTransitionTable
 open class BTransitionTable<STATE>
 internal constructor(
     override val transitions: MutableMap<STATE, LinkedHashSet<BTransition<STATE>>>,
-    val autoTransitionEnabled: Boolean
-) : AbstractTransitionTable<STATE, BTransition<STATE>>(transitions) {
+    override var autoTransitionEnabled: Boolean
+) : AbstractTransitionTable<STATE, BTransition<STATE>>(transitions, autoTransitionEnabled) {
 
     class Builder<STATE> {
 

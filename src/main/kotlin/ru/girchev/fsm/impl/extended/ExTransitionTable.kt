@@ -8,8 +8,8 @@ import ru.girchev.fsm.impl.AbstractTransitionTable
 open class ExTransitionTable<STATE, EVENT>
 internal constructor(
     override val transitions: Map<STATE, LinkedHashSet<ExTransition<STATE, EVENT>>>,
-    val autoTransitionEnabled: Boolean = true
-) : AbstractTransitionTable<STATE, ExTransition<STATE, EVENT>>(transitions) {
+    override var autoTransitionEnabled: Boolean = false
+) : AbstractTransitionTable<STATE, ExTransition<STATE, EVENT>>(transitions, autoTransitionEnabled) {
 
     internal fun getTransitionByEvent(context: StateContext<STATE>, event: EVENT): ExTransition<STATE, EVENT>? {
         return transitions[context.state]
@@ -27,7 +27,7 @@ internal constructor(
     class Builder<STATE, EVENT> {
 
         internal val transitions: MutableMap<STATE, LinkedHashSet<ExTransition<STATE, EVENT>>> = hashMapOf()
-        private var autoTransitionEnabled: Boolean = true
+        private var autoTransitionEnabled: Boolean = false
 
         fun autoTransitionEnabled(enabled: Boolean): Builder<STATE, EVENT> {
             this.autoTransitionEnabled = enabled

@@ -29,7 +29,7 @@ internal class BFsmIT {
         return Stream.of(
             Arguments.of(
                 Builder<String>()
-                    .autoTransitionEnabled(true)
+                    .autoTransitionEnabled(false)
                     .add(from = "NEW", "READY_FOR_SIGN")
                     .add(
                         from = "READY_FOR_SIGN",
@@ -53,7 +53,7 @@ internal class BFsmIT {
                     .build()),
             Arguments.of(
                 Builder<String>()
-                    .autoTransitionEnabled(true)
+                    .autoTransitionEnabled(false)
                     .from("NEW").to("READY_FOR_SIGN").end()
                     .from("READY_FOR_SIGN").toMultiple()
                     .to("SIGNED").condition { true }.action { logger.info { "SIGNED SUCCESSFUL" } }.end()
@@ -118,6 +118,7 @@ internal class BFsmIT {
     @MethodSource("provideTransitions")
     fun shouldChangeStatusToDone(transitions: BTransitionTable<String>) {
         // given
+        transitions.autoTransitionEnabled = true
         val fsm = transitions.createFsm("READY_FOR_SIGN")
         // when
         fsm.toState("SIGNED")
@@ -212,5 +213,24 @@ internal class BFsmIT {
         fsm.toState("SIGNED")
         assertEquals("SIGNED", fsm.getState())
         assertEquals(2, actionCallCount) // Both actions should be executed
+    }
+
+    @Test
+    fun shouldUse2LevelsInDepth() {
+        val transitions = Builder<String>()
+            .autoTransitionEnabled(true)
+            .from("NEW").to("SWITCH").end()
+            .from("SWITCH").toMultiple()
+            .to("LEVEL1_STATE1").condition { true }.end()
+            .to("LEVEL1_STATE2").condition { false }.end()
+            .endMultiple()
+            .from("LEVEL1_STATE1").toMultiple()
+            .to("LEVEL2_STATE1").condition { false }.end()
+            .to("LEVEL2_STATE2").condition { true }.end()
+            .endMultiple()
+            .build()
+        val fsm = BFsm("NEW", transitions)
+        fsm.toState("SWITCH")
+        assertEquals("LEVEL2_STATE2", fsm.getState())
     }
 }

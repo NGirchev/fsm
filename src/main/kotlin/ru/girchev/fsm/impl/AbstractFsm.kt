@@ -20,26 +20,32 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
     /**
      * Enable auto transitions based on transition table.
      */
-    private val autoTransitionEnabled: Boolean
+    val autoTransitionEnabled: Boolean
 
     constructor(
         state: STATE,
         transitionTable: TRANSITION_TABLE,
-        autoTransitionEnabled: Boolean = false,
+        autoTransitionEnabled: Boolean? = null,
     ) {
         transitionTable.also { this.transitionTable = it }
         this.context = DefaultStateContext(state)
-        this.autoTransitionEnabled = autoTransitionEnabled
+        val overrideAutoTransition = autoTransitionEnabled ?: run {
+            transitionTable.autoTransitionEnabled
+        }
+        this.autoTransitionEnabled = overrideAutoTransition
     }
 
     constructor(
         context: StateContext<STATE>,
         transitionTable: TRANSITION_TABLE,
-        autoTransitionEnabled: Boolean = false
+        autoTransitionEnabled: Boolean? = null
     ) {
         transitionTable.also { this.transitionTable = it }
         this.context = context
-        this.autoTransitionEnabled = autoTransitionEnabled
+        val overrideAutoTransition = autoTransitionEnabled ?: run {
+            transitionTable.autoTransitionEnabled
+        }
+        this.autoTransitionEnabled = overrideAutoTransition
     }
 
     internal val context: StateContext<STATE>

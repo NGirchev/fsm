@@ -218,6 +218,7 @@ internal class ExDomainFsmIT {
     fun shouldChangeStatusToFirstInSwitchWhenEventIsNull() {
         val fsm = ExDomainFsm(
             ExTransitionTable.Builder<DocumentState, String>()
+                .autoTransitionEnabled(true)
                 .add(from = NEW, onEvent = "TO_END", to = READY_FOR_SIGN)
                 .add(
                     from = READY_FOR_SIGN, onEvent = null,
@@ -244,6 +245,7 @@ internal class ExDomainFsmIT {
         document = Document()
         val fsm = ExDomainFsm(
             ExTransitionTable.Builder<DocumentState, String>()
+                .autoTransitionEnabled(true)
                 .add(
                     from = NEW, onEvent = "TO_END", to = READY_FOR_SIGN,
                     action = { prt(it) },
