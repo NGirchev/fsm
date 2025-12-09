@@ -8,10 +8,11 @@ plugins {
     id("org.jmailen.kotlinter") version "3.6.0"
     id("maven-publish")
     id("net.researchgate.release") version "3.0.2"
+    jacoco
 }
 
 group = "io.github.ngirchev"
-version = project.findProperty("version") as String? ?: "1.0.0-SNAPSHOT"
+version = project.properties["version"] as String
 
 repositories {
     mavenCentral()
@@ -83,6 +84,42 @@ tasks.withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
 
 tasks.test {
     useJUnitPlatform()
+    finalizedBy(tasks.jacocoTestReport)
+}
+
+tasks.jacocoTestReport {
+    dependsOn(tasks.test)
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+        csv.required.set(false)
+    }
+}
+
+tasks.jacocoTestCoverageVerification {
+    dependsOn(tasks.jacocoTestReport)
+    violationRules {
+        rule {
+            limit {
+                minimum = "0.80".toBigDecimal()
+            }
+        }
+        rule {
+            element = "CLASS"
+            excludes = listOf(
+                "*.diagram.*",
+                "*.exception.*"
+            )
+            limit {
+                counter = "BRANCH"
+                minimum = "0.70".toBigDecimal()
+            }
+        }
+    }
+}
+
+tasks.check {
+    dependsOn(tasks.jacocoTestCoverageVerification)
 }
 
 tasks.withType<KotlinCompile> {
