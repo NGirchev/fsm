@@ -32,4 +32,72 @@ class ExDomainFsmTest {
         fsm.handle(document, "RUN")
         assertEquals(DocumentState.READY_FOR_SIGN, document.state)
     }
+
+    @Test
+    fun handleWhenAutoTransitionEnabledIsTrueThenUseTrue() {
+        val transitionTable = ExTransitionTable.Builder<DocumentState, String>()
+            .add(DocumentState.NEW, "RUN", DocumentState.READY_FOR_SIGN)
+            .autoTransitionEnabled(false)
+            .build()
+        val fsm = ExDomainFsm(transitionTable, autoTransitionEnabled = true)
+
+        val document = Document()
+        fsm.handle(document, "RUN")
+        assertEquals(DocumentState.READY_FOR_SIGN, document.state)
+    }
+
+    @Test
+    fun handleWhenAutoTransitionEnabledIsNullThenUseTableValue() {
+        val transitionTable = ExTransitionTable.Builder<DocumentState, String>()
+            .add(DocumentState.NEW, "RUN", DocumentState.READY_FOR_SIGN)
+            .autoTransitionEnabled(true)
+            .build()
+        val fsm = ExDomainFsm(transitionTable, autoTransitionEnabled = null)
+
+        val document = Document()
+        fsm.handle(document, "RUN")
+        assertEquals(DocumentState.READY_FOR_SIGN, document.state)
+    }
+
+    @Test
+    fun changeStateWhenAutoTransitionEnabledIsTrueThenUseTrue() {
+        val transitionTable = ExTransitionTable.Builder<DocumentState, String>()
+            .add(DocumentState.NEW, null, DocumentState.READY_FOR_SIGN)
+            .autoTransitionEnabled(false)
+            .build()
+        val fsm = ExDomainFsm(transitionTable, autoTransitionEnabled = true)
+
+        val document = Document()
+        document.state = DocumentState.NEW
+        fsm.changeState(document, DocumentState.READY_FOR_SIGN)
+        assertEquals(DocumentState.READY_FOR_SIGN, document.state)
+    }
+
+    @Test
+    fun changeStateWhenAutoTransitionEnabledIsNullThenUseTableValue() {
+        val transitionTable = ExTransitionTable.Builder<DocumentState, String>()
+            .add(DocumentState.NEW, null, DocumentState.READY_FOR_SIGN)
+            .autoTransitionEnabled(true)
+            .build()
+        val fsm = ExDomainFsm(transitionTable, autoTransitionEnabled = null)
+
+        val document = Document()
+        document.state = DocumentState.NEW
+        fsm.changeState(document, DocumentState.READY_FOR_SIGN)
+        assertEquals(DocumentState.READY_FOR_SIGN, document.state)
+    }
+
+    @Test
+    fun changeStateWhenAutoTransitionEnabledIsFalseThenUseFalse() {
+        val transitionTable = ExTransitionTable.Builder<DocumentState, String>()
+            .add(DocumentState.NEW, null, DocumentState.READY_FOR_SIGN)
+            .autoTransitionEnabled(false)
+            .build()
+        val fsm = ExDomainFsm(transitionTable, autoTransitionEnabled = false)
+
+        val document = Document()
+        document.state = DocumentState.NEW
+        fsm.changeState(document, DocumentState.READY_FOR_SIGN)
+        assertEquals(DocumentState.READY_FOR_SIGN, document.state)
+    }
 }

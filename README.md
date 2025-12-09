@@ -1,8 +1,11 @@
 # FSM
 
 [![CI](https://github.com/NGirchev/fsm/actions/workflows/ci.yml/badge.svg)](https://github.com/NGirchev/fsm/actions/workflows/ci.yml)
+[![Maven Central](https://img.shields.io/maven-central/v/io.github.ngirchev/fsm.svg)](https://search.maven.org/artifact/io.github.ngirchev/fsm)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Kotlin](https://img.shields.io/badge/Kotlin-1.6.21-blue.svg)](https://kotlinlang.org/)
+[![Gradle](https://img.shields.io/badge/Gradle-8.10-green.svg)](https://gradle.org/)
+[![JDK](https://img.shields.io/badge/JDK-8%2B-orange.svg)](https://adoptium.net/)
 
 Finite state machine utilities library for Kotlin.
 
@@ -439,27 +442,95 @@ The project uses GitHub Actions for continuous integration:
 
 ## Releasing
 
+### Prerequisites for Maven Central
+
+Before publishing to Maven Central, you need to:
+
+1. **Create a Sonatype OSSRH account**:
+   - Sign up at https://s01.oss.sonatype.org/
+   - Create a JIRA ticket to request access for your groupId (`io.github.ngirchev`)
+   - Wait for approval (usually 1-2 business days)
+
+2. **Set up GPG signing**:
+   - Install GPG (if not already installed)
+   - Generate a GPG key: `gpg --gen-key`
+   - Export your public key: `gpg --keyserver keyserver.ubuntu.com --send-keys <your-key-id>`
+   - Export your private key for use in Gradle (see below)
+
+3. **Configure credentials**:
+   
+   Gradle will automatically read credentials from Maven `~/.m2/settings.xml` (same as Maven uses):
+   
+   ```xml
+   <settings>
+     <servers>
+       <server>
+         <id>central</id>
+         <username>your-sonatype-username</username>
+         <password>your-sonatype-password</password>
+       </server>
+     </servers>
+     <profiles>
+       <profile>
+         <id>release</id>
+         <properties>
+           <gpg.executable>gpg</gpg.executable>
+           <gpg.keyname>your-gpg-key-id</gpg.keyname>
+           <gpg.passphrase>your-gpg-passphrase</gpg.passphrase>
+         </properties>
+       </profile>
+     </profiles>
+   </settings>
+   ```
+   
+   Alternatively, you can use `~/.gradle/gradle.properties`:
+   ```properties
+   ossrhUsername=your-sonatype-username
+   ossrhPassword=your-sonatype-password
+   signingKeyId=your-gpg-key-id
+   signingPassword=your-gpg-passphrase
+   ```
+
+   **Security Note**: Never commit these credentials to the repository. Use `~/.m2/settings.xml` or `~/.gradle/gradle.properties` (both are typically in `.gitignore`).
+
 ### Manual Release
 
-To create a release manually:
+To create a release and publish to Maven Central:
 
 ```bash
-# 1. Prepare release (version and tag)
-# This creates a Git tag with format v{version} (e.g., v1.0.0)
+# 1. Update CHANGELOG.md with release notes
+
+# 2. Prepare release (this will update version in gradle.properties and create Git tag)
 ./gradlew release -Prelease.useAutomaticVersion=true
 
-# 2. Deploy to Maven Central (if configured)
+# 3. Build and test
+./gradlew clean build
+
+# 4. Publish to Maven Central staging repository
 ./gradlew publish
 
-# 3. Push changes and tags
+# 5. After successful upload, go to https://s01.oss.sonatype.org/
+#    - Login and navigate to "Staging Repositories"
+#    - Find your repository (starts with iogithubngirchev)
+#    - Close the repository (this validates the artifacts)
+#    - Release the repository (this syncs to Maven Central)
+#    - Wait 10-30 minutes for sync to Maven Central
+
+# 6. Push changes and tags (release plugin creates the tag automatically)
 git push origin master
 git push --tags
+
+# 7. Create GitHub release with CHANGELOG notes
 ```
 
 **Note:**
 
-* The `release` plugin automatically creates a Git tag with the format `v{version}` (e.g., `v1.0.0`) for each release, ensuring each release is identified within the version control system.
-* Make sure to update the version in `gradle.properties` before releasing.
+* The `release` plugin automatically:
+  - Updates version in `gradle.properties` (removes -SNAPSHOT)
+  - Creates a Git tag with format `v{version}` (e.g., `v1.0.1`)
+  - Commits version changes
+* After publishing, artifacts will be available at: https://repo1.maven.org/maven2/io/github/ngirchev/fsm/
+* Maven Central sync usually takes 10-30 minutes after release
 
 ## Contributing
 

@@ -1,42 +1,173 @@
 package io.github.ngirchev.fsm.impl.basic
 
-import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
-import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
-import org.mockito.kotlin.*
-import io.github.ngirchev.fsm.To
-import io.github.ngirchev.fsm.impl.extended.ExTransition
-import io.github.ngirchev.fsm.exception.FsmException
+import io.github.ngirchev.fsm.StateContext
 import io.github.ngirchev.fsm.exception.FsmTransitionFailedException
+import io.github.ngirchev.fsm.exception.FsmException
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class BFsmTest {
 
+    private class SimpleStateContext(override var state: String, override var currentTransition: io.github.ngirchev.fsm.Transition<String>? = null) : StateContext<String>
+
     @Test
-    @DisplayName("Should throw an exception when the transition is invalid")
-    fun toWhenTransitionIsInvalidThenThrowException() {
-        val transitionTable = mock<BTransitionTable<String>>()
-        val BFsm = BFsm("A", transitionTable)
+    fun constructorWithStateAndNullAutoTransitionShouldUseTableValue() {
+        val table = BTransitionTable.Builder<String>()
+            .add("from", "to")
+            .autoTransitionEnabled(true)
+            .build()
 
-        val exception = assertThrows(FsmTransitionFailedException::class.java) {
-            BFsm.toState("B")
-        }
+        val fsm = BFsm("initial", table, autoTransitionEnabled = null)
 
-        assertEquals("Illegal state transition A->B", exception.message)
+        assertEquals("initial", fsm.getState())
+        assertEquals(true, fsm.autoTransitionEnabled)
     }
 
     @Test
-    @DisplayName("Should throw an exception when the transition has not expected source")
-    fun toWhenTransitionSourceIsNotTheSameAsExpectedThenThrowException() {
-        val transitionTable = mock<BTransitionTable<String>> {
-            on { getTransitionByState(any(), eq("B")) } doReturn (ExTransition<String, String>(from = "B", to = To("A")))
-        }
-        val BFsm = BFsm("A", transitionTable)
+    fun constructorWithContextAndNullAutoTransitionShouldUseTableValue() {
+        val table = BTransitionTable.Builder<String>()
+            .add("from", "to")
+            .autoTransitionEnabled(false)
+            .build()
 
-        val exception = assertThrows(FsmException::class.java) {
-            BFsm.toState("B")
-        }
+        val context = SimpleStateContext("initial")
+        val fsm = BFsm(context, table, autoTransitionEnabled = null)
 
-        assertEquals("Current state A doesn't fit to change, because transition from=[B]", exception.message)
+        assertEquals("initial", fsm.getState())
+        assertEquals(false, fsm.autoTransitionEnabled)
+    }
+
+    @Test
+    fun toStateWhenTransitionExistsShouldChangeState() {
+        val table = BTransitionTable.Builder<String>()
+            .add("from", "to")
+            .build()
+
+        val fsm = BFsm("from", table)
+        fsm.toState("to")
+
+        assertEquals("to", fsm.getState())
+    }
+
+    @Test
+    fun toStateWhenTransitionDoesNotExistShouldThrowException() {
+        val table = BTransitionTable.Builder<String>()
+            .add("from", "to")
+            .build()
+
+        val fsm = BFsm("from", table)
+
+        assertThrows(FsmTransitionFailedException::class.java) {
+            fsm.toState("nonexistent")
+        }
+    }
+
+    @Test
+    fun toStateWhenFromStateDoesNotMatchShouldThrowException() {
+        val table = BTransitionTable.Builder<String>()
+            .add("from", "to")
+            .build()
+
+        val fsm = BFsm("wrong", table)
+
+        assertThrows(FsmException::class.java) {
+            fsm.toState("to")
+        }
+    }
+
+    @Test
+    fun toStateWithAutoTransitionEnabledShouldPerformAutoTransitions() {
+        val table = BTransitionTable.Builder<String>()
+            .autoTransitionEnabled(true)
+            .add("from", "intermediate")
+            .add("intermediate", "to")
+            .build()
+
+        val fsm = BFsm("from", table, autoTransitionEnabled = true)
+        fsm.toState("intermediate")
+
+        assertEquals("to", fsm.getState())
+    }
+
+    @Test
+    fun toStateWithAutoTransitionDisabledShouldNotPerformAutoTransitions() {
+        val table = BTransitionTable.Builder<String>()
+            .autoTransitionEnabled(false)
+            .add("from", "intermediate")
+            .add("intermediate", "to")
+            .build()
+
+        val fsm = BFsm("from", table, autoTransitionEnabled = false)
+        fsm.toState("intermediate")
+
+        assertEquals("intermediate", fsm.getState())
+    }
+
+    @Test
+    fun toStateWithTimeoutShouldWait() {
+        val start = System.currentTimeMillis()
+        val table = BTransitionTable.Builder<String>()
+            .add("from", io.github.ngirchev.fsm.To("to", timeout = io.github.ngirchev.fsm.Timeout(1)))
+            .build()
+
+        val fsm = BFsm("from", table)
+        fsm.toState("to")
+        val end = System.currentTimeMillis()
+
+        assertEquals("to", fsm.getState())
+        assertTrue(end - start >= 1000)
+    }
+
+    @Test
+    fun toStateWithActionsShouldExecuteActions() {
+        var actionCalled = false
+        var postActionCalled = false
+
+        val table = BTransitionTable.Builder<String>()
+            .from("from")
+            .to("to")
+            .action { actionCalled = true }
+            .postAction { postActionCalled = true }
+            .end()
+            .build()
+
+        val fsm = BFsm("from", table)
+        fsm.toState("to")
+
+        assertEquals("to", fsm.getState())
+        assertTrue(actionCalled)
+        assertTrue(postActionCalled)
+    }
+
+    @Test
+    fun toStateWithNullTimeoutShouldNotWait() {
+        val start = System.currentTimeMillis()
+        val table = BTransitionTable.Builder<String>()
+            .add("from", "to")
+            .build()
+
+        val fsm = BFsm("from", table)
+        fsm.toState("to")
+        val end = System.currentTimeMillis()
+
+        assertEquals("to", fsm.getState())
+        assertTrue(end - start < 1000)
+    }
+
+    @Test
+    fun toStateWithMultipleAutoTransitionsShouldPerformAll() {
+        val table = BTransitionTable.Builder<String>()
+            .autoTransitionEnabled(true)
+            .add("from", "intermediate1")
+            .add("intermediate1", "intermediate2")
+            .add("intermediate2", "to")
+            .build()
+
+        val fsm = BFsm("from", table, autoTransitionEnabled = true)
+        fsm.toState("intermediate1")
+
+        assertEquals("to", fsm.getState())
     }
 }
