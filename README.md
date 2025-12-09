@@ -1,9 +1,9 @@
 # FSM
 This small library contains several implementations for common use cases.
-- `ru.girchev.fsm.impl.extended.ExFsm` - a simple fsm that has a status, and it changes the status by events. Has state.
-- `ru.girchev.fsm.impl.extended.ExDomainFsm` - if you have some domain with a status, and you want to change this status using events. Has no own state.
+- `io.github.ngirchev.fsm.impl.extended.ExFsm` - a simple fsm that has a status, and it changes the status by events. Has state.
+- `io.github.ngirchev.fsm.impl.extended.ExDomainFsm` - if you have some domain with a status, and you want to change this status using events. Has no own state.
 
-You can also use the `ru.girchev.fsm.impl` package with basic implementations.
+You can also use the `io.github.ngirchev.fsm.impl` package with basic implementations.
 
 ## How to use examples
 ### We have these initial data:
@@ -18,7 +18,7 @@ enum class DocumentState {
     NEW, READY_FOR_SIGN, SIGNED, AUTO_SENT, DONE, CANCELED
 }
 ```
-### Example of very simple use `ru.girchev.fsm.impl.extended.ExFsm`
+### Example of very simple use `io.github.ngirchev.fsm.impl.extended.ExFsm`
 ```
 fun main() {
     val fsm = FsmFactory.statesWithEvents<String, String>()
@@ -51,7 +51,7 @@ And two transitions from the status `AUTO_SENT`:
 - `CANCELED` if event `FAILED_EVENT` will be thrown.
 
 
-### Example for `ru.girchev.fsm.impl.extended.ExDomainFsm`.
+### Example for `io.github.ngirchev.fsm.impl.extended.ExDomainFsm`.
 
 ```
 fun main() {
@@ -172,7 +172,7 @@ The library supports diagram generation in **PlantUML** and **Mermaid** formats 
 ### Quick Start
 
 ```kotlin
-import ru.girchev.fsm.diagram.*
+import io.github.ngirchev.fsm.diagram.*
 
 // Create FSM
 val transitionTable = ExTransitionTable.Builder<DocumentState, String>()

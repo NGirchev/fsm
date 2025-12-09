@@ -7,10 +7,11 @@ plugins {
     id("io.gitlab.arturbosch.detekt") version "1.21.0-RC2"
     id("org.jmailen.kotlinter") version "3.6.0"
     id("maven-publish")
+    id("net.researchgate.release") version "3.0.2"
 }
 
-group = "ru.girchev"
-version = "0.3.1a-SNAPSHOT"
+group = "io.github.ngirchev"
+version = project.findProperty("version") as String? ?: "1.0.0-SNAPSHOT"
 
 repositories {
     mavenCentral()
@@ -94,4 +95,15 @@ tasks.withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
 }
 tasks.withType<io.gitlab.arturbosch.detekt.DetektCreateBaselineTask>().configureEach {
     jvmTarget = "1.8"
+}
+
+// Release plugin configuration
+release {
+    versionPropertyFile = "gradle.properties"
+    versionProperties = listOf("version")
+    tagTemplate = "v\${version}"
+    git {
+        requireBranch.set("master|main|release/.*")
+        pushToRemote.set("origin")
+    }
 }
