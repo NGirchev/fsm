@@ -212,7 +212,7 @@ For maintainers creating a release:
 
 3. Attach artifacts and their signatures (for OpenSSF Security Score):
    ```bash
-   gh release upload v1.0.0 target/*.jar target/*.jar.asc --clobber
+   gh release upload v1.0.0 build/libs/*.jar build/libs/*.jar.asc --clobber
    ```
 
 ## Questions?
