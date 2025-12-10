@@ -156,7 +156,11 @@ publishing {
 }
 
 // Signing configuration for Maven Central
-// Reads GPG settings from Maven settings.xml (profile id="release") or gradle.properties
+// Equivalent to Maven maven-gpg-plugin in profile "release"
+// GPG settings are read from gradle.properties or ~/.gradle/gradle.properties:
+//   signing.gnupg.keyName
+//   signing.gnupg.passphrase  – passphrase for this key
+//   signing.gnupg.executable  – path to gpg binary (optional, defaults to "gpg")
 signing {
     val (mavenKeyId, mavenPassphrase, _) = readMavenGpgSettings()
     val signingKeyId: String? = findProperty("signingKeyId") as String? ?: mavenKeyId
