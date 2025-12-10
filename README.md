@@ -6,6 +6,15 @@
 [![Kotlin](https://img.shields.io/badge/Kotlin-1.6.21-blue.svg)](https://kotlinlang.org/)
 [![Gradle](https://img.shields.io/badge/Gradle-8.10-green.svg)](https://gradle.org/)
 [![JDK](https://img.shields.io/badge/JDK-8%2B-orange.svg)](https://adoptium.net/)
+[![SonarCloud Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=NGirchev_fsm&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=NGirchev_fsm)
+[![Lines of Code](https://sonarcloud.io/api/project_badges/measure?project=NGirchev_fsm&metric=ncloc)](https://sonarcloud.io/summary/new_code?id=NGirchev_fsm)
+[![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=NGirchev_fsm&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=NGirchev_fsm)
+[![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=NGirchev_fsm&metric=code_smells)](https://sonarcloud.io/summary/new_code?id=NGirchev_fsm)
+[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=NGirchev_fsm&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=NGirchev_fsm)
+[![Bugs](https://sonarcloud.io/api/project_badges/measure?project=NGirchev_fsm&metric=bugs)](https://sonarcloud.io/summary/new_code?id=NGirchev_fsm)
+[![Duplicated Lines](https://sonarcloud.io/api/project_badges/measure?project=NGirchev_fsm&metric=duplicated_lines_density)](https://sonarcloud.io/summary/new_code?id=NGirchev_fsm)
+[![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=NGirchev_fsm&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=NGirchev_fsm)
+[![Technical Debt](https://sonarcloud.io/api/project_badges/measure?project=NGirchev_fsm&metric=sqale_index)](https://sonarcloud.io/summary/new_code?id=NGirchev_fsm)
 
 Finite state machine utilities library for Kotlin.
 
