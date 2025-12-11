@@ -186,3 +186,17 @@ release {
         pushToRemote.set("origin")
     }
 }
+
+// Task to create GitHub release
+tasks.register<Exec>("githubRelease") {
+    group = "publishing"
+    description = "Creates GitHub release with CHANGELOG and uploads artifacts"
+    
+    val releaseVersion = project.version.toString().replace("-SNAPSHOT", "")
+    val releaseTag = "v$releaseVersion"
+    
+    commandLine("sh", "-c", 
+        "gh release create $releaseTag -F CHANGELOG.md && " +
+        "gh release upload $releaseTag build/libs/*.jar build/libs/*.jar.asc --clobber"
+    )
+}
