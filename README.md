@@ -493,11 +493,22 @@ Before publishing to Maven Central, you need to:
    ```
    
    Alternatively, you can use `~/.gradle/gradle.properties`:
+   
    ```properties
    ossrhUsername=your-sonatype-username
    ossrhPassword=your-sonatype-password
    signingKeyId=your-gpg-key-id
    signingPassword=your-gpg-passphrase
+   ```
+   
+   Or use the properties format supported by the `com.vanniktech.maven.publish` plugin:
+   
+   ```properties
+   mavenCentralUsername=your-sonatype-username
+   mavenCentralPassword=your-sonatype-password
+   signing.gnupg.keyName=your-gpg-key-id
+   signing.gnupg.passphrase=your-gpg-passphrase
+   signing.gnupg.executable=gpg
    ```
 
    **Security Note**: Never commit these credentials to the repository. Use `~/.m2/settings.xml` or `~/.gradle/gradle.properties` (both are typically in `.gitignore`).
