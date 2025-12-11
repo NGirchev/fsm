@@ -545,6 +545,11 @@ git push origin master
 git push --tags
 
 # 7. Create GitHub release with CHANGELOG notes
+# Replace v1.0.1 with your actual version tag (created by release plugin)
+gh release create v1.0.1 -F CHANGELOG.md
+
+# Attach artifacts and their signatures (for OpenSSF Security Score)
+gh release upload v1.0.1 build/libs/*.jar build/libs/*.jar.asc --clobber
 ```
 
 **Note:**
