@@ -21,8 +21,13 @@ repositories {
 }
 
 dependencies {
-    implementation("io.github.microutils:kotlin-logging-jvm:3.0.5")
-    implementation("ch.qos.logback:logback-classic:1.5.20")
+    // Logging dependencies are compileOnly (provided) to avoid transitive vulnerabilities
+    // Updated to 1.5.20 to fix CVE-2024-12798 (JaninoEventEvaluator vulnerability fixed in 1.5.13+)
+    // Available at runtime for local testing via testImplementation
+    compileOnly("io.github.microutils:kotlin-logging-jvm:3.0.5")
+    compileOnly("ch.qos.logback:logback-classic:1.5.20")
+    testImplementation("io.github.microutils:kotlin-logging-jvm:3.0.5")
+    testImplementation("ch.qos.logback:logback-classic:1.5.20")
     testImplementation("org.mockito.kotlin:mockito-kotlin:5.3.1")
     testImplementation("io.mockk:mockk:1.13.11")
     testImplementation("org.junit.jupiter", "junit-jupiter-params", "5.11.0")
@@ -79,9 +84,14 @@ publishing {
 //   signing.gnupg.passphrase  – passphrase for this key
 //   signing.gnupg.executable  – path to gpg binary (optional, defaults to "gpg")
 signing {
-    useGpgCmd()
-    // Sign all Maven publications (including the one used by vanniktech plugin for Central)
-    sign(publishing.publications)
+    val isLocalPublish = project.gradle.startParameter.taskNames.any { 
+        it == "publishToMavenLocal" 
+    }
+    if (!isLocalPublish) {
+        useGpgCmd()
+        // Sign all Maven publications (including the one used by vanniktech plugin for Central)
+        sign(publishing.publications)
+    }
 }
 
 kotlinter {
