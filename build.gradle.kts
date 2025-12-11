@@ -202,11 +202,10 @@ tasks.register<Exec>("githubRelease") {
     group = "publishing"
     description = "Creates GitHub release with CHANGELOG and uploads artifacts"
     
-    val releaseVersion = project.version.toString().replace("-SNAPSHOT", "")
-    val releaseTag = "v$releaseVersion"
-    
+    // Get the latest git tag (created by release plugin) and use it for GitHub release
     commandLine("sh", "-c", 
-        "gh release create $releaseTag -F CHANGELOG.md && " +
-        "gh release upload $releaseTag build/libs/*.jar build/libs/*.jar.asc --clobber"
+        "RELEASE_TAG=\$(git describe --tags --abbrev=0) && " +
+        "gh release create \$RELEASE_TAG -F CHANGELOG.md && " +
+        "gh release upload \$RELEASE_TAG build/libs/*.jar build/libs/*.jar.asc --clobber"
     )
 }
