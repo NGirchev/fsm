@@ -321,7 +321,7 @@ Development builds use the `-SNAPSHOT` suffix (e.g. `1.0.1-SNAPSHOT`) and are no
 
 ```kotlin
 dependencies {
-    implementation("io.github.ngirchev:fsm:1.0.1")
+    implementation("io.github.ngirchev:fsm:1.0.0")
 }
 ```
 
@@ -329,7 +329,7 @@ dependencies {
 
 ```groovy
 dependencies {
-    implementation 'io.github.ngirchev:fsm:1.0.1'
+    implementation 'io.github.ngirchev:fsm:1.0.0'
 }
 ```
 
