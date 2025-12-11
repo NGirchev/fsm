@@ -1,11 +1,14 @@
+import org.gradle.api.JavaVersion
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
-    kotlin("jvm") version "1.6.21"
-    id("io.gitlab.arturbosch.detekt") version "1.21.0-RC2"
+    // Kotlin version bumped to be compatible with the Maven Publish plugin and Gradle 8.10
+    kotlin("jvm") version "1.9.25"
+    id("io.gitlab.arturbosch.detekt") version "1.23.7"
     id("org.jmailen.kotlinter") version "3.6.0"
     id("maven-publish")
     id("signing")
+    id("com.vanniktech.maven.publish") version "0.34.0"
     id("net.researchgate.release") version "3.0.2"
     jacoco
 }
@@ -22,72 +25,50 @@ dependencies {
     implementation("ch.qos.logback:logback-classic:1.5.19")
     testImplementation("org.mockito.kotlin:mockito-kotlin:3.2.0")
     testImplementation("io.mockk:mockk:1.9.3")
-    testImplementation("org.junit.jupiter", "junit-jupiter-params","5.8.1")
+    testImplementation("org.junit.jupiter", "junit-jupiter-params", "5.8.1")
     testImplementation(kotlin("test"))
 }
 
 java {
+    // Compile library to Java 8 bytecode while running Gradle/tests on a newer JDK (e.g. 21)
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
     withSourcesJar()
-    withJavadocJar()
 }
 
 publishing {
-    publications {
-        create<MavenPublication>("mavenJava") {
-            from(components["java"]) // works for Kotlin/JVM too
-            artifactId = "fsm"
-            
-            pom {
-                name.set("fsm")
-                description.set("Finite state machine utilities")
+    publications.withType<MavenPublication>().configureEach {
+        artifactId = "fsm"
+
+        pom {
+            name.set("fsm")
+            description.set("Finite state machine utilities")
+            url.set("https://github.com/NGirchev/fsm")
+
+            licenses {
+                license {
+                    name.set("MIT")
+                    url.set("https://opensource.org/licenses/MIT")
+                }
+            }
+
+            developers {
+                developer {
+                    id.set("NGirchev")
+                    name.set("Nikolay Girchev")
+                }
+            }
+
+            scm {
+                connection.set("scm:git:git://github.com/NGirchev/fsm.git")
+                developerConnection.set("scm:git:ssh://github.com:NGirchev/fsm.git")
                 url.set("https://github.com/NGirchev/fsm")
-                
-                licenses {
-                    license {
-                        name.set("MIT")
-                        url.set("https://opensource.org/licenses/MIT")
-                    }
-                }
-                
-                developers {
-                    developer {
-                        id.set("NGirchev")
-                        name.set("Nikolay Girchev")
-                    }
-                }
-                
-                scm {
-                    connection.set("scm:git:git://github.com/NGirchev/fsm.git")
-                    developerConnection.set("scm:git:ssh://github.com:NGirchev/fsm.git")
-                    url.set("https://github.com/NGirchev/fsm")
-                }
             }
         }
     }
     repositories {
         // enable install to ~/.m2 via task publishToMavenLocal
         mavenLocal()
-
-        // Maven Central publishing via Sonatype Central (https://central.sonatype.com)
-        // Equivalent to Maven distributionManagement:
-        //   snapshotRepository: https://central.sonatype.com/repository/maven-snapshots/
-        //   repository:        https://central.sonatype.com/api/v1/publisher
-        // URL is selected based on version suffix (SNAPSHOT / release).
-        // Credentials are read from gradle.properties or ~/.gradle/gradle.properties:
-        //   centralUsername and centralPassword (where "central" matches repository name)
-        // Equivalent to Maven <server id="central"> in ~/.m2/settings.xml
-        maven {
-            name = "central"
-
-            val releasesRepoUrl = uri("https://central.sonatype.com/api/v1/publisher")
-            val snapshotsRepoUrl = uri("https://central.sonatype.com/repository/maven-snapshots/")
-            url = if (version.toString().endsWith("SNAPSHOT")) snapshotsRepoUrl else releasesRepoUrl
-
-            credentials {
-                username = findProperty("centralUsername") as String? ?: ""
-                password = findProperty("centralPassword") as String? ?: ""
-            }
-        }
     }
 }
 
@@ -99,14 +80,23 @@ publishing {
 //   signing.gnupg.executable  – path to gpg binary (optional, defaults to "gpg")
 signing {
     useGpgCmd()
-    sign(publishing.publications["mavenJava"])
+    // Sign all Maven publications (including the one used by vanniktech plugin for Central)
+    sign(publishing.publications)
 }
 
 kotlinter {
     ignoreFailures = false
     reporters = arrayOf("html")
     experimentalRules = false
-    disabledRules = arrayOf("no-wildcard-imports", "import-ordering", "indent", "final-newline", "no-multi-spaces", "no-trailing-spaces", "string-template")
+    disabledRules = arrayOf(
+        "no-wildcard-imports",
+        "import-ordering",
+        "indent",
+        "final-newline",
+        "no-multi-spaces",
+        "no-trailing-spaces",
+        "string-template"
+    )
 }
 
 // Automatic formatting before checking
@@ -118,7 +108,8 @@ tasks.named("lintKotlinTest") {
 }
 
 detekt {
-    config = files("$projectDir/detekt.yml") // point to your custom config defining rules to run, overwriting default behavior
+    config =
+        files("$projectDir/detekt.yml") // point to your custom config defining rules to run, overwriting default behavior
 }
 
 tasks.withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
