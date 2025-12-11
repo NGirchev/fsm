@@ -341,7 +341,7 @@ All build tools, dependencies, and test frameworks used are FLOSS.
 
 This project uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`, e.g. `1.0.0`).  
 Each release has a **unique version identifier**, is tagged in Git as `v{version}` (e.g. `v1.0.0`).  
-Development builds use the `-SNAPSHOT` suffix (e.g. `1.0.1-SNAPSHOT`) and are not intended for production use.
+Development builds use the `-SNAPSHOT` suffix (e.g. `1.0.3-SNAPSHOT`) and are not intended for production use.
 
 ## Testing
 
@@ -545,18 +545,18 @@ git push origin master
 git push --tags
 
 # 7. Create GitHub release with CHANGELOG notes
-# Replace v1.0.1 with your actual version tag (created by release plugin)
-gh release create v1.0.1 -F CHANGELOG.md
+# Replace v1.0.2 with your actual version tag (created by release plugin)
+gh release create v1.0.2 -F CHANGELOG.md
 
 # Attach artifacts and their signatures (for OpenSSF Security Score)
-gh release upload v1.0.1 build/libs/*.jar build/libs/*.jar.asc --clobber
+gh release upload v1.0.2 build/libs/*.jar build/libs/*.jar.asc --clobber
 ```
 
 **Note:**
 
 * The `release` plugin automatically:
   - Updates version in `gradle.properties` (removes -SNAPSHOT)
-  - Creates a Git tag with format `v{version}` (e.g., `v1.0.1`)
+  - Creates a Git tag with format `v{version}` (e.g., `v1.0.2`)
   - Commits version changes
 * After publishing, artifacts will be available at: https://repo1.maven.org/maven2/io/github/ngirchev/fsm/
 * Maven Central sync usually takes 10-30 minutes after release
