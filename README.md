@@ -521,6 +521,10 @@ To create a release and publish to Maven Central:
 # 1. Update CHANGELOG.md with release notes
 
 # 2. Prepare release (this will update version in gradle.properties and create Git tag)
+# Option 1: Specify version manually (recommended for major/minor releases)
+./gradlew release -Prelease.version=1.2.0
+
+# Option 2: Auto-increment patch version (only increments the last number, e.g., 1.0.2 -> 1.0.3)
 ./gradlew release -Prelease.useAutomaticVersion=true
 
 # 3. Build and test
