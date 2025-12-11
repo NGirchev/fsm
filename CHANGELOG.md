@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] - 2025-12-11
+
+### Security
+- Fixed CVE-2024-12798 (JaninoEventEvaluator vulnerability in logback-classic)
+- Changed logging dependencies from `implementation` to `compileOnly` to avoid transitive vulnerabilities
+- Updated logback-classic to 1.5.20 (vulnerability fixed in 1.5.13+)
+
+### Changed
+- Logging dependencies (kotlin-logging-jvm and logback-classic) are now provided as `compileOnly` dependencies
+- Logging dependencies available at runtime for local testing via `testImplementation`
+
+### Improved
+- Improved artifact signing process to skip GPG signing for local Maven repository publishing (`publishToMavenLocal`)
+- Enhanced build configuration comments with security information
+
 ## [1.0.1] - 2025-12-11
 
 ### Changed
@@ -33,7 +48,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Actions and post-actions
 - Exception handling for invalid transitions
 
-[Unreleased]: https://github.com/NGirchev/fsm/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/NGirchev/fsm/compare/v1.0.2...HEAD
+[1.0.2]: https://github.com/NGirchev/fsm/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/NGirchev/fsm/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/NGirchev/fsm/releases/tag/v1.0.0
 
