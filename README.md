@@ -24,7 +24,35 @@ This small library contains several implementations for common use cases.
 
 You can also use the `io.github.ngirchev.fsm.impl` package with basic implementations.
 
-## How to use examples
+## Installation
+
+### Gradle (Kotlin DSL)
+
+```kotlin
+dependencies {
+    implementation("io.github.ngirchev:fsm:1.0.0")
+}
+```
+
+### Gradle (Groovy DSL)
+
+```groovy
+dependencies {
+    implementation 'io.github.ngirchev:fsm:1.0.0'
+}
+```
+
+### Maven
+
+```xml
+<dependency>
+    <groupId>io.github.ngirchev</groupId>
+    <artifactId>fsm</artifactId>
+    <version>1.0.0</version>
+</dependency>
+```
+
+## Usage Examples
 ### We have these initial data:
 ```
 data class Document(
@@ -314,34 +342,6 @@ All build tools, dependencies, and test frameworks used are FLOSS.
 This project uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`, e.g. `1.0.0`).  
 Each release has a **unique version identifier**, is tagged in Git as `v{version}` (e.g. `v1.0.0`).  
 Development builds use the `-SNAPSHOT` suffix (e.g. `1.0.1-SNAPSHOT`) and are not intended for production use.
-
-## Installation
-
-### Gradle (Kotlin DSL)
-
-```kotlin
-dependencies {
-    implementation("io.github.ngirchev:fsm:1.0.0")
-}
-```
-
-### Gradle (Groovy DSL)
-
-```groovy
-dependencies {
-    implementation 'io.github.ngirchev:fsm:1.0.0'
-}
-```
-
-### Maven
-
-```xml
-<dependency>
-    <groupId>io.github.ngirchev</groupId>
-    <artifactId>fsm</artifactId>
-    <version>1.0.1</version>
-</dependency>
-```
 
 ## Testing
 
