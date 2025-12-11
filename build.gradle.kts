@@ -21,18 +21,18 @@ repositories {
 }
 
 dependencies {
-    implementation("io.github.microutils:kotlin-logging-jvm:2.0.11")
-    implementation("ch.qos.logback:logback-classic:1.5.19")
-    testImplementation("org.mockito.kotlin:mockito-kotlin:3.2.0")
-    testImplementation("io.mockk:mockk:1.9.3")
-    testImplementation("org.junit.jupiter", "junit-jupiter-params", "5.8.1")
+    implementation("io.github.microutils:kotlin-logging-jvm:3.0.5")
+    implementation("ch.qos.logback:logback-classic:1.5.20")
+    testImplementation("org.mockito.kotlin:mockito-kotlin:5.3.1")
+    testImplementation("io.mockk:mockk:1.13.11")
+    testImplementation("org.junit.jupiter", "junit-jupiter-params", "5.11.0")
     testImplementation(kotlin("test"))
 }
 
 java {
-    // Compile library to Java 8 bytecode while running Gradle/tests on a newer JDK (e.g. 21)
-    sourceCompatibility = JavaVersion.VERSION_1_8
-    targetCompatibility = JavaVersion.VERSION_1_8
+    // Compile library to Java 11 bytecode while running Gradle/tests on a newer JDK (e.g. 21)
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
     withSourcesJar()
 }
 
@@ -165,15 +165,15 @@ tasks.check {
 }
 
 tasks.withType<KotlinCompile> {
-    kotlinOptions.jvmTarget = "1.8"
+    kotlinOptions.jvmTarget = "11"
 }
 
 // Kotlin DSL
 tasks.withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
-    jvmTarget = "1.8"
+    jvmTarget = "11"
 }
 tasks.withType<io.gitlab.arturbosch.detekt.DetektCreateBaselineTask>().configureEach {
-    jvmTarget = "1.8"
+    jvmTarget = "11"
 }
 
 // Release plugin configuration
