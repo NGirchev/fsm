@@ -30,7 +30,7 @@ You can also use the `io.github.ngirchev.fsm.impl` package with basic implementa
 
 ```kotlin
 dependencies {
-    implementation("io.github.ngirchev:fsm:1.0.0")
+    implementation("io.github.ngirchev:fsm:1.0.2")
 }
 ```
 
@@ -38,7 +38,7 @@ dependencies {
 
 ```groovy
 dependencies {
-    implementation 'io.github.ngirchev:fsm:1.0.0'
+    implementation 'io.github.ngirchev:fsm:1.0.2'
 }
 ```
 
@@ -48,7 +48,7 @@ dependencies {
 <dependency>
     <groupId>io.github.ngirchev</groupId>
     <artifactId>fsm</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.2</version>
 </dependency>
 ```
 
