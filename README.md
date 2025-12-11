@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Kotlin](https://img.shields.io/badge/Kotlin-1.6.21-blue.svg)](https://kotlinlang.org/)
 [![Gradle](https://img.shields.io/badge/Gradle-8.10-green.svg)](https://gradle.org/)
-[![JDK](https://img.shields.io/badge/JDK-8%2B-orange.svg)](https://adoptium.net/)
+[![JDK](https://img.shields.io/badge/JDK-11%2B-orange.svg)](https://adoptium.net/)
 [![SonarCloud Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=NGirchev_fsm&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=NGirchev_fsm)
 [![Lines of Code](https://sonarcloud.io/api/project_badges/measure?project=NGirchev_fsm&metric=ncloc)](https://sonarcloud.io/summary/new_code?id=NGirchev_fsm)
 [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=NGirchev_fsm&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=NGirchev_fsm)
@@ -331,7 +331,7 @@ transitionTable.toMermaid(Path("diagram.mermaid"))
 
 **This project is buildable using only FLOSS (Free/Libre and Open Source Software) tools.**
 
-* **Java 8 or higher** (OpenJDK recommended - FLOSS)
+* **Java 11 or higher** (OpenJDK recommended - FLOSS)
 * **Gradle 7.0+** (Gradle - FLOSS)
 * **Kotlin 1.6.21+**
 

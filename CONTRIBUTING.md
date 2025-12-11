@@ -10,7 +10,7 @@ By participating in this project, you agree to maintain a respectful and inclusi
 
 ### Prerequisites
 
-* **Java 8 or higher** (OpenJDK recommended)
+* **Java 11 or higher** (OpenJDK recommended)
 * **Gradle 7.0+**
 * **Git**
 
