@@ -29,10 +29,10 @@ class JavaExDomainFsmIT {
                         .endMultiple()
 
                         .from(SIGNED).onEvent("TO_END").toMultiple()
-                        .to(AUTO_SENT).condition(ctx -> ((Document) ctx).getSignRequired())
+                        .to(AUTO_SENT).onCondition(ctx -> ((Document) ctx).getSignRequired())
                         .action(ctx -> System.out.println("AUTO_SENT"))
                         .end()
-                        .to(DONE).condition(ctx -> !((Document) ctx).getSignRequired()).end()
+                        .to(DONE).onCondition(ctx -> !((Document) ctx).getSignRequired()).end()
                         .to(CANCELED).end()
                         .endMultiple()
 

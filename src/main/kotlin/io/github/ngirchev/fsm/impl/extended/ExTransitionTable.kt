@@ -136,7 +136,7 @@ class ToBuilder<STATE, EVENT>(
         return this
     }
 
-    fun condition(condition: Guard<in StateContext<STATE>>): ToBuilder<STATE, EVENT> {
+    fun onCondition(condition: Guard<in StateContext<STATE>>): ToBuilder<STATE, EVENT> {
         this.conditions.add(condition)
         return this
     }
@@ -207,7 +207,7 @@ class ToMultipleTransitionBuilder<STATE, EVENT>(
         return this
     }
 
-    fun condition(condition: Guard<in StateContext<STATE>>): ToMultipleTransitionBuilder<STATE, EVENT> {
+    fun onCondition(condition: Guard<in StateContext<STATE>>): ToMultipleTransitionBuilder<STATE, EVENT> {
         this.conditions.add(condition)
         return this
     }

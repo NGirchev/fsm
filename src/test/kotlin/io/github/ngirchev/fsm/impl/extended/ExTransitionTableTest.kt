@@ -95,7 +95,7 @@ class ExTransitionTableTest {
         val result = builder.from("from")
             .to("to")
             .onEvent("event")
-            .condition { true }
+            .onCondition { true }
             .action { }
             .postAction { }
             .timeout(Timeout(1))

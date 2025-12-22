@@ -208,8 +208,8 @@ class ExFsmTest {
         val table = ExTransitionTable.Builder<String, String>()
             .from("from")
             .to("to")
-            .condition { condition1Called = true; true }
-            .condition { condition2Called = true; true }
+            .onCondition { condition1Called = true; true }
+            .onCondition { condition2Called = true; true }
             .end()
             .build()
 
@@ -272,8 +272,8 @@ class ExFsmTest {
             .from("from")
             .onEvent("event")
             .to("to")
-            .condition { condition1Called = true; true }
-            .condition { condition2Called = true; true }
+            .onCondition { condition1Called = true; true }
+            .onCondition { condition2Called = true; true }
             .end()
             .build()
 

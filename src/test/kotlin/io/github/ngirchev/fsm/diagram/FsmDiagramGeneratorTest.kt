@@ -123,7 +123,7 @@ class FsmDiagramGeneratorTest {
             .action { actionCount++ }
             .action { actionCount++ }
             .postAction { postActionCount++ }
-            .condition { true }
+            .onCondition { true }
             .timeout(Timeout(5))
             .end()
             .from(READY_FOR_SIGN).onEvent("SIGN").to(SIGNED)
@@ -153,7 +153,7 @@ class FsmDiagramGeneratorTest {
             .action { actionCount++ }
             .action { actionCount++ }
             .postAction { postActionCount++ }
-            .condition { true }
+            .onCondition { true }
             .timeout(Timeout(5))
             .end()
             .from(READY_FOR_SIGN).onEvent("SIGN").to(SIGNED)
@@ -183,8 +183,8 @@ class FsmDiagramGeneratorTest {
             .to(CANCELED).onEvent("FAILED_EVENT").end().endMultiple()
             .from(SIGNED).onEvent("FAILED_EVENT").to(CANCELED).end()
             .from(SIGNED).onEvent("TO_END").toMultiple()
-            .to(AUTO_SENT).condition { document.signRequired }.end()
-            .to(DONE).condition { !document.signRequired }.end()
+            .to(AUTO_SENT).onCondition { document.signRequired }.end()
+            .to(DONE).onCondition { !document.signRequired }.end()
             .to(CANCELED).end().endMultiple()
             .from(AUTO_SENT).onEvent("TO_END").to(DONE).end()
             .build()
@@ -211,8 +211,8 @@ class FsmDiagramGeneratorTest {
             .to(CANCELED).onEvent("FAILED_EVENT").end().endMultiple()
             .from(SIGNED).onEvent("FAILED_EVENT").to(CANCELED).end()
             .from(SIGNED).onEvent("TO_END").toMultiple()
-            .to(AUTO_SENT).condition { document.signRequired }.end()
-            .to(DONE).condition { !document.signRequired }.end()
+            .to(AUTO_SENT).onCondition { document.signRequired }.end()
+            .to(DONE).onCondition { !document.signRequired }.end()
             .to(CANCELED).end().endMultiple()
             .from(AUTO_SENT).onEvent("TO_END").to(DONE).end()
             .build()

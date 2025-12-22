@@ -61,8 +61,8 @@ internal class ExDomainFsmIT {
                         .to(CANCELED).onEvent("FAILED_EVENT").end().endMultiple()
                         .from(SIGNED).onEvent("FAILED_EVENT").to(CANCELED).end()
                         .from(SIGNED).onEvent("TO_END").toMultiple()                  // switch case example
-                        .to(AUTO_SENT).condition { document.signRequired }.end()    // first
-                        .to(DONE).condition { !document.signRequired }.end()        // second
+                        .to(AUTO_SENT).onCondition { document.signRequired }.end()    // first
+                        .to(DONE).onCondition { !document.signRequired }.end()        // second
                         .to(CANCELED).end().endMultiple()                           // else
                         .from(AUTO_SENT).onEvent("TO_END").to(DONE).end()
                         .build()
@@ -313,8 +313,8 @@ internal class ExDomainFsmIT {
         val fsm = ExDomainFsm(
             ExTransitionTable.Builder<DocumentState, String>()
                 .from(NEW).onEvent("PROCESS").to(READY_FOR_SIGN)
-                .condition { conditionCallCount++; true }
-                .condition { conditionCallCount++; true }
+                .onCondition { conditionCallCount++; true }
+                .onCondition { conditionCallCount++; true }
                 .action { actionCallCount++ }
                 .action { actionCallCount++ }
                 .postAction { postActionCallCount++ }
@@ -345,8 +345,8 @@ internal class ExDomainFsmIT {
         val fsm = ExDomainFsm(
             ExTransitionTable.Builder<DocumentState, String>()
                 .from(NEW).onEvent("PROCESS").to(READY_FOR_SIGN)
-                .condition { condition1Called = true; true }
-                .condition { condition2Called = true; false }  // This one returns false
+                .onCondition { condition1Called = true; true }
+                .onCondition { condition2Called = true; false }  // This one returns false
                 .end()
                 .build()
         )

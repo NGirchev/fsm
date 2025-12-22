@@ -248,7 +248,7 @@ val fsm = ExTransitionTable.Builder<OrderState, String>()
     .from(NEW)
     .onEvent("PAY")
     .to(PAID)
-    .condition(isPaymentValid)    // Displayed on arrow: [IsPaymentValid]
+    .onCondition(isPaymentValid)    // Displayed on arrow: [IsPaymentValid]
     .action(chargeCard)           // Displayed in PAID state: ▶ ChargeCard
     .postAction(sendReceipt)      // Displayed in PAID state: ◀ SendReceipt
     .timeout(Timeout(30))

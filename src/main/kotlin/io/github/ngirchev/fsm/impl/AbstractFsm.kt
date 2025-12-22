@@ -4,58 +4,66 @@ import mu.KLogging
 import io.github.ngirchev.fsm.*
 import io.github.ngirchev.fsm.exception.FsmException
 import io.github.ngirchev.fsm.exception.FsmTransitionFailedException
-import java.util.concurrent.Executors
-import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.CopyOnWriteArrayList
 
 /**
  * Finite-state machine
  */
-abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSITION_TABLE : AbstractTransitionTable<STATE, TRANSITION>> :
-    StateSupport<STATE>, TransitionSupport<STATE, TRANSITION>, Notifiable<STATE> {
+abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSITION_TABLE : AbstractTransitionTable<STATE, TRANSITION>>(
+    context: StateContext<STATE>,
+    open val transitionTable: TRANSITION_TABLE,
+    autoTransitionEnabled: Boolean? = null
+) : StateSupport<STATE>, TransitionSupport<STATE, TRANSITION>, Notifiable<STATE> {
 
     companion object : KLogging()
-
-    open val transitionTable: TRANSITION_TABLE
 
     /**
      * Enable auto transitions based on transition table.
      */
     val autoTransitionEnabled: Boolean
 
+    init {
+        val overrideAutoTransition = autoTransitionEnabled ?: run {
+            transitionTable.autoTransitionEnabled
+        }
+        this.autoTransitionEnabled = overrideAutoTransition
+    }
+
     constructor(
         state: STATE,
         transitionTable: TRANSITION_TABLE,
         autoTransitionEnabled: Boolean? = null,
-    ) {
-        transitionTable.also { this.transitionTable = it }
-        this.context = DefaultStateContext(state)
-        val overrideAutoTransition = autoTransitionEnabled ?: run {
-            transitionTable.autoTransitionEnabled
-        }
-        this.autoTransitionEnabled = overrideAutoTransition
-    }
+    ) : this(
+        DefaultStateContext(state),
+        transitionTable,
+        autoTransitionEnabled
+    )
 
-    constructor(
-        context: StateContext<STATE>,
-        transitionTable: TRANSITION_TABLE,
-        autoTransitionEnabled: Boolean? = null
-    ) {
-        transitionTable.also { this.transitionTable = it }
-        this.context = context
-        val overrideAutoTransition = autoTransitionEnabled ?: run {
-            transitionTable.autoTransitionEnabled
-        }
-        this.autoTransitionEnabled = overrideAutoTransition
-    }
-
-    internal val context: StateContext<STATE>
+    internal val context: StateContext<STATE> = context
 
     override fun getState(): STATE {
         return this.context.state
     }
 
+    private val stateChangeListeners = CopyOnWriteArrayList<StateChangeListener<STATE>>()
+
+    fun addStateChangeListener(listener: StateChangeListener<STATE>) {
+        stateChangeListeners.add(listener)
+    }
+
+    fun removeStateChangeListener(listener: StateChangeListener<STATE>) {
+        stateChangeListeners.remove(listener)
+    }
+
     override fun notify(context: StateContext<STATE>, oldState: STATE, newState: STATE) {
         logger.info { "Changed status $oldState -> $newState" }
+        stateChangeListeners.forEach { listener ->
+            try {
+                listener.onStateChanged(context, oldState, newState)
+            } catch (e: Exception) {
+                logger.error(e) { "Error in state change listener" }
+            }
+        }
     }
 
     override fun toState(newState: STATE) {
@@ -102,10 +110,6 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
         context.state = newState
         transition.to.postActions.forEach { it.invoke(context) }
         notify(context, oldState, newState)
-    }
-
-    private fun getExecutorService(): ScheduledExecutorService {
-        return Executors.newScheduledThreadPool(1)
     }
 
     private class DefaultStateContext<STATE>(

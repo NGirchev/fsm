@@ -3,6 +3,7 @@ package io.github.ngirchev.fsm.impl.basic
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 import io.github.ngirchev.fsm.StateContext
+import io.github.ngirchev.fsm.StateChangeListener
 import io.github.ngirchev.fsm.exception.FsmTransitionFailedException
 import io.github.ngirchev.fsm.exception.FsmException
 import kotlin.test.assertEquals
@@ -169,5 +170,75 @@ class BFsmTest {
         fsm.toState("intermediate1")
 
         assertEquals("to", fsm.getState())
+    }
+
+    @Test
+    fun addStateChangeListenerShouldBeCalledOnStateChange() {
+        val table = BTransitionTable.Builder<String>()
+            .add("from", "to")
+            .build()
+
+        val fsm = BFsm("from", table)
+        var listenerCalled = false
+        var capturedOldState: String? = null
+        var capturedNewState: String? = null
+
+        val listener = StateChangeListener<String> { _, oldState, newState ->
+            listenerCalled = true
+            capturedOldState = oldState
+            capturedNewState = newState
+        }
+
+        fsm.addStateChangeListener(listener)
+        fsm.toState("to")
+
+        assertTrue(listenerCalled)
+        assertEquals("from", capturedOldState)
+        assertEquals("to", capturedNewState)
+    }
+
+    @Test
+    fun removeStateChangeListenerShouldNotBeCalledAfterRemoval() {
+        val table = BTransitionTable.Builder<String>()
+            .add("from", "to")
+            .build()
+
+        val fsm = BFsm("from", table)
+        var listenerCalled = false
+
+        val listener = StateChangeListener<String> { _, _, _ ->
+            listenerCalled = true
+        }
+
+        fsm.addStateChangeListener(listener)
+        fsm.removeStateChangeListener(listener)
+        fsm.toState("to")
+
+        assertTrue(!listenerCalled)
+    }
+
+    @Test
+    fun multipleStateChangeListenersShouldAllBeCalled() {
+        val table = BTransitionTable.Builder<String>()
+            .add("from", "to")
+            .build()
+
+        val fsm = BFsm("from", table)
+        var listener1Called = false
+        var listener2Called = false
+
+        val listener1 = StateChangeListener<String> { _, _, _ ->
+            listener1Called = true
+        }
+        val listener2 = StateChangeListener<String> { _, _, _ ->
+            listener2Called = true
+        }
+
+        fsm.addStateChangeListener(listener1)
+        fsm.addStateChangeListener(listener2)
+        fsm.toState("to")
+
+        assertTrue(listener1Called)
+        assertTrue(listener2Called)
     }
 }

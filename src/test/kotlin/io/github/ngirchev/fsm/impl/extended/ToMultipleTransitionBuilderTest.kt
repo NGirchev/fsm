@@ -55,7 +55,7 @@ class ToMultipleTransitionBuilderTest {
         val toMultipleBuilder = builder.from("from").toMultiple()
         val toMultipleTransitionBuilder = toMultipleBuilder.to("to")
             .onEvent("event")
-            .condition { true }
+            .onCondition { true }
             .action { }
             .postAction { }
             .timeout(Timeout(1))

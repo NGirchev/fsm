@@ -29,3 +29,5 @@
 hs_err_pid*
 /gradle.properties.local
 /.env
+/bin/
+/.sonarlint/connectedMode.json
