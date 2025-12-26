@@ -104,7 +104,7 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
         val newState = transition.to.state
 
         context.currentTransition = transition
-        logger.info { "Try to changed status $oldState -> $newState" }
+        logger.info { "Try to change status $oldState -> $newState" }
 
         transition.to.actions.forEach { it.invoke(context) }
         context.state = newState
