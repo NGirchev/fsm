@@ -18,6 +18,10 @@ import io.github.ngirchev.fsm.exception.FsmException
 import io.github.ngirchev.fsm.it.document.Document
 import io.github.ngirchev.fsm.it.document.DocumentState
 import io.github.ngirchev.fsm.it.document.DocumentState.*
+import io.github.ngirchev.fsm.serialization.fromJson
+import io.github.ngirchev.fsm.serialization.toJson
+import io.github.ngirchev.fsm.serialization.GuardFactory
+import io.github.ngirchev.fsm.IdGuard
 import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.*
@@ -34,40 +38,48 @@ internal class ExDomainFsmIT {
     private lateinit var document: Document
 
     private fun provideTransitions(): Stream<Arguments?>? {
-        return Stream.of(
-            Arguments.of(
-                ExDomainFsm(
-                    ExTransitionTable.Builder<DocumentState, String>()
-                        .add(from = NEW, onEvent = "TO_READY", to = READY_FOR_SIGN)
-                        .add(from = READY_FOR_SIGN, onEvent = "USER_SIGN", to = SIGNED, timeout = Timeout(1))
-                        .add(from = READY_FOR_SIGN, onEvent = "FAILED_EVENT", to = CANCELED)
-                        .add(from = SIGNED, onEvent = "FAILED_EVENT", to = CANCELED)
-                        .add(
-                            from = SIGNED, onEvent = "TO_END",                        // switch case example
-                            To(AUTO_SENT, condition = { document.signRequired }),   // first
-                            To(DONE, condition = { !document.signRequired }),       // second
-                            To(CANCELED)                                            // else
-                        )
-                        .add(from = AUTO_SENT, onEvent = "TO_END", to = DONE)
-                        .build()
-                )
-            ),
-            Arguments.of(
-                ExDomainFsm(
-                    ExTransitionTable.Builder<DocumentState, String>()
-                        .from(NEW).to(READY_FOR_SIGN).onEvent("TO_READY").end()
-                        .from(READY_FOR_SIGN).toMultiple()
-                        .to(SIGNED).onEvent("USER_SIGN").timeout(Timeout(1)).end()
-                        .to(CANCELED).onEvent("FAILED_EVENT").end().endMultiple()
-                        .from(SIGNED).onEvent("FAILED_EVENT").to(CANCELED).end()
-                        .from(SIGNED).onEvent("TO_END").toMultiple()                  // switch case example
-                        .to(AUTO_SENT).onCondition { document.signRequired }.end()    // first
-                        .to(DONE).onCondition { !document.signRequired }.end()        // second
-                        .to(CANCELED).end().endMultiple()                           // else
-                        .from(AUTO_SENT).onEvent("TO_END").to(DONE).end()
-                        .build()
-                )
+        val signRequiredGuard = IdGuard<StateContext<DocumentState>>("signRequired") { (it as? Document)?.signRequired == true }
+        val notSignRequiredGuard = IdGuard<StateContext<DocumentState>>("notSignRequired") { (it as? Document)?.signRequired == false }
+        
+        val table1 = ExTransitionTable.Builder<DocumentState, String>()
+            .add(from = NEW, onEvent = "TO_READY", to = READY_FOR_SIGN)
+            .add(from = READY_FOR_SIGN, onEvent = "USER_SIGN", to = SIGNED, timeout = Timeout(1))
+            .add(from = READY_FOR_SIGN, onEvent = "FAILED_EVENT", to = CANCELED)
+            .add(from = SIGNED, onEvent = "FAILED_EVENT", to = CANCELED)
+            .add(
+                from = SIGNED, onEvent = "TO_END",                        // switch case example
+                To(AUTO_SENT, condition = signRequiredGuard),            // first
+                To(DONE, condition = notSignRequiredGuard),              // second
+                To(CANCELED)                                            // else
             )
+            .add(from = AUTO_SENT, onEvent = "TO_END", to = DONE)
+            .build()
+        val table2 = ExTransitionTable.Builder<DocumentState, String>()
+            .from(NEW).to(READY_FOR_SIGN).onEvent("TO_READY").end()
+            .from(READY_FOR_SIGN).toMultiple()
+            .to(SIGNED).onEvent("USER_SIGN").timeout(Timeout(1)).end()
+            .to(CANCELED).onEvent("FAILED_EVENT").end().endMultiple()
+            .from(SIGNED).onEvent("FAILED_EVENT").to(CANCELED).end()
+            .from(SIGNED).onEvent("TO_END").toMultiple()                  // switch case example
+            .to(AUTO_SENT).onCondition(signRequiredGuard).end()            // first
+            .to(DONE).onCondition(notSignRequiredGuard).end()             // second
+            .to(CANCELED).end().endMultiple()                           // else
+            .from(AUTO_SENT).onEvent("TO_END").to(DONE).end()
+            .build()
+        
+        val guardFactory = GuardFactory<DocumentState> { id ->
+            when (id) {
+                "signRequired" -> IdGuard(id) { (it as? Document)?.signRequired == true }
+                "notSignRequired" -> IdGuard(id) { (it as? Document)?.signRequired == false }
+                else -> null
+            }
+        }
+        
+        return Stream.of(
+            Arguments.of(ExDomainFsm(table1)),
+            Arguments.of(ExDomainFsm(table2)),
+            Arguments.of(ExDomainFsm(table1.toJson().fromJson({ DocumentState.valueOf(it) }, { it }, null, guardFactory))),
+            Arguments.of(ExDomainFsm(table2.toJson().fromJson({ DocumentState.valueOf(it) }, { it }, null, guardFactory)))
         )
     }
 

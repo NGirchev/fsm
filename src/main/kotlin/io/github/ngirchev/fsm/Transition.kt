@@ -11,8 +11,22 @@ fun interface Action<T> {
     operator fun invoke(context: T)
 }
 
+/**
+ * Interface for actions that can be identified by ID for serialization
+ */
+interface IdentifiableAction<T> : Action<T> {
+    val id: String?
+}
+
 fun interface Guard<T> {
     operator fun invoke(context: T): Boolean
+}
+
+/**
+ * Interface for guards that can be identified by ID for serialization
+ */
+interface IdentifiableGuard<T> : Guard<T> {
+    val id: String?
 }
 
 /**
@@ -27,9 +41,20 @@ fun interface Guard<T> {
 open class NamedAction<T>(
     private val name: String,
     private val action: (T) -> Unit
-) : Action<T> {
+) : Action<T>, IdentifiableAction<T> {
     override fun invoke(context: T) = action(context)
     override fun toString(): String = name
+    override val id: String? = name
+}
+
+/**
+ * Action wrapper with ID for serialization
+ */
+class IdAction<T>(
+    override val id: String,
+    private val action: (T) -> Unit
+) : Action<T>, IdentifiableAction<T> {
+    override fun invoke(context: T) = action(context)
 }
 
 /**
@@ -44,9 +69,20 @@ open class NamedAction<T>(
 open class NamedGuard<T>(
     private val name: String,
     private val guard: (T) -> Boolean
-) : Guard<T> {
+) : Guard<T>, IdentifiableGuard<T> {
     override fun invoke(context: T): Boolean = guard(context)
     override fun toString(): String = name
+    override val id: String? = name
+}
+
+/**
+ * Guard wrapper with ID for serialization
+ */
+class IdGuard<T>(
+    override val id: String,
+    private val guard: (T) -> Boolean
+) : Guard<T>, IdentifiableGuard<T> {
+    override fun invoke(context: T): Boolean = guard(context)
 }
 
 data class To<STATE>(
