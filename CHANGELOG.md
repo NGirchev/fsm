@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-04-01
+
+### Changed
+- Renamed `condition()` to `onCondition()` in transition builder (breaking change)
+- Upgraded Kotlin to 2.2.0
+- Upgraded Jackson to 2.19.0
+- Upgraded SLF4J to 2.0.17, logback-classic to 1.5.32
+- Upgraded mockito-kotlin to 5.4.0, mockk to 1.14.3, JUnit Jupiter Params to 5.12.2
+- Upgraded Detekt to 1.23.8, Vanniktech Maven Publish to 0.34.0
+
+### Added
+- FSM serialization/deserialization support via Jackson
+- Listener support for state transitions
+
+### Fixed
+- Removed unused kotlinter CI step (plugin was not configured)
+
 ## [1.0.2] - 2025-12-11
 
 ### Security
@@ -48,7 +65,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Actions and post-actions
 - Exception handling for invalid transitions
 
-[Unreleased]: https://github.com/NGirchev/fsm/compare/v1.0.2...HEAD
+[Unreleased]: https://github.com/NGirchev/fsm/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/NGirchev/fsm/compare/v1.0.2...v1.1.0
 [1.0.2]: https://github.com/NGirchev/fsm/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/NGirchev/fsm/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/NGirchev/fsm/releases/tag/v1.0.0
