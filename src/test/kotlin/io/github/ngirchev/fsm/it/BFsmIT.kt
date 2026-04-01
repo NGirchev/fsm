@@ -1,6 +1,6 @@
 package io.github.ngirchev.fsm.it
 
-import mu.KLogging
+import org.slf4j.LoggerFactory
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
@@ -20,7 +20,9 @@ import kotlin.test.assertFailsWith
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 internal class BFsmIT {
-    companion object : KLogging()
+    companion object {
+        private val logger = LoggerFactory.getLogger(BFsmIT::class.java)
+    }
 
     private var autoSendEnabled: Boolean = true
     private var successfullySent: Boolean = false
@@ -36,7 +38,7 @@ internal class BFsmIT {
                         To(
                             "SIGNED",
                             condition = { true },
-                            action = { logger.info { "SIGNED SUCCESSFUL" } }),
+                            action = { logger.info("SIGNED SUCCESSFUL") }),
                         To("CANCELLED")
                     )
                     .add(
@@ -45,7 +47,7 @@ internal class BFsmIT {
                             To(
                                 state = "AUTO_SENT",
                                 condition = { autoSendEnabled },
-                                action = { successfullySent = true; logger.info { "AUTO SENT ACTION" } }
+                                action = { successfullySent = true; logger.info("AUTO SENT ACTION") }
                             )
                         ))
                     .add(from = "SIGNED", "DONE", "CANCELED")
@@ -56,11 +58,11 @@ internal class BFsmIT {
                     .autoTransitionEnabled(false)
                     .from("NEW").to("READY_FOR_SIGN").end()
                     .from("READY_FOR_SIGN").toMultiple()
-                    .to("SIGNED").condition { true }.action { logger.info { "SIGNED SUCCESSFUL" } }.end()
+                    .to("SIGNED").condition { true }.action { logger.info("SIGNED SUCCESSFUL") }.end()
                     .to("CANCELED").end().endMultiple()
                     .from("SIGNED").to("AUTO_SENT")
                     .condition { autoSendEnabled }
-                    .action { successfullySent = true; logger.info { "AUTO SENT ACTION" } }.end()
+                    .action { successfullySent = true; logger.info("AUTO SENT ACTION") }.end()
                     .from("SIGNED").toMultiple().to("DONE").end().to("CANCELED").end().endMultiple()
                     .from("AUTO_SENT").toMultiple().to("DONE").end().to("CANCELED").end().endMultiple()
                     .build()
