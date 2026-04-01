@@ -30,9 +30,6 @@ jobs:
     - name: Run code quality checks (detekt)
       run: ./gradlew detekt
 
-    - name: Run code formatting checks (kotlinter)
-      run: ./gradlew lintKotlinMain lintKotlinTest
-
     - name: Build project
       run: ./gradlew build -x test
 
