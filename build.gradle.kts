@@ -3,13 +3,12 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
     // Kotlin version bumped to be compatible with the Maven Publish plugin and Gradle 8.10
-    kotlin("jvm") version "1.9.25"
-    id("io.gitlab.arturbosch.detekt") version "1.23.7"
-    id("org.jmailen.kotlinter") version "3.6.0"
+    kotlin("jvm") version "2.2.0"
+    id("io.gitlab.arturbosch.detekt") version "1.23.8"
     id("maven-publish")
     id("signing")
     id("com.vanniktech.maven.publish") version "0.34.0"
-    id("net.researchgate.release") version "3.0.2"
+    id("net.researchgate.release") version "3.1.0"
     jacoco
 }
 
@@ -21,21 +20,18 @@ repositories {
 }
 
 dependencies {
-    // Logging dependencies are compileOnly (provided) to avoid transitive vulnerabilities
-    // Updated to 1.5.20 to fix CVE-2024-12798 (JaninoEventEvaluator vulnerability fixed in 1.5.13+)
-    // Available at runtime for local testing via testImplementation
-    compileOnly("io.github.microutils:kotlin-logging-jvm:3.0.5")
-    compileOnly("ch.qos.logback:logback-classic:1.5.20")
-    testImplementation("io.github.microutils:kotlin-logging-jvm:3.0.5")
-    testImplementation("ch.qos.logback:logback-classic:1.5.20")
-    testImplementation("org.mockito.kotlin:mockito-kotlin:5.3.1")
-    testImplementation("io.mockk:mockk:1.13.11")
-    testImplementation("org.junit.jupiter", "junit-jupiter-params", "5.11.0")
+    // SLF4J API only — consumers choose their own logging implementation
+    implementation("org.slf4j:slf4j-api:2.0.17")
+    compileOnly("ch.qos.logback:logback-classic:1.5.32")
+    testImplementation("ch.qos.logback:logback-classic:1.5.32")
+    testImplementation("org.mockito.kotlin:mockito-kotlin:5.4.0")
+    testImplementation("io.mockk:mockk:1.14.3")
+    testImplementation("org.junit.jupiter", "junit-jupiter-params", "5.12.2")
     testImplementation(kotlin("test"))
     
     // Jackson for JSON serialization
-    api("com.fasterxml.jackson.core:jackson-databind:2.17.2")
-    api("com.fasterxml.jackson.module:jackson-module-kotlin:2.17.2")
+    api("com.fasterxml.jackson.core:jackson-databind:2.19.0")
+    api("com.fasterxml.jackson.module:jackson-module-kotlin:2.19.0")
 }
 
 java {
@@ -98,32 +94,8 @@ signing {
     }
 }
 
-kotlinter {
-    ignoreFailures = false
-    reporters = arrayOf("html")
-    experimentalRules = false
-    disabledRules = arrayOf(
-        "no-wildcard-imports",
-        "import-ordering",
-        "indent",
-        "final-newline",
-        "no-multi-spaces",
-        "no-trailing-spaces",
-        "string-template"
-    )
-}
-
-// Automatic formatting before checking
-tasks.named("lintKotlinMain") {
-    dependsOn("formatKotlinMain")
-}
-tasks.named("lintKotlinTest") {
-    dependsOn("formatKotlinTest")
-}
-
 detekt {
-    config =
-        files("$projectDir/detekt.yml") // point to your custom config defining rules to run, overwriting default behavior
+    config.setFrom("$projectDir/detekt.yml") // point to your custom config defining rules to run, overwriting default behavior
 }
 
 tasks.withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
@@ -179,7 +151,9 @@ tasks.check {
 }
 
 tasks.withType<KotlinCompile> {
-    kotlinOptions.jvmTarget = "11"
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
+    }
 }
 
 // Kotlin DSL

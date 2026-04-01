@@ -1,6 +1,6 @@
 package io.github.ngirchev.fsm.it
 
-import mu.KLogging
+import org.slf4j.LoggerFactory
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -33,7 +33,9 @@ import kotlin.test.assertTrue
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 internal class ExDomainFsmIT {
 
-    companion object : KLogging()
+    companion object {
+        private val logger = LoggerFactory.getLogger(ExDomainFsmIT::class.java)
+    }
 
     private lateinit var document: Document
 
@@ -301,7 +303,7 @@ internal class ExDomainFsmIT {
     }
 
     private fun prt(stateContext: StateContext<DocumentState>) {
-        logger.info { "Transition from=[" + stateContext.state + "] at=" + System.currentTimeMillis() }
+        logger.info("Transition from=[{}] at={}", stateContext.state, System.currentTimeMillis())
     }
 
     private fun allTrue(futures: List<CompletableFuture<Boolean>>): Boolean {

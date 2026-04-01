@@ -1,9 +1,9 @@
 package io.github.ngirchev.fsm.impl
 
-import mu.KLogging
 import io.github.ngirchev.fsm.*
 import io.github.ngirchev.fsm.exception.FsmException
 import io.github.ngirchev.fsm.exception.FsmTransitionFailedException
+import org.slf4j.LoggerFactory
 import java.util.concurrent.CopyOnWriteArrayList
 
 /**
@@ -12,10 +12,13 @@ import java.util.concurrent.CopyOnWriteArrayList
 abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSITION_TABLE : AbstractTransitionTable<STATE, TRANSITION>>(
     context: StateContext<STATE>,
     open val transitionTable: TRANSITION_TABLE,
-    autoTransitionEnabled: Boolean? = null
-) : StateSupport<STATE>, TransitionSupport<STATE, TRANSITION>, Notifiable<STATE> {
-
-    companion object : KLogging()
+    autoTransitionEnabled: Boolean? = null,
+) : StateSupport<STATE>,
+    TransitionSupport<STATE, TRANSITION>,
+    Notifiable<STATE> {
+    companion object {
+        private val logger = LoggerFactory.getLogger(AbstractFsm::class.java)
+    }
 
     /**
      * Enable auto transitions based on transition table.
@@ -23,9 +26,10 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
     val autoTransitionEnabled: Boolean
 
     init {
-        val overrideAutoTransition = autoTransitionEnabled ?: run {
-            transitionTable.autoTransitionEnabled
-        }
+        val overrideAutoTransition =
+            autoTransitionEnabled ?: run {
+                transitionTable.autoTransitionEnabled
+            }
         this.autoTransitionEnabled = overrideAutoTransition
     }
 
@@ -36,14 +40,12 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
     ) : this(
         DefaultStateContext(state),
         transitionTable,
-        autoTransitionEnabled
+        autoTransitionEnabled,
     )
 
     internal val context: StateContext<STATE> = context
 
-    override fun getState(): STATE {
-        return this.context.state
-    }
+    override fun getState(): STATE = this.context.state
 
     private val stateChangeListeners = CopyOnWriteArrayList<StateChangeListener<STATE>>()
 
@@ -55,13 +57,17 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
         stateChangeListeners.remove(listener)
     }
 
-    override fun notify(context: StateContext<STATE>, oldState: STATE, newState: STATE) {
-        logger.info { "Changed status $oldState -> $newState" }
+    override fun notify(
+        context: StateContext<STATE>,
+        oldState: STATE,
+        newState: STATE,
+    ) {
+        logger.info("Changed status {} -> {}", oldState, newState)
         stateChangeListeners.forEach { listener ->
             try {
                 listener.onStateChanged(context, oldState, newState)
             } catch (e: Exception) {
-                logger.error(e) { "Error in state change listener" }
+                logger.error("Error in state change listener", e)
             }
         }
     }
@@ -82,10 +88,12 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
 
     private fun executeSingleTransition(transition: TRANSITION) {
         val oldState = context.state
-        if (transition.from != oldState) throw FsmException(
-            "Current state $oldState doesn't fit " +
-                    "to change, because transition from=[${transition.from}]"
-        )
+        if (transition.from != oldState) {
+            throw FsmException(
+                "Current state $oldState doesn't fit " +
+                    "to change, because transition from=[${transition.from}]",
+            )
+        }
         transition.to.timeout?.value?.also {
             Thread.sleep(it * 1000)
         }
@@ -104,7 +112,7 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
         val newState = transition.to.state
 
         context.currentTransition = transition
-        logger.info { "Try to change status $oldState -> $newState" }
+        logger.info("Try to change status {} -> {}", oldState, newState)
 
         transition.to.actions.forEach { it.invoke(context) }
         context.state = newState
@@ -114,6 +122,6 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
 
     private class DefaultStateContext<STATE>(
         override var state: STATE,
-        override var currentTransition: Transition<STATE>? = null
+        override var currentTransition: Transition<STATE>? = null,
     ) : StateContext<STATE>
 }
