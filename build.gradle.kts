@@ -30,8 +30,8 @@ dependencies {
     testImplementation(kotlin("test"))
     
     // Jackson for JSON serialization
-    api("com.fasterxml.jackson.core:jackson-databind:2.19.0")
-    api("com.fasterxml.jackson.module:jackson-module-kotlin:2.19.0")
+    api("com.fasterxml.jackson.core:jackson-databind:2.21.1")
+    api("com.fasterxml.jackson.module:jackson-module-kotlin:2.21.1")
 }
 
 java {
