@@ -26,11 +26,13 @@ You can also use the `io.github.ngirchev.fsm.impl` package with basic implementa
 
 ## Installation
 
+Replace `VERSION` with the latest version from Maven Central.
+
 ### Gradle (Kotlin DSL)
 
 ```kotlin
 dependencies {
-    implementation("io.github.ngirchev:fsm:1.0.2")
+    implementation("io.github.ngirchev:fsm:VERSION")
 }
 ```
 
@@ -38,7 +40,7 @@ dependencies {
 
 ```groovy
 dependencies {
-    implementation 'io.github.ngirchev:fsm:1.0.2'
+    implementation 'io.github.ngirchev:fsm:VERSION'
 }
 ```
 
@@ -48,7 +50,7 @@ dependencies {
 <dependency>
     <groupId>io.github.ngirchev</groupId>
     <artifactId>fsm</artifactId>
-    <version>1.0.2</version>
+    <version>VERSION</version>
 </dependency>
 ```
 
@@ -274,7 +276,7 @@ NEW --> PAID : [PAY] [IsPaymentValid] ⏱30SECONDS
 ```
 
 **Mermaid:**
-```mermaid
+```text
 stateDiagram-v2
 
     state PAID {
@@ -317,10 +319,37 @@ transitionTable.toPlantUml(Path("diagram.plantuml"))
 transitionTable.toMermaid(Path("diagram.mermaid"))
 ```
 
+## FSM Visual Editor
+
+The repository includes a local visual FSM editor for designing flows before wiring them into application code.
+
+![FSM visual editor](fsm-ui.png)
+
+Use the editor to:
+
+* draw and edit states and transitions on a canvas;
+* manage event IDs, guard IDs, action IDs, timeouts, and auto transitions;
+* validate the editor model before code generation;
+* import, export, autosave, and reopen `.fsm.json` editor projects;
+* generate self-contained Java or Kotlin factory code for the FSM.
+
+The generated Java/Kotlin code includes state and event enums, a domain DTO implementing `StateContext`, guard/action placeholders, and a factory method returning `ExDomainFsm<DomainType, StateType, EventType>`.
+
+Run it locally:
+
+```bash
+cd fsm-editor
+npm install
+npm run dev
+```
+
+See [fsm-editor/README.md](fsm-editor/README.md) for the editor project format and generation details.
+
 ## Features
 
 * 🚀 Simple and lightweight finite state machine implementation
 * 📊 Support for state diagrams generation (PlantUML and Mermaid)
+* 🧭 Local visual FSM editor with JSON import/export and Java/Kotlin factory generation
 * 🔄 Multiple FSM implementations for different use cases
 * ⏱️ Support for timeouts and actions
 * 🎯 Type-safe state transitions

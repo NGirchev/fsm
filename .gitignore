@@ -1,4 +1,9 @@
 /build/
+/fsm-editor/node_modules/
+/fsm-editor/dist/
+/fsm-editor/coverage/
+/fsm-editor/projects/*.fsm.json
+!/fsm-editor/projects/.gitkeep
 /.idea/
 /.gradle/
 *.DS_Store
@@ -31,3 +36,5 @@ hs_err_pid*
 /.env
 /bin/
 /.sonarlint/connectedMode.json
+/.serena/
+/.claude/

@@ -1,0 +1,121 @@
+import { EDITOR_FORMAT_VERSION, type FsmEditorDocument } from './types';
+
+export function createEmptyDocument(): FsmEditorDocument {
+  return {
+    formatVersion: EDITOR_FORMAT_VERSION,
+    name: 'Untitled FSM',
+    autoTransitionEnabled: false,
+    codegen: {
+      packageName: 'io.github.ngirchev.fsm.generated',
+      className: 'GeneratedFsmFactory',
+      factoryMethodName: 'create',
+      domainType: 'Document',
+      stateType: 'DocumentState',
+      eventType: 'DocumentEvent',
+      initialState: 'INITIAL',
+    },
+    states: [{ id: 'initial', label: 'INITIAL', position: { x: 0, y: 0 } }],
+    events: [],
+    transitions: [],
+    behaviors: {
+      conditions: [],
+      actions: [],
+    },
+  };
+}
+
+export const sampleDocument: FsmEditorDocument = {
+  formatVersion: EDITOR_FORMAT_VERSION,
+  name: 'Document FSM',
+  autoTransitionEnabled: false,
+  codegen: {
+    packageName: 'io.github.ngirchev.fsm.generated',
+    className: 'DocumentFsmFactory',
+    factoryMethodName: 'create',
+    domainType: 'Document',
+    stateType: 'DocumentState',
+    eventType: 'DocumentEvent',
+    initialState: 'NEW',
+  },
+  states: [
+    { id: 'new', label: 'NEW', position: { x: -480, y: -80 } },
+    { id: 'ready-for-sign', label: 'READY_FOR_SIGN', position: { x: -220, y: -80 } },
+    { id: 'signed', label: 'SIGNED', position: { x: 80, y: -150 } },
+    { id: 'canceled', label: 'CANCELED', position: { x: 80, y: 80 } },
+    { id: 'auto-sent', label: 'AUTO_SENT', position: { x: 380, y: -150 } },
+    { id: 'done', label: 'DONE', position: { x: 660, y: -150 } },
+  ],
+  events: [{ id: 'TO_READY' }, { id: 'USER_SIGN' }, { id: 'FAILED_EVENT' }, { id: 'TO_END' }],
+  transitions: [
+    {
+      id: 'new-ready',
+      from: 'new',
+      to: 'ready-for-sign',
+      trigger: { kind: 'event', event: 'TO_READY' },
+      conditions: [],
+      actions: [],
+      postActions: [],
+    },
+    {
+      id: 'ready-signed',
+      from: 'ready-for-sign',
+      to: 'signed',
+      trigger: { kind: 'event', event: 'USER_SIGN' },
+      conditions: [],
+      actions: [],
+      postActions: [],
+    },
+    {
+      id: 'ready-canceled',
+      from: 'ready-for-sign',
+      to: 'canceled',
+      trigger: { kind: 'event', event: 'FAILED_EVENT' },
+      conditions: [],
+      actions: [],
+      postActions: [],
+    },
+    {
+      id: 'signed-auto',
+      from: 'signed',
+      to: 'auto-sent',
+      trigger: { kind: 'event', event: 'TO_END' },
+      conditions: ['signRequired'],
+      actions: ['autoSent'],
+      postActions: [],
+    },
+    {
+      id: 'signed-done',
+      from: 'signed',
+      to: 'done',
+      trigger: { kind: 'event', event: 'TO_END' },
+      conditions: ['signNotRequired'],
+      actions: [],
+      postActions: [],
+    },
+    {
+      id: 'signed-canceled',
+      from: 'signed',
+      to: 'canceled',
+      trigger: { kind: 'event', event: 'TO_END' },
+      conditions: [],
+      actions: [],
+      postActions: [],
+    },
+    {
+      id: 'auto-done',
+      from: 'auto-sent',
+      to: 'done',
+      trigger: { kind: 'event', event: 'TO_END' },
+      conditions: [],
+      actions: [],
+      postActions: [],
+    },
+  ],
+  behaviors: {
+    conditions: [
+      { id: 'signRequired', label: 'Document requires signature' },
+      { id: 'signNotRequired', label: 'Document does not require signature' },
+    ],
+    actions: [{ id: 'autoSent', label: 'Auto sent action' }],
+  },
+};
