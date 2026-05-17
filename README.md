@@ -1,4 +1,4 @@
-# FSM
+# FSM — Kotlin Finite State Machine Library and Visual FSM Editor
 
 [![CI](https://github.com/NGirchev/fsm/actions/workflows/ci.yml/badge.svg)](https://github.com/NGirchev/fsm/actions/workflows/ci.yml)
 [![Maven Central](https://img.shields.io/maven-central/v/io.github.ngirchev/fsm.svg)](https://search.maven.org/artifact/io.github.ngirchev/fsm)
@@ -16,11 +16,12 @@
 [![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=NGirchev_fsm&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=NGirchev_fsm)
 [![Technical Debt](https://sonarcloud.io/api/project_badges/measure?project=NGirchev_fsm&metric=sqale_index)](https://sonarcloud.io/summary/new_code?id=NGirchev_fsm)
 
-Finite state machine utilities library for Kotlin.
+`fsm` is a lightweight Kotlin finite state machine library for event-driven workflows, state transitions, guards, actions, timeouts, and domain objects with status fields. The repository also includes a local visual FSM editor for designing flows and generating Java/Kotlin FSM factory code.
 
-This small library contains several implementations for common use cases.
-- `io.github.ngirchev.fsm.impl.extended.ExFsm` - a simple fsm that has a status, and it changes the status by events. Has state.
-- `io.github.ngirchev.fsm.impl.extended.ExDomainFsm` - if you have some domain with a status, and you want to change this status using events. Has no own state.
+The library contains several implementations for common use cases:
+
+- `io.github.ngirchev.fsm.impl.extended.ExFsm` - an in-memory finite state machine that owns its current state and changes it through events.
+- `io.github.ngirchev.fsm.impl.extended.ExDomainFsm` - a domain FSM for objects that already store their own status and should change that status through events.
 
 You can also use the `io.github.ngirchev.fsm.impl` package with basic implementations.
 
@@ -321,9 +322,9 @@ transitionTable.toMermaid(Path("diagram.mermaid"))
 
 ## FSM Visual Editor
 
-The repository includes a local visual FSM editor for designing flows before wiring them into application code.
+The repository includes a local visual finite state machine editor and FSM code generator for designing flows before wiring them into application code.
 
-![FSM visual editor](fsm-ui.png)
+![fsm-visual-editor](fsm-visual-editor.gif)
 
 Use the editor to:
 
@@ -338,18 +339,20 @@ The generated Java/Kotlin code includes state and event enums, a domain DTO impl
 Run it locally:
 
 ```bash
-cd fsm-editor
+cd fsm-visual-editor
 npm install
 npm run dev
 ```
 
-See [fsm-editor/README.md](fsm-editor/README.md) for the editor project format and generation details.
+See [fsm-visual-editor/README.md](fsm-visual-editor/README.md) for the editor project format and generation details.
 
 ## Features
 
 * 🚀 Simple and lightweight finite state machine implementation
 * 📊 Support for state diagrams generation (PlantUML and Mermaid)
 * 🧭 Local visual FSM editor with JSON import/export and Java/Kotlin factory generation
+* 🧩 Guard, action, timeout, and auto-transition support
+* 🛠️ Java/Kotlin code generation from visual FSM diagrams
 * 🔄 Multiple FSM implementations for different use cases
 * ⏱️ Support for timeouts and actions
 * 🎯 Type-safe state transitions

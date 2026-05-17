@@ -13,7 +13,7 @@ function projectsApiPlugin(): Plugin {
   const projectsDir = path.resolve(__dirname, 'projects');
 
   return {
-    name: 'fsm-editor-projects-api',
+    name: 'fsm-visual-editor-projects-api',
     configureServer(server: ViteDevServer) {
       server.middlewares.use('/api/projects', async (request: IncomingMessage, response: ServerResponse) => {
         try {

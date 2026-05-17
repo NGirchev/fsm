@@ -316,7 +316,7 @@ export function App() {
         <div className="toolbar-title">
           <GitBranchPlus size={22} aria-hidden />
           <div>
-            <strong>FSM Editor</strong>
+            <strong>FSM Visual Editor</strong>
             <span>{status}</span>
           </div>
         </div>

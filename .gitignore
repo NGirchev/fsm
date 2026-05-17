@@ -1,9 +1,9 @@
 /build/
-/fsm-editor/node_modules/
-/fsm-editor/dist/
-/fsm-editor/coverage/
-/fsm-editor/projects/*.fsm.json
-!/fsm-editor/projects/.gitkeep
+/fsm-visual-editor/node_modules/
+/fsm-visual-editor/dist/
+/fsm-visual-editor/coverage/
+/fsm-visual-editor/projects/*.fsm.json
+!/fsm-visual-editor/projects/.gitkeep
 /.idea/
 /.gradle/
 *.DS_Store

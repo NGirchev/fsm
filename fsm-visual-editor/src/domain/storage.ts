@@ -1,8 +1,8 @@
 import { normalizeEditorDocument } from './documentGuards';
 import type { FsmEditorDocument } from './types';
 
-export const EDITOR_STORAGE_KEY = 'fsm-editor.current-document';
-export const CURRENT_PROJECT_ID_KEY = 'fsm-editor.current-project-id';
+export const EDITOR_STORAGE_KEY = 'fsm-visual-editor.current-document';
+export const CURRENT_PROJECT_ID_KEY = 'fsm-visual-editor.current-project-id';
 
 export function loadEditorDocument(storage: Pick<Storage, 'getItem'> = window.localStorage): FsmEditorDocument | null {
   try {

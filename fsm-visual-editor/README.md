@@ -1,6 +1,6 @@
-# FSM Editor
+# FSM Visual Editor
 
-Local visual editor for building FSM configurations compatible with the Kotlin `fsm` library.
+Local visual finite state machine editor for building `.fsm.json` projects and generating Java/Kotlin factory code compatible with the Kotlin `fsm` library.
 
 ## Run
 

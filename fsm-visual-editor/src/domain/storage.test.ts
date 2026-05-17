@@ -68,7 +68,7 @@ describe('editor document storage', () => {
   });
 
   it('uses a stable storage key', () => {
-    expect(EDITOR_STORAGE_KEY).toBe('fsm-editor.current-document');
+    expect(EDITOR_STORAGE_KEY).toBe('fsm-visual-editor.current-document');
   });
 
   it('saves and loads current project id', () => {
@@ -81,7 +81,7 @@ describe('editor document storage', () => {
     saveCurrentProjectId('order-fsm', storage);
 
     expect(loadCurrentProjectId(storage)).toBe('order-fsm');
-    expect(CURRENT_PROJECT_ID_KEY).toBe('fsm-editor.current-project-id');
+    expect(CURRENT_PROJECT_ID_KEY).toBe('fsm-visual-editor.current-project-id');
   });
 
   it('tolerates unavailable storage APIs', () => {
