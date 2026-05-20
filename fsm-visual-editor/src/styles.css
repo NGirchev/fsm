@@ -112,7 +112,8 @@ textarea {
   opacity: 0.45;
 }
 
-.icon-button.danger {
+.icon-button.danger,
+.small-button.danger {
   color: #a93636;
 }
 
@@ -233,6 +234,17 @@ textarea {
   margin-top: 14px;
 }
 
+.behavior-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 28px;
+  gap: 8px;
+  align-items: center;
+}
+
+.behavior-row + .behavior-row {
+  margin-top: 8px;
+}
+
 .section-head {
   display: flex;
   align-items: center;
@@ -299,6 +311,15 @@ textarea {
   color: #16202a;
   font-weight: 700;
   text-align: center;
+}
+
+.react-flow__node-default {
+  width: max-content;
+  max-width: min(340px, 36vw);
+  overflow: hidden;
+  padding: 12px 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .react-flow__node.selected-node {

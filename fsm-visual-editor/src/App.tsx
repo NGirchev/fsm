@@ -126,31 +126,15 @@ export function App() {
   }, []);
 
   const onConnect = useCallback((connection: Connection) => {
-    if (!connection.source || !connection.target) {
+    const source = connection.source;
+    const target = connection.target;
+
+    if (!source || !target) {
       return;
     }
 
-    setDocument((current) => {
-      const eventId = nextEventId(current);
-
-      return {
-        ...current,
-        events: [...current.events, { id: eventId }],
-        transitions: [
-          ...current.transitions,
-          {
-            id: createId('transition'),
-            from: connection.source,
-            to: connection.target,
-            trigger: { kind: 'event', event: eventId },
-            conditions: [],
-            actions: [],
-            postActions: [],
-          },
-        ],
-      };
-    });
-    setStatus('Transition added');
+    setDocument((current) => addAutoTransition(current, source, target));
+    setStatus('Auto transition added');
   }, []);
 
   const addState = () => {
@@ -193,6 +177,27 @@ export function App() {
       ...current,
       events: [...current.events, { id: nextEventId(current) }],
     }));
+  };
+
+  const deleteEvent = (index: number) => {
+    setDocument((current) => {
+      const eventId = current.events[index]?.id;
+
+      if (eventId === undefined) {
+        return current;
+      }
+
+      const removedTransitionIds = current.transitions
+        .filter((transition) => transition.trigger.kind === 'event' && transition.trigger.event === eventId)
+        .map((transition) => transition.id);
+
+      if (selection?.type === 'transition' && removedTransitionIds.includes(selection.id)) {
+        setSelection(null);
+      }
+
+      return deleteEventAtIndex(current, index);
+    });
+    setStatus('Event deleted');
   };
 
   const deleteSelection = () => {
@@ -420,7 +425,7 @@ export function App() {
 
         <aside className="inspector">
           <ProjectPanel document={document} setDocument={setDocument} />
-          <EventPanel document={document} setDocument={setDocument} addEvent={addEvent} />
+          <EventPanel document={document} setDocument={setDocument} addEvent={addEvent} deleteEvent={deleteEvent} />
           <BehaviorPanel document={document} setDocument={setDocument} addBehavior={addBehavior} />
           {selectedState && <StateInspector state={selectedState} document={document} setDocument={setDocument} />}
           {selectedTransition && <TransitionInspector transition={selectedTransition} document={document} setDocument={setDocument} />}
@@ -501,10 +506,12 @@ function EventPanel({
   document,
   setDocument,
   addEvent,
+  deleteEvent,
 }: {
   document: FsmEditorDocument;
   setDocument: Dispatch<SetStateAction<FsmEditorDocument>>;
   addEvent: () => void;
+  deleteEvent: (index: number) => void;
 }) {
   return (
     <section className="panel">
@@ -514,7 +521,7 @@ function EventPanel({
           <Plus size={14} />
         </button>
       </div>
-      <EventList events={document.events} setDocument={setDocument} />
+      <EventList events={document.events} setDocument={setDocument} deleteEvent={deleteEvent} />
     </section>
   );
 }
@@ -522,19 +529,31 @@ function EventPanel({
 function EventList({
   events,
   setDocument,
+  deleteEvent,
 }: {
   events: BehaviorRef[];
   setDocument: Dispatch<SetStateAction<FsmEditorDocument>>;
+  deleteEvent: (index: number) => void;
 }) {
   return (
     <div className="behavior-list">
       {events.length === 0 && <span className="muted">No events</span>}
       {events.map((eventRef, index) => (
-        <input
-          key={`event-${index}`}
-          value={eventRef.id}
-          onChange={(event) => setDocument((current) => renameEventAtIndex(current, index, event.target.value))}
-        />
+        <div className="behavior-row" key={`event-${index}`}>
+          <input
+            value={eventRef.id}
+            onChange={(event) => setDocument((current) => renameEventAtIndex(current, index, event.target.value))}
+          />
+          <button
+            type="button"
+            className="small-button danger"
+            onClick={() => deleteEvent(index)}
+            title="Delete event"
+            aria-label={`Delete event ${eventRef.id}`}
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
       ))}
     </div>
   );
@@ -657,6 +676,15 @@ function TransitionInspector({
       transitions: current.transitions.map((candidate) => (candidate.id === transition.id ? { ...candidate, ...patch } : candidate)),
     }));
   };
+  let eventTrigger = document.events[0]?.id;
+
+  if (transition.trigger.kind === 'event') {
+    const currentEvent = transition.trigger.event;
+
+    if (document.events.some((eventRef) => eventRef.id === currentEvent)) {
+      eventTrigger = currentEvent;
+    }
+  }
 
   return (
     <section className="panel selected-panel">
@@ -687,20 +715,9 @@ function TransitionInspector({
         <button
           type="button"
           className={transition.trigger.kind === 'event' ? 'active' : ''}
-          onClick={() =>
-            setDocument((current) => {
-              const eventId = transitionEventOrDefault(current, transition);
-              const hasEvent = current.events.some((eventRef) => eventRef.id === eventId);
-
-              return {
-                ...current,
-                events: hasEvent ? current.events : [...current.events, { id: eventId }],
-                transitions: current.transitions.map((candidate) =>
-                  candidate.id === transition.id ? { ...candidate, trigger: { kind: 'event', event: eventId } } : candidate,
-                ),
-              };
-            })
-          }
+          onClick={() => eventTrigger && updateTransition({ trigger: { kind: 'event', event: eventTrigger } })}
+          disabled={!eventTrigger}
+          title={eventTrigger ? undefined : 'Create an event first'}
         >
           Event
         </button>
@@ -956,16 +973,42 @@ function renameEventAtIndex(document: FsmEditorDocument, index: number, newId: s
   };
 }
 
-function nextEventId(document: FsmEditorDocument): string {
-  return uniqueId('EVENT', new Set(document.events.map((eventRef) => eventRef.id)));
-}
+export function deleteEventAtIndex(document: FsmEditorDocument, index: number): FsmEditorDocument {
+  const eventId = document.events[index]?.id;
 
-function transitionEventOrDefault(document: FsmEditorDocument, transition: FsmTransition): string {
-  if (transition.trigger.kind === 'event') {
-    return transition.trigger.event;
+  if (eventId === undefined) {
+    return document;
   }
 
-  return document.events[0]?.id ?? nextEventId(document);
+  return {
+    ...document,
+    events: document.events.filter((_, eventIndex) => eventIndex !== index),
+    transitions: document.transitions.filter(
+      (transition) => transition.trigger.kind !== 'event' || transition.trigger.event !== eventId,
+    ),
+  };
+}
+
+export function addAutoTransition(document: FsmEditorDocument, source: string, target: string): FsmEditorDocument {
+  return {
+    ...document,
+    transitions: [
+      ...document.transitions,
+      {
+        id: createId('transition'),
+        from: source,
+        to: target,
+        trigger: { kind: 'auto' },
+        conditions: [],
+        actions: [],
+        postActions: [],
+      },
+    ],
+  };
+}
+
+function nextEventId(document: FsmEditorDocument): string {
+  return uniqueId('EVENT', new Set(document.events.map((eventRef) => eventRef.id)));
 }
 
 function transitionLabel(transition: FsmTransition): string {
