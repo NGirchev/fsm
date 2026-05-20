@@ -12,6 +12,10 @@ export const TIME_UNITS = [
 
 export type TimeUnit = (typeof TIME_UNITS)[number];
 
+export const CODEGEN_STYLES = ['fluent', 'builder'] as const;
+
+export type CodegenStyle = (typeof CODEGEN_STYLES)[number];
+
 export interface Point {
   x: number;
   y: number;
@@ -55,6 +59,7 @@ export interface CodegenConfig {
   stateType: string;
   eventType: string;
   initialState: string;
+  style: CodegenStyle;
 }
 
 export interface FsmEditorDocument {

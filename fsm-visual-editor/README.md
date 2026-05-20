@@ -35,3 +35,8 @@ ExDomainFsm<DomainType, StateType, EventType>
 ```
 
 Guard and action IDs are emitted as class-level lambda fields. The generated lambdas are placeholders and are intended to be filled in or wired to real domain behavior.
+
+The Project panel can export code in two styles:
+
+- `Fluent chain` uses `FsmFactory.statesWithEvents().from(...).to(...).end()`.
+- `Builder add calls` uses `ExTransitionTable.Builder().add(ExTransition(...))`.

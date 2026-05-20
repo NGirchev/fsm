@@ -80,4 +80,75 @@ describe('generateKotlinFactory', () => {
 
     expect(kotlin).toContain('.from("READY \\"FOR\\" SIGN").onEvent(DocumentEvent.TO_READY).to("READY \\"FOR\\" SIGN")');
   });
+
+  it('generates builder add calls when builder style is selected', () => {
+    const kotlin = generateKotlinFactory({
+      ...sampleDocument,
+      codegen: { ...sampleDocument.codegen, style: 'builder' },
+      transitions: [
+        {
+          ...sampleDocument.transitions[0],
+          actions: ['autoSent'],
+          postActions: ['autoSent'],
+          timeout: { value: 15, unit: 'SECONDS' },
+        },
+      ],
+    });
+
+    expect(kotlin).toContain('import io.github.ngirchev.fsm.impl.extended.ExTransitionTable');
+    expect(kotlin).toContain('return ExTransitionTable.Builder<DocumentState, DocumentEvent>()');
+    expect(kotlin).toContain('ExTransition(');
+    expect(kotlin).toContain('state = DocumentState.READY_FOR_SIGN');
+    expect(kotlin).toContain('conditions = emptyList()');
+    expect(kotlin).toContain('actions = listOf(autoSent)');
+    expect(kotlin).toContain('postActions = listOf(autoSent)');
+    expect(kotlin).toContain('timeout = Timeout(15L, TimeUnit.SECONDS)');
+    expect(kotlin).toContain('onEvent = DocumentEvent.TO_READY');
+    expect(kotlin).not.toContain('FsmFactory.statesWithEvents');
+  });
+
+  it('preserves transition semantics in fluent and builder styles', () => {
+    const document = {
+      ...sampleDocument,
+      transitions: [
+        {
+          ...sampleDocument.transitions[0],
+          conditions: ['signRequired'],
+          actions: ['autoSent'],
+          postActions: ['autoSent'],
+          timeout: { value: 15, unit: 'SECONDS' as const },
+        },
+        {
+          ...sampleDocument.transitions[1],
+          trigger: { kind: 'auto' as const },
+          conditions: ['signNotRequired'],
+          actions: [],
+          postActions: ['autoSent'],
+        },
+      ],
+    };
+    const fluent = generateKotlinFactory({ ...document, codegen: { ...document.codegen, style: 'fluent' } });
+    const builder = generateKotlinFactory({ ...document, codegen: { ...document.codegen, style: 'builder' } });
+
+    expect(fluent).toContain('.from(DocumentState.NEW).onEvent(DocumentEvent.TO_READY).to(DocumentState.READY_FOR_SIGN)');
+    expect(fluent).toContain('.onCondition(signRequired)');
+    expect(fluent).toContain('.action(autoSent)');
+    expect(fluent).toContain('.postAction(autoSent)');
+    expect(fluent).toContain('.timeout(Timeout(15L, TimeUnit.SECONDS))');
+    expect(fluent).toContain('.from(DocumentState.READY_FOR_SIGN).to(DocumentState.SIGNED)');
+    expect(fluent).toContain('.onCondition(signNotRequired)');
+    expect(fluent).not.toContain('.from(DocumentState.READY_FOR_SIGN).onEvent(');
+
+    expect(builder).toContain('from = DocumentState.NEW');
+    expect(builder).toContain('state = DocumentState.READY_FOR_SIGN');
+    expect(builder).toContain('onEvent = DocumentEvent.TO_READY');
+    expect(builder).toContain('conditions = listOf(signRequired)');
+    expect(builder).toContain('actions = listOf(autoSent)');
+    expect(builder).toContain('postActions = listOf(autoSent)');
+    expect(builder).toContain('timeout = Timeout(15L, TimeUnit.SECONDS)');
+    expect(builder).toContain('from = DocumentState.READY_FOR_SIGN');
+    expect(builder).toContain('state = DocumentState.SIGNED');
+    expect(builder).toContain('conditions = listOf(signNotRequired)');
+    expect(builder).toContain('onEvent = null');
+  });
 });

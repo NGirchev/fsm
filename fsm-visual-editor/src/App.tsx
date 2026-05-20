@@ -490,6 +490,13 @@ function ProjectPanel({
           </select>
         </label>
       </div>
+      <label>
+        Code style
+        <select value={document.codegen.style} onChange={(event) => updateCodegen(setDocument, 'style', event.target.value)}>
+          <option value="fluent">Fluent chain</option>
+          <option value="builder">Builder add calls</option>
+        </select>
+      </label>
       <label className="toggle-row">
         <input
           type="checkbox"

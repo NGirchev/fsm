@@ -13,6 +13,7 @@ export function createEmptyDocument(): FsmEditorDocument {
       stateType: 'DocumentState',
       eventType: 'DocumentEvent',
       initialState: 'INITIAL',
+      style: 'fluent',
     },
     states: [{ id: 'initial', label: 'INITIAL', position: { x: 0, y: 0 } }],
     events: [],
@@ -36,6 +37,7 @@ export const sampleDocument: FsmEditorDocument = {
     stateType: 'DocumentState',
     eventType: 'DocumentEvent',
     initialState: 'NEW',
+    style: 'fluent',
   },
   states: [
     { id: 'new', label: 'NEW', position: { x: -480, y: -80 } },

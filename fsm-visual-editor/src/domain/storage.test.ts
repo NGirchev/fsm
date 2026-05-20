@@ -62,6 +62,7 @@ describe('editor document storage', () => {
 
     expect(migrated?.formatVersion).toBe(2);
     expect(migrated?.codegen.eventType).toBe('DocumentEvent');
+    expect(migrated?.codegen.style).toBe('fluent');
     expect(migrated?.events).toEqual([{ id: 'TO_READY' }]);
     expect(migrated?.transitions[0].trigger).toEqual({ kind: 'event', event: 'TO_READY' });
     expect(migrated?.transitions[1].trigger).toEqual({ kind: 'auto' });

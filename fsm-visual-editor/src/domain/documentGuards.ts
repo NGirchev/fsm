@@ -1,4 +1,4 @@
-import { EDITOR_FORMAT_VERSION, type FsmEditorDocument } from './types';
+import { CODEGEN_STYLES, EDITOR_FORMAT_VERSION, type CodegenStyle, type FsmEditorDocument } from './types';
 
 interface LegacyTransition {
   id: string;
@@ -67,6 +67,7 @@ export function normalizeEditorDocument(value: unknown): FsmEditorDocument | nul
     stateType: candidate.codegen?.stateType ?? 'DocumentState',
     eventType: normalizeEventType(candidate.codegen?.eventType, candidate.codegen?.stateType ?? 'DocumentState'),
     initialState: candidate.codegen?.initialState ?? '',
+    style: normalizeCodegenStyle(candidate.codegen?.style),
   };
 
   const eventIds = new Set<string>();
@@ -163,7 +164,7 @@ function isOptionalCodegen(value: unknown): value is Partial<FsmEditorDocument['
     return false;
   }
 
-  return ['packageName', 'className', 'factoryMethodName', 'domainType', 'stateType', 'eventType', 'initialState'].every(
+  return ['packageName', 'className', 'factoryMethodName', 'domainType', 'stateType', 'eventType', 'initialState', 'style'].every(
     (key) => value[key] === undefined || typeof value[key] === 'string',
   );
 }
@@ -227,4 +228,8 @@ function normalizeEventType(eventType: string | undefined, stateType: string): s
   }
 
   return `${stateType}Event`;
+}
+
+function normalizeCodegenStyle(style: string | undefined): CodegenStyle {
+  return CODEGEN_STYLES.includes(style as CodegenStyle) ? (style as CodegenStyle) : 'fluent';
 }

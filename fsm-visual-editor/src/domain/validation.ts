@@ -1,4 +1,4 @@
-import { TIME_UNITS, type FsmEditorDocument, type ValidationIssue } from './types';
+import { CODEGEN_STYLES, TIME_UNITS, type FsmEditorDocument, type ValidationIssue } from './types';
 
 const javaIdentifierPattern = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 const qualifiedJavaIdentifierPattern = /^[A-Za-z_$][A-Za-z0-9_$]*(\.[A-Za-z_$][A-Za-z0-9_$]*)*$/;
@@ -19,6 +19,10 @@ export function validateEditorDocument(document: FsmEditorDocument): ValidationI
   requireIdentifier(document.codegen.stateType, 'codegen.stateType', 'State type must be a valid Java identifier.', issues);
   requireIdentifier(document.codegen.eventType, 'codegen.eventType', 'Event type must be a valid Java identifier.', issues);
   requireText(document.codegen.initialState, 'codegen.initialState', 'Initial state is required.', issues);
+
+  if (!CODEGEN_STYLES.includes(document.codegen.style)) {
+    issues.push({ severity: 'error', path: 'codegen.style', message: 'Code generation style is not supported.' });
+  }
 
   const stateIds = new Set<string>();
   const stateLabels = new Set<string>();

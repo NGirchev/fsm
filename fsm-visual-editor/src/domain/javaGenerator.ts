@@ -1,9 +1,9 @@
-import type { FsmEditorDocument, FsmTransition } from './types';
+import type { CodegenStyle, FsmEditorDocument, FsmTransition } from './types';
 
 export function generateJavaFactory(document: FsmEditorDocument): string {
   const conditionNames = buildIdentifierMap(document.behaviors.conditions.map((behavior) => behavior.id));
   const actionNames = buildIdentifierMap(document.behaviors.actions.map((behavior) => behavior.id));
-  const groups = groupTransitions(document.transitions);
+  const style = codegenStyle(document);
   const lines: string[] = [];
 
   if (document.codegen.packageName.trim()) {
@@ -12,12 +12,25 @@ export function generateJavaFactory(document: FsmEditorDocument): string {
 
   lines.push(
     'import io.github.ngirchev.fsm.Action;',
-    'import io.github.ngirchev.fsm.FsmFactory;',
     'import io.github.ngirchev.fsm.Guard;',
     'import io.github.ngirchev.fsm.StateContext;',
+  );
+
+  if (style === 'fluent') {
+    lines.push('import io.github.ngirchev.fsm.FsmFactory;');
+  } else {
+    lines.push(
+      'import io.github.ngirchev.fsm.To;',
+      'import io.github.ngirchev.fsm.impl.extended.ExTransition;',
+      'import io.github.ngirchev.fsm.impl.extended.ExTransitionTable;',
+    );
+  }
+
+  lines.push(
     'import io.github.ngirchev.fsm.Timeout;',
     'import io.github.ngirchev.fsm.Transition;',
     'import io.github.ngirchev.fsm.impl.extended.ExDomainFsm;',
+    ...(style === 'builder' ? ['import java.util.List;'] : []),
     'import java.util.concurrent.TimeUnit;',
     '',
     `public final class ${document.codegen.className} {`,
@@ -31,6 +44,25 @@ export function generateJavaFactory(document: FsmEditorDocument): string {
   appendDomainDto(lines, document);
   appendBehaviorFields(lines, 'Guard', document.codegen.stateType, conditionNames, 'false');
   appendBehaviorFields(lines, 'Action', document.codegen.stateType, actionNames, '');
+
+  if (style === 'builder') {
+    appendBuilderFactory(lines, document, conditionNames, actionNames);
+  } else {
+    appendFluentFactory(lines, document, conditionNames, actionNames);
+  }
+
+  lines.push('}');
+
+  return `${lines.join('\n')}\n`;
+}
+
+function appendFluentFactory(
+  lines: string[],
+  document: FsmEditorDocument,
+  conditionNames: Map<string, string>,
+  actionNames: Map<string, string>,
+): void {
+  const groups = groupTransitions(document.transitions);
 
   lines.push(
     `    public static ExDomainFsm<${document.codegen.domainType}, ${document.codegen.stateType}, ${document.codegen.eventType}> ${document.codegen.factoryMethodName}() {`,
@@ -49,9 +81,43 @@ export function generateJavaFactory(document: FsmEditorDocument): string {
     }
   });
 
-  lines.push('                .build()', '                .createDomainFsm();', '    }', '}');
+  lines.push('                .build()', '                .createDomainFsm();', '    }');
+}
 
-  return `${lines.join('\n')}\n`;
+function appendBuilderFactory(
+  lines: string[],
+  document: FsmEditorDocument,
+  conditionNames: Map<string, string>,
+  actionNames: Map<string, string>,
+): void {
+  lines.push(
+    `    public static ExDomainFsm<${document.codegen.domainType}, ${document.codegen.stateType}, ${document.codegen.eventType}> ${document.codegen.factoryMethodName}() {`,
+    `        return new ExTransitionTable.Builder<${document.codegen.stateType}, ${document.codegen.eventType}>()`,
+  );
+
+  if (document.autoTransitionEnabled) {
+    lines.push('                .autoTransitionEnabled(true)');
+  }
+
+  document.transitions.forEach((transition) => {
+    lines.push(
+      '                .add(',
+      '                        new ExTransition<>(',
+      `                                ${stateLiteral(document, transition.from)},`,
+      '                                new To<>(',
+      `                                        ${stateLiteral(document, transition.to)},`,
+      `                                        ${javaList('Guard', document.codegen.stateType, transition.conditions, conditionNames)},`,
+      `                                        ${javaList('Action', document.codegen.stateType, transition.actions, actionNames)},`,
+      `                                        ${javaList('Action', document.codegen.stateType, transition.postActions, actionNames)},`,
+      `                                        ${transition.timeout ? `new Timeout(${transition.timeout.value}L, TimeUnit.${transition.timeout.unit})` : 'null'}`,
+      '                                ),',
+      `                                ${transition.trigger.kind === 'event' ? eventLiteral(document, transition.trigger.event) : 'null'}`,
+      '                        )',
+      '                )',
+    );
+  });
+
+  lines.push('                .build()', '                .createDomainFsm();', '    }');
 }
 
 interface TransitionGroup {
@@ -248,6 +314,21 @@ function transitionKey(transition: FsmTransition): string {
 
 function stringLiteral(value: string): string {
   return JSON.stringify(value);
+}
+
+function javaList(
+  kind: 'Guard' | 'Action',
+  stateType: string,
+  ids: string[],
+  names: Map<string, string>,
+): string {
+  const values = ids.map((id) => names.get(id) ?? toJavaIdentifier(id)).join(', ');
+
+  return `List.<${kind}<StateContext<${stateType}>>>of(${values})`;
+}
+
+function codegenStyle(document: FsmEditorDocument): CodegenStyle {
+  return document.codegen.style ?? 'fluent';
 }
 
 function buildIdentifierMap(ids: string[]): Map<string, string> {
