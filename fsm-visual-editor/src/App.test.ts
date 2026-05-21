@@ -38,4 +38,12 @@ describe('addAutoTransition', () => {
       }),
     );
   });
+
+  it('does not add the same auto transition twice', () => {
+    const updated = addAutoTransition(sampleDocument, 'new', 'signed');
+    const duplicateAttempt = addAutoTransition(updated, 'new', 'signed');
+
+    expect(duplicateAttempt).toBe(updated);
+    expect(duplicateAttempt.transitions).toHaveLength(updated.transitions.length);
+  });
 });

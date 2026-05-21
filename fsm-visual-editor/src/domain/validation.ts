@@ -1,4 +1,4 @@
-import { CODEGEN_STYLES, TIME_UNITS, type FsmEditorDocument, type ValidationIssue } from './types';
+import { CODEGEN_STYLES, TIME_UNITS, type FsmEditorDocument, type FsmTransition, type ValidationIssue } from './types';
 
 const javaIdentifierPattern = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 const qualifiedJavaIdentifierPattern = /^[A-Za-z_$][A-Za-z0-9_$]*(\.[A-Za-z_$][A-Za-z0-9_$]*)*$/;
@@ -60,6 +60,7 @@ export function validateEditorDocument(document: FsmEditorDocument): ValidationI
   const actionIds = validateBehaviorIds(document.behaviors.actions, 'behaviors.actions', issues);
   const eventIds = validateBehaviorIds(document.events, 'events', issues, 'Event id must be a Java enum constant.');
   const transitionIds = new Set<string>();
+  const transitionKeys = new Map<string, number>();
   const hasEventTransition = document.transitions.some((transition) => transition.trigger.kind === 'event');
 
   if (document.transitions.length > 0 && !hasEventTransition) {
@@ -78,6 +79,17 @@ export function validateEditorDocument(document: FsmEditorDocument): ValidationI
       issues.push({ severity: 'error', path: `${path}.id`, message: `Duplicate transition id "${transition.id}".` });
     }
     transitionIds.add(transition.id);
+
+    const duplicateTransitionIndex = transitionKeys.get(transitionDuplicateKey(transition));
+    if (duplicateTransitionIndex !== undefined) {
+      issues.push({
+        severity: 'error',
+        path,
+        message: `Duplicate transition matches transitions[${duplicateTransitionIndex}].`,
+      });
+    } else {
+      transitionKeys.set(transitionDuplicateKey(transition), index);
+    }
 
     if (!stateIds.has(transition.from)) {
       issues.push({ severity: 'error', path: `${path}.from`, message: `Unknown source state "${transition.from}".` });
@@ -123,6 +135,18 @@ export function validateEditorDocument(document: FsmEditorDocument): ValidationI
   });
 
   return issues;
+}
+
+export function transitionDuplicateKey(transition: FsmTransition): string {
+  return JSON.stringify({
+    from: transition.from,
+    to: transition.to,
+    trigger: transition.trigger.kind === 'event' ? `event:${transition.trigger.event}` : 'auto',
+    conditions: transition.conditions,
+    actions: transition.actions,
+    postActions: transition.postActions,
+    timeout: transition.timeout ?? null,
+  });
 }
 
 function validateBehaviorIds(

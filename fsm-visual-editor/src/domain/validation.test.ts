@@ -132,4 +132,52 @@ describe('validateEditorDocument', () => {
       ]),
     );
   });
+
+  it('reports duplicate transitions that match runtime transition identity', () => {
+    const firstTransition = sampleDocument.transitions[0];
+    const document = {
+      ...sampleDocument,
+      transitions: [
+        firstTransition,
+        {
+          ...firstTransition,
+          id: 'duplicate-id-is-different',
+        },
+      ],
+    };
+
+    expect(validateEditorDocument(document)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          severity: 'error',
+          path: 'transitions[1]',
+          message: 'Duplicate transition matches transitions[0].',
+        }),
+      ]),
+    );
+  });
+
+  it('allows transitions with the same source, target, and trigger when behavior differs', () => {
+    const firstTransition = sampleDocument.transitions[0];
+    const document = {
+      ...sampleDocument,
+      transitions: [
+        firstTransition,
+        {
+          ...firstTransition,
+          id: 'same-route-with-guard',
+          conditions: [sampleDocument.behaviors.conditions[0].id],
+        },
+      ],
+    };
+
+    expect(validateEditorDocument(document)).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: 'transitions[1]',
+          message: 'Duplicate transition matches transitions[0].',
+        }),
+      ]),
+    );
+  });
 });

@@ -38,6 +38,7 @@ import {
   saveEditorDocument,
   saveProject,
   TIME_UNITS,
+  transitionDuplicateKey,
   validateEditorDocument,
   type BehaviorRef,
   type FsmEditorDocument,
@@ -133,9 +134,14 @@ export function App() {
       return;
     }
 
+    if (hasAutoTransition(document, source, target)) {
+      setStatus('Auto transition already exists');
+      return;
+    }
+
     setDocument((current) => addAutoTransition(current, source, target));
     setStatus('Auto transition added');
-  }, []);
+  }, [document]);
 
   const addState = () => {
     setDocument((current) => {
@@ -997,21 +1003,38 @@ export function deleteEventAtIndex(document: FsmEditorDocument, index: number): 
 }
 
 export function addAutoTransition(document: FsmEditorDocument, source: string, target: string): FsmEditorDocument {
+  const transition: FsmTransition = {
+    id: createId('transition'),
+    from: source,
+    to: target,
+    trigger: { kind: 'auto' },
+    conditions: [],
+    actions: [],
+    postActions: [],
+  };
+
+  if (document.transitions.some((candidate) => transitionDuplicateKey(candidate) === transitionDuplicateKey(transition))) {
+    return document;
+  }
+
   return {
     ...document,
-    transitions: [
-      ...document.transitions,
-      {
-        id: createId('transition'),
-        from: source,
-        to: target,
-        trigger: { kind: 'auto' },
-        conditions: [],
-        actions: [],
-        postActions: [],
-      },
-    ],
+    transitions: [...document.transitions, transition],
   };
+}
+
+function hasAutoTransition(document: FsmEditorDocument, source: string, target: string): boolean {
+  const candidate: FsmTransition = {
+    id: '',
+    from: source,
+    to: target,
+    trigger: { kind: 'auto' },
+    conditions: [],
+    actions: [],
+    postActions: [],
+  };
+
+  return document.transitions.some((transition) => transitionDuplicateKey(transition) === transitionDuplicateKey(candidate));
 }
 
 function nextEventId(document: FsmEditorDocument): string {

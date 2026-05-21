@@ -24,14 +24,14 @@ class MermaidFsmGenerator : FsmDiagramGenerator {
                 // Collect actions for target state
                 if (transition.to.actions.isNotEmpty()) {
                     stateActions.getOrPut(targetState) { mutableListOf() }.addAll(
-                        transition.to.actions.map { it.toString() }
+                        transition.to.actions.map { DiagramLabelFormatter.actionLabel(it) }
                     )
                 }
                 
                 // Collect postActions for target state
                 if (transition.to.postActions.isNotEmpty()) {
                     statePostActions.getOrPut(targetState) { mutableListOf() }.addAll(
-                        transition.to.postActions.map { it.toString() }
+                        transition.to.postActions.map { DiagramLabelFormatter.actionLabel(it) }
                     )
                 }
             }
@@ -101,7 +101,7 @@ class MermaidFsmGenerator : FsmDiagramGenerator {
 
         // Add conditions (conditions are displayed on arrows)
         transition.to.conditions.forEach { condition ->
-            parts.add("[${condition}]")
+            parts.add("[${DiagramLabelFormatter.guardLabel(condition)}]")
         }
 
         // Add timeout

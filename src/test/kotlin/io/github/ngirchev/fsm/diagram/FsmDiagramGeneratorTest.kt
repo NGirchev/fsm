@@ -3,10 +3,15 @@ package io.github.ngirchev.fsm.diagram
 import org.junit.jupiter.api.Test
 import io.github.ngirchev.fsm.Timeout
 import io.github.ngirchev.fsm.To
+import io.github.ngirchev.fsm.NamedAction
+import io.github.ngirchev.fsm.NamedGuard
 import io.github.ngirchev.fsm.impl.extended.ExTransitionTable
 import io.github.ngirchev.fsm.it.document.Document
 import io.github.ngirchev.fsm.it.document.DocumentState
 import io.github.ngirchev.fsm.it.document.DocumentState.*
+import kotlin.test.assertContains
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class FsmDiagramGeneratorTest {
 
@@ -226,5 +231,59 @@ class FsmDiagramGeneratorTest {
         println("\n========== Mermaid Diagram (Full Document FSM) ==========")
         println(diagram)
         println("==========================================================\n")
+    }
+
+    @Test
+    fun `should generate short labels for unnamed PlantUML guards and actions`() {
+        var actionCount = 0
+        val transitionTable = ExTransitionTable.Builder<DocumentState, String>()
+            .from(NEW).onEvent("PROCESS").to(READY_FOR_SIGN)
+            .onCondition { true }
+            .action { actionCount++ }
+            .postAction { actionCount++ }
+            .end()
+            .build()
+
+        val diagram = PlantUmlFsmGenerator().generate(transitionTable)
+
+        assertTrue(Regex("\\[guard-[0-9a-f]{8}]").containsMatchIn(diagram))
+        assertTrue(Regex("action-[0-9a-f]{8}").containsMatchIn(diagram))
+        assertFalse(diagram.contains("FsmDiagramGeneratorTest"))
+    }
+
+    @Test
+    fun `should generate short labels for unnamed Mermaid guards and actions`() {
+        var actionCount = 0
+        val transitionTable = ExTransitionTable.Builder<DocumentState, String>()
+            .from(NEW).onEvent("PROCESS").to(READY_FOR_SIGN)
+            .onCondition { true }
+            .action { actionCount++ }
+            .postAction { actionCount++ }
+            .end()
+            .build()
+
+        val diagram = MermaidFsmGenerator().generate(transitionTable)
+
+        assertTrue(Regex("\\[guard-[0-9a-f]{8}]").containsMatchIn(diagram))
+        assertTrue(Regex("action-[0-9a-f]{8}").containsMatchIn(diagram))
+        assertFalse(diagram.contains("FsmDiagramGeneratorTest"))
+    }
+
+    @Test
+    fun `should preserve named guard and action labels in diagrams`() {
+        val transitionTable = ExTransitionTable.Builder<DocumentState, String>()
+            .from(NEW).onEvent("PROCESS").to(READY_FOR_SIGN)
+            .onCondition(NamedGuard("CanProcess") { true })
+            .action(NamedAction("MarkProcessed") { })
+            .end()
+            .build()
+
+        val plantUml = PlantUmlFsmGenerator().generate(transitionTable)
+        val mermaid = MermaidFsmGenerator().generate(transitionTable)
+
+        assertContains(plantUml, "[CanProcess]")
+        assertContains(plantUml, "MarkProcessed")
+        assertContains(mermaid, "[CanProcess]")
+        assertContains(mermaid, "MarkProcessed")
     }
 }
