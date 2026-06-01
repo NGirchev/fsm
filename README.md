@@ -16,6 +16,8 @@
 [![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=NGirchev_fsm&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=NGirchev_fsm)
 [![Technical Debt](https://sonarcloud.io/api/project_badges/measure?project=NGirchev_fsm&metric=sqale_index)](https://sonarcloud.io/summary/new_code?id=NGirchev_fsm)
 
+[Open FSM Visual Editor](https://ngirchev.github.io/fsm/)
+
 `fsm` is a lightweight Kotlin finite state machine library for event-driven workflows, state transitions, guards, actions, timeouts, and domain objects with status fields. The repository also includes a local visual FSM editor for designing flows and generating Java/Kotlin FSM factory code.
 
 The library contains several implementations for common use cases:
@@ -323,8 +325,6 @@ transitionTable.toMermaid(Path("diagram.mermaid"))
 ## FSM Visual Editor
 
 The repository includes a local visual finite state machine editor and FSM code generator for designing flows before wiring them into application code.
-
-[Open FSM Visual Editor](https://ngirchev.github.io/fsm/)
 
 ![fsm-visual-editor](fsm-visual-editor.gif)
 
