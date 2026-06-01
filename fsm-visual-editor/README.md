@@ -9,6 +9,12 @@ npm install
 npm run dev
 ```
 
+## GitHub Pages
+
+The repository publishes this editor with the `GitHub Pages` workflow. The workflow builds the static Vite app from this directory and deploys `dist`.
+
+Enable GitHub Pages in the repository settings with `GitHub Actions` as the source. The build sets `VITE_BASE_PATH` to `/<repository-name>/`, so project Pages URLs load bundled assets correctly.
+
 ## What The JSON Stores
 
 The editor JSON is the source of truth for the UI. It stores FSM states, event IDs, transitions, canvas positions, reusable guard/action IDs, and Java/Kotlin generation metadata.

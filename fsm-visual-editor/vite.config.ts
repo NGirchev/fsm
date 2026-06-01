@@ -6,6 +6,7 @@ import path from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 export default defineConfig({
+  base: process.env.VITE_BASE_PATH ?? '/',
   plugins: [react(), projectsApiPlugin()],
 });
 

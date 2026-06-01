@@ -324,6 +324,8 @@ transitionTable.toMermaid(Path("diagram.mermaid"))
 
 The repository includes a local visual finite state machine editor and FSM code generator for designing flows before wiring them into application code.
 
+[Open FSM Visual Editor](https://ngirchev.github.io/fsm/)
+
 ![fsm-visual-editor](fsm-visual-editor.gif)
 
 Use the editor to:
