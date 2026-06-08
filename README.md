@@ -175,21 +175,20 @@ class SpringAfterCommitAutoTransitionScheduler<STATE>(
 
 val scheduler = SpringAfterCommitAutoTransitionScheduler<DocumentState>(transactionTemplate)
 
-val fsm = ExDomainFsm(
-    transitionTable = ExTransitionTable.Builder<DocumentState, String>()
-        .autoTransitionEnabled(true)
-        .add(from = NEW, onEvent = "APPROVE", to = READY_FOR_SIGN)
-        .add(
-            from = READY_FOR_SIGN,
-            to = SIGNED,
-            action = {
-                // External call or another action that may fail.
-                signatureClient.sendForSignature((it as Document).id)
-            }
-        )
-        .build(),
-    autoTransitionScheduler = scheduler
-)
+val fsm = ExTransitionTable.Builder<DocumentState, String>()
+    .autoTransitionEnabled(true)
+    .autoTransitionScheduler(scheduler)
+    .add(from = NEW, onEvent = "APPROVE", to = READY_FOR_SIGN)
+    .add(
+        from = READY_FOR_SIGN,
+        to = SIGNED,
+        action = {
+            // External call or another action that may fail.
+            signatureClient.sendForSignature((it as Document).id)
+        }
+    )
+    .build()
+    .createDomainFsm<Document>()
 
 fsm.addStateChangeListener { context, _, _ ->
     documentRepository.save(context as Document)

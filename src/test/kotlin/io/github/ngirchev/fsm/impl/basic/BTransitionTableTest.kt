@@ -2,6 +2,7 @@ package io.github.ngirchev.fsm.impl.basic
 
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
+import io.github.ngirchev.fsm.AutoTransitionScheduler
 import io.github.ngirchev.fsm.exception.DuplicateTransitionException
 import io.github.ngirchev.fsm.To
 import io.github.ngirchev.fsm.StateContext
@@ -172,5 +173,27 @@ class BTransitionTableTest {
         val domainFsm = table.createDomainFsm<Document>()
 
         assertNotNull(domainFsm)
+    }
+
+    @Test
+    fun createDomainFsmShouldUseAutoTransitionScheduler() {
+        var scheduledTransitions = 0
+        val scheduler = AutoTransitionScheduler<DocumentState> { _, _, runTransition ->
+            scheduledTransitions++
+            runTransition()
+        }
+        val table = BTransitionTable.Builder<DocumentState>()
+            .autoTransitionEnabled(true)
+            .autoTransitionScheduler(scheduler)
+            .add(DocumentState.NEW, DocumentState.READY_FOR_SIGN)
+            .add(DocumentState.READY_FOR_SIGN, DocumentState.SIGNED)
+            .build()
+        val domain = Document(state = DocumentState.NEW)
+
+        val domainFsm = table.createDomainFsm<Document>()
+        domainFsm.changeState(domain, DocumentState.READY_FOR_SIGN)
+
+        assertEquals(DocumentState.SIGNED, domain.state)
+        assertEquals(1, scheduledTransitions)
     }
 }

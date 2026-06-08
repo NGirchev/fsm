@@ -1,7 +1,9 @@
 package io.github.ngirchev.fsm.impl.basic
 
 import io.github.ngirchev.fsm.Action
+import io.github.ngirchev.fsm.AutoTransitionScheduler
 import io.github.ngirchev.fsm.Guard
+import io.github.ngirchev.fsm.ImmediateAutoTransitionScheduler
 import io.github.ngirchev.fsm.StateContext
 import io.github.ngirchev.fsm.To
 import io.github.ngirchev.fsm.exception.DuplicateTransitionException
@@ -10,13 +12,15 @@ import io.github.ngirchev.fsm.impl.AbstractTransitionTable
 open class BTransitionTable<STATE>
 internal constructor(
     override val transitions: Map<STATE, LinkedHashSet<BTransition<STATE>>>,
-    override var autoTransitionEnabled: Boolean
+    override var autoTransitionEnabled: Boolean,
+    private val autoTransitionScheduler: AutoTransitionScheduler<STATE>,
 ) : AbstractTransitionTable<STATE, BTransition<STATE>>(transitions, autoTransitionEnabled) {
 
     class Builder<STATE> {
 
         private val transitions: MutableMap<STATE, LinkedHashSet<BTransition<STATE>>> = hashMapOf()
         private var autoTransitionEnabled: Boolean = false
+        private var autoTransitionScheduler: AutoTransitionScheduler<STATE> = ImmediateAutoTransitionScheduler()
 
         /**
          * Placeholder for symmetry with extended FSM DSL.
@@ -24,6 +28,11 @@ internal constructor(
          */
         fun autoTransitionEnabled(enabled: Boolean): Builder<STATE> {
             this.autoTransitionEnabled = enabled
+            return this
+        }
+
+        fun autoTransitionScheduler(scheduler: AutoTransitionScheduler<STATE>): Builder<STATE> {
+            this.autoTransitionScheduler = scheduler
             return this
         }
 
@@ -73,7 +82,7 @@ internal constructor(
         }
 
         fun build(): BTransitionTable<STATE> {
-            return BTransitionTable(snapshotTransitions(), autoTransitionEnabled)
+            return BTransitionTable(snapshotTransitions(), autoTransitionEnabled, autoTransitionScheduler)
         }
 
         private fun snapshotTransitions(): Map<STATE, LinkedHashSet<BTransition<STATE>>> {
@@ -83,11 +92,11 @@ internal constructor(
     }
 
     override fun createFsm(initialState: STATE): BFsm<STATE> {
-        return BFsm(initialState, this, autoTransitionEnabled)
+        return BFsm(initialState, this, autoTransitionEnabled, autoTransitionScheduler)
     }
 
     override fun <DOMAIN : StateContext<STATE>> createDomainFsm(): BDomainFsm<DOMAIN, STATE> {
-        return BDomainFsm(this, autoTransitionEnabled)
+        return BDomainFsm(this, autoTransitionEnabled, autoTransitionScheduler)
     }
 
     override fun getAutoTransition(context: StateContext<STATE>): BTransition<STATE>? {

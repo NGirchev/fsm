@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.mock
+import io.github.ngirchev.fsm.AutoTransitionScheduler
 import io.github.ngirchev.fsm.exception.DuplicateTransitionException
 import io.github.ngirchev.fsm.exception.FsmException
 import io.github.ngirchev.fsm.Timeout
@@ -281,6 +282,29 @@ class ExTransitionTableTest {
         val domainFsm = table.createDomainFsm<Document>()
 
         assertNotNull(domainFsm)
+    }
+
+    @Test
+    @DisplayName("createDomainFsm should use auto transition scheduler")
+    fun createDomainFsmShouldUseAutoTransitionScheduler() {
+        var scheduledTransitions = 0
+        val scheduler = AutoTransitionScheduler<DocumentState> { _, _, runTransition ->
+            scheduledTransitions++
+            runTransition()
+        }
+        val table = ExTransitionTable.Builder<DocumentState, String>()
+            .autoTransitionEnabled(true)
+            .autoTransitionScheduler(scheduler)
+            .add(DocumentState.NEW, "event", DocumentState.READY_FOR_SIGN)
+            .add(from = DocumentState.READY_FOR_SIGN, to = DocumentState.SIGNED)
+            .build()
+        val domain = Document(state = DocumentState.NEW)
+
+        val domainFsm = table.createDomainFsm<Document>()
+        domainFsm.handle(domain, "event")
+
+        assertEquals(DocumentState.SIGNED, domain.state)
+        assertEquals(1, scheduledTransitions)
     }
 
     @Test

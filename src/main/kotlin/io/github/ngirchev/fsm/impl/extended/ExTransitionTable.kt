@@ -8,7 +8,8 @@ import io.github.ngirchev.fsm.impl.AbstractTransitionTable
 open class ExTransitionTable<STATE, EVENT>
 internal constructor(
     override val transitions: Map<STATE, LinkedHashSet<ExTransition<STATE, EVENT>>>,
-    override var autoTransitionEnabled: Boolean = false
+    override var autoTransitionEnabled: Boolean = false,
+    private val autoTransitionScheduler: AutoTransitionScheduler<STATE>,
 ) : AbstractTransitionTable<STATE, ExTransition<STATE, EVENT>>(transitions, autoTransitionEnabled) {
 
     internal fun getTransitionByEvent(context: StateContext<STATE>, event: EVENT): ExTransition<STATE, EVENT>? {
@@ -29,9 +30,15 @@ internal constructor(
 
         internal val transitions: MutableMap<STATE, LinkedHashSet<ExTransition<STATE, EVENT>>> = hashMapOf()
         private var autoTransitionEnabled: Boolean = false
+        private var autoTransitionScheduler: AutoTransitionScheduler<STATE> = ImmediateAutoTransitionScheduler()
 
         fun autoTransitionEnabled(enabled: Boolean): Builder<STATE, EVENT> {
             this.autoTransitionEnabled = enabled
+            return this
+        }
+
+        fun autoTransitionScheduler(scheduler: AutoTransitionScheduler<STATE>): Builder<STATE, EVENT> {
+            this.autoTransitionScheduler = scheduler
             return this
         }
 
@@ -82,7 +89,7 @@ internal constructor(
         }
 
         fun build(): ExTransitionTable<STATE, EVENT> {
-            return ExTransitionTable(snapshotTransitions(), autoTransitionEnabled)
+            return ExTransitionTable(snapshotTransitions(), autoTransitionEnabled, autoTransitionScheduler)
         }
 
         private fun snapshotTransitions(): Map<STATE, LinkedHashSet<ExTransition<STATE, EVENT>>> {
@@ -92,11 +99,11 @@ internal constructor(
     }
 
     override fun createFsm(initialState: STATE): ExFsm<STATE, EVENT> {
-        return ExFsm(initialState, this, autoTransitionEnabled)
+        return ExFsm(initialState, this, autoTransitionEnabled, autoTransitionScheduler)
     }
 
     override fun <DOMAIN : StateContext<STATE>> createDomainFsm(): ExDomainFsm<DOMAIN, STATE, EVENT> {
-        return ExDomainFsm(this, autoTransitionEnabled)
+        return ExDomainFsm(this, autoTransitionEnabled, autoTransitionScheduler)
     }
 }
 
