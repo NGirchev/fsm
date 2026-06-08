@@ -37,19 +37,14 @@ jobs:
       - name: Checkout release tag
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && github.ref || steps.version.outputs.tag }}
+          ref: ${{ steps.version.outputs.tag }}
           fetch-depth: 0
 
       - name: Verify Gradle version matches tag
         shell: bash
         run: |
           EXPECTED="${{ steps.version.outputs.version }}"
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            git fetch --force --tags origin
-            ACTUAL="$(git show "${{ steps.version.outputs.tag }}:gradle.properties" | grep '^version=' | cut -d= -f2)"
-          else
-            ACTUAL="$(grep '^version=' gradle.properties | cut -d= -f2)"
-          fi
+          ACTUAL="$(grep '^version=' gradle.properties | cut -d= -f2)"
           if [ "$ACTUAL" != "$EXPECTED" ]; then
             echo "Tag ${{ steps.version.outputs.tag }} has gradle.properties version=$ACTUAL, expected $EXPECTED"
             exit 1
@@ -70,7 +65,7 @@ jobs:
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_TOKEN }}
           ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.GPG_PRIVATE_KEY }}
           ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.GPG_PASSPHRASE }}
-        run: ./gradlew clean publishAndReleaseToMavenCentral -Pversion=${{ steps.version.outputs.version }}
+        run: ./gradlew clean publishAndReleaseToMavenCentral
 
       - name: Wait for Maven Central sync
         shell: bash
