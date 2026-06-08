@@ -15,7 +15,6 @@ import {
 import {
   AlertCircle,
   FilePlus2,
-  FileCode2,
   FileJson,
   GitBranchPlus,
   Plus,
@@ -176,6 +175,11 @@ export function App() {
         },
       };
     });
+  };
+
+  const deleteBehavior = (kind: 'conditions' | 'actions', index: number) => {
+    setDocument((current) => deleteBehaviorAtIndex(current, kind, index));
+    setStatus(kind === 'conditions' ? 'Guard deleted' : 'Action deleted');
   };
 
   const addEvent = () => {
@@ -378,8 +382,8 @@ export function App() {
           <button type="button" className="icon-button" onClick={exportEditorJson} title="Export editor JSON" aria-label="Export editor JSON">
             <FileJson size={18} />
           </button>
-          <button type="button" className="icon-button" onClick={exportJava} title="Generate Java class" aria-label="Generate Java class">
-            <FileCode2 size={18} />
+          <button type="button" className="text-button" onClick={exportJava} title="Generate Java class">
+            JAVA
           </button>
           <button type="button" className="text-button" onClick={exportKotlin} title="Generate Kotlin class">
             KT
@@ -432,7 +436,7 @@ export function App() {
         <aside className="inspector">
           <ProjectPanel document={document} setDocument={setDocument} />
           <EventPanel document={document} setDocument={setDocument} addEvent={addEvent} deleteEvent={deleteEvent} />
-          <BehaviorPanel document={document} setDocument={setDocument} addBehavior={addBehavior} />
+          <BehaviorPanel document={document} setDocument={setDocument} addBehavior={addBehavior} deleteBehavior={deleteBehavior} />
           {selectedState && <StateInspector state={selectedState} document={document} setDocument={setDocument} />}
           {selectedTransition && <TransitionInspector transition={selectedTransition} document={document} setDocument={setDocument} />}
           <ValidationPanel issues={validationIssues} />
@@ -576,16 +580,32 @@ function BehaviorPanel({
   document,
   setDocument,
   addBehavior,
+  deleteBehavior,
 }: {
   document: FsmEditorDocument;
   setDocument: Dispatch<SetStateAction<FsmEditorDocument>>;
   addBehavior: (kind: 'conditions' | 'actions') => void;
+  deleteBehavior: (kind: 'conditions' | 'actions', index: number) => void;
 }) {
   return (
     <section className="panel">
       <h2>Behavior</h2>
-      <BehaviorList title="Guards" kind="conditions" behaviors={document.behaviors.conditions} setDocument={setDocument} addBehavior={addBehavior} />
-      <BehaviorList title="Actions" kind="actions" behaviors={document.behaviors.actions} setDocument={setDocument} addBehavior={addBehavior} />
+      <BehaviorList
+        title="Guards"
+        kind="conditions"
+        behaviors={document.behaviors.conditions}
+        setDocument={setDocument}
+        addBehavior={addBehavior}
+        deleteBehavior={deleteBehavior}
+      />
+      <BehaviorList
+        title="Actions"
+        kind="actions"
+        behaviors={document.behaviors.actions}
+        setDocument={setDocument}
+        addBehavior={addBehavior}
+        deleteBehavior={deleteBehavior}
+      />
     </section>
   );
 }
@@ -596,12 +616,14 @@ function BehaviorList({
   behaviors,
   setDocument,
   addBehavior,
+  deleteBehavior,
 }: {
   title: string;
   kind: 'conditions' | 'actions';
   behaviors: BehaviorRef[];
   setDocument: Dispatch<SetStateAction<FsmEditorDocument>>;
   addBehavior: (kind: 'conditions' | 'actions') => void;
+  deleteBehavior: (kind: 'conditions' | 'actions', index: number) => void;
 }) {
   return (
     <div className="behavior-list">
@@ -611,14 +633,25 @@ function BehaviorList({
           <Plus size={14} />
         </button>
       </div>
+      {behaviors.length === 0 && <span className="muted">None</span>}
       {behaviors.map((behavior, index) => (
-        <input
-          key={`${kind}-${index}`}
-          value={behavior.id}
-          onChange={(event) =>
-            setDocument((current) => renameBehaviorAtIndex(current, kind, index, event.target.value))
-          }
-        />
+        <div className="behavior-row" key={`${kind}-${index}`}>
+          <input
+            value={behavior.id}
+            onChange={(event) =>
+              setDocument((current) => renameBehaviorAtIndex(current, kind, index, event.target.value))
+            }
+          />
+          <button
+            type="button"
+            className="small-button danger"
+            onClick={() => deleteBehavior(kind, index)}
+            title={`Delete ${kind === 'conditions' ? 'guard' : 'action'}`}
+            aria-label={`Delete ${kind === 'conditions' ? 'guard' : 'action'} ${behavior.id}`}
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
       ))}
     </div>
   );
@@ -1002,6 +1035,40 @@ export function deleteEventAtIndex(document: FsmEditorDocument, index: number): 
   };
 }
 
+export function deleteBehaviorAtIndex(
+  document: FsmEditorDocument,
+  kind: 'conditions' | 'actions',
+  index: number,
+): FsmEditorDocument {
+  const behaviorId = document.behaviors[kind][index]?.id;
+
+  if (behaviorId === undefined) {
+    return document;
+  }
+
+  return {
+    ...document,
+    behaviors: {
+      ...document.behaviors,
+      [kind]: document.behaviors[kind].filter((_, behaviorIndex) => behaviorIndex !== index),
+    },
+    transitions: document.transitions.map((transition) => {
+      if (kind === 'conditions') {
+        return {
+          ...transition,
+          conditions: transition.conditions.filter((id) => id !== behaviorId),
+        };
+      }
+
+      return {
+        ...transition,
+        actions: transition.actions.filter((id) => id !== behaviorId),
+        postActions: transition.postActions.filter((id) => id !== behaviorId),
+      };
+    }),
+  };
+}
+
 export function addAutoTransition(document: FsmEditorDocument, source: string, target: string): FsmEditorDocument {
   const transition: FsmTransition = {
     id: createId('transition'),
@@ -1041,10 +1108,18 @@ function nextEventId(document: FsmEditorDocument): string {
   return uniqueId('EVENT', new Set(document.events.map((eventRef) => eventRef.id)));
 }
 
-function transitionLabel(transition: FsmTransition): string {
+export function transitionLabel(transition: FsmTransition): string {
   const parts = [transition.trigger.kind === 'event' ? transition.trigger.event : 'auto'];
 
   transition.conditions.forEach((condition) => parts.push(`[${condition}]`));
+
+  if (transition.actions.length > 0) {
+    parts.push(`/ ${transition.actions.join(', ')}`);
+  }
+
+  if (transition.postActions.length > 0) {
+    parts.push(`post: ${transition.postActions.join(', ')}`);
+  }
 
   if (transition.timeout) {
     parts.push(`${transition.timeout.value}${shortTimeUnit(transition.timeout.unit)}`);

@@ -270,6 +270,25 @@ class FsmDiagramGeneratorTest {
     }
 
     @Test
+    fun `should render Mermaid actions and postActions beside state without replacing label`() {
+        val transitionTable = ExTransitionTable.Builder<DocumentState, String>()
+            .from(NEW).onEvent("PROCESS").to(READY_FOR_SIGN)
+            .action(NamedAction("IndexDocument") { })
+            .postAction(NamedAction("PublishDocument") { })
+            .end()
+            .build()
+
+        val diagram = MermaidFsmGenerator().generate(transitionTable)
+
+        assertContains(diagram, "state \"READY_FOR_SIGN\" as READY_FOR_SIGN")
+        assertContains(diagram, "note right of READY_FOR_SIGN")
+        assertContains(diagram, "▶ IndexDocument")
+        assertContains(diagram, "◀ PublishDocument")
+        assertFalse(diagram.contains("READY_FOR_SIGN : ▶"))
+        assertFalse(diagram.contains("READY_FOR_SIGN : ◀"))
+    }
+
+    @Test
     fun `should preserve named guard and action labels in diagrams`() {
         val transitionTable = ExTransitionTable.Builder<DocumentState, String>()
             .from(NEW).onEvent("PROCESS").to(READY_FOR_SIGN)

@@ -1,6 +1,7 @@
 package io.github.ngirchev.fsm.impl.extended
 
 import io.github.ngirchev.fsm.To
+import io.github.ngirchev.fsm.TypedEvent
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -8,6 +9,16 @@ import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
 class ExTransitionTest {
+
+    private enum class PaymentEventType {
+        SUBMIT,
+        CANCEL
+    }
+
+    private data class PaymentEvent(
+        override val eventType: PaymentEventType,
+        val paymentId: String
+    ) : TypedEvent<PaymentEventType>
 
     @Test
     fun equalsWhenSameInstanceThenReturnTrue() {
@@ -43,6 +54,20 @@ class ExTransitionTest {
     }
 
     @Test
+    fun equalsWhenTypedEventsHaveSameEventTypeThenReturnTrue() {
+        val transition1 = ExTransition("from", "to", PaymentEvent(PaymentEventType.SUBMIT, "definition"))
+        val transition2 = ExTransition("from", "to", PaymentEvent(PaymentEventType.SUBMIT, "runtime"))
+        assertTrue(transition1 == transition2)
+    }
+
+    @Test
+    fun equalsWhenTypedEventsHaveDifferentEventTypeThenReturnFalse() {
+        val transition1 = ExTransition("from", "to", PaymentEvent(PaymentEventType.SUBMIT, "payment"))
+        val transition2 = ExTransition("from", "to", PaymentEvent(PaymentEventType.CANCEL, "payment"))
+        assertFalse(transition1 == transition2)
+    }
+
+    @Test
     fun equalsWhenBothEventsNullThenReturnTrue() {
         val transition1 = ExTransition("from", "to", null)
         val transition2 = ExTransition("from", "to", null)
@@ -74,6 +99,13 @@ class ExTransitionTest {
     fun hashCodeWhenSameTransitionThenReturnSameHashCode() {
         val transition1 = ExTransition("from", "to", "event")
         val transition2 = ExTransition("from", "to", "event")
+        assertEquals(transition1.hashCode(), transition2.hashCode())
+    }
+
+    @Test
+    fun hashCodeWhenTypedEventsHaveSameEventTypeThenReturnSameHashCode() {
+        val transition1 = ExTransition("from", "to", PaymentEvent(PaymentEventType.SUBMIT, "definition"))
+        val transition2 = ExTransition("from", "to", PaymentEvent(PaymentEventType.SUBMIT, "runtime"))
         assertEquals(transition1.hashCode(), transition2.hashCode())
     }
 

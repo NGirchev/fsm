@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addAutoTransition, deleteEventAtIndex } from './App';
+import { addAutoTransition, deleteBehaviorAtIndex, deleteEventAtIndex, transitionLabel } from './App';
 import { sampleDocument } from './domain';
 
 describe('deleteEventAtIndex', () => {
@@ -18,6 +18,40 @@ describe('deleteEventAtIndex', () => {
 
   it('leaves the document unchanged for an unknown index', () => {
     expect(deleteEventAtIndex(sampleDocument, -1)).toBe(sampleDocument);
+  });
+});
+
+describe('deleteBehaviorAtIndex', () => {
+  it('removes a guard and transition guard references', () => {
+    const deletedGuardId = sampleDocument.behaviors.conditions[0].id;
+
+    const updated = deleteBehaviorAtIndex(sampleDocument, 'conditions', 0);
+
+    expect(updated.behaviors.conditions.map((condition) => condition.id)).not.toContain(deletedGuardId);
+    expect(updated.transitions.flatMap((transition) => transition.conditions)).not.toContain(deletedGuardId);
+  });
+
+  it('removes an action and transition action references', () => {
+    const deletedActionId = sampleDocument.behaviors.actions[0].id;
+    const document = {
+      ...sampleDocument,
+      transitions: sampleDocument.transitions.map((transition) =>
+        transition.id === 'signed-auto'
+          ? { ...transition, postActions: [...transition.postActions, deletedActionId] }
+          : transition,
+      ),
+    };
+
+    const updated = deleteBehaviorAtIndex(document, 'actions', 0);
+
+    expect(updated.behaviors.actions.map((action) => action.id)).not.toContain(deletedActionId);
+    expect(updated.transitions.flatMap((transition) => transition.actions)).not.toContain(deletedActionId);
+    expect(updated.transitions.flatMap((transition) => transition.postActions)).not.toContain(deletedActionId);
+  });
+
+  it('leaves the document unchanged for an unknown behavior index', () => {
+    expect(deleteBehaviorAtIndex(sampleDocument, 'conditions', -1)).toBe(sampleDocument);
+    expect(deleteBehaviorAtIndex(sampleDocument, 'actions', -1)).toBe(sampleDocument);
   });
 });
 
@@ -45,5 +79,31 @@ describe('addAutoTransition', () => {
 
     expect(duplicateAttempt).toBe(updated);
     expect(duplicateAttempt.transitions).toHaveLength(updated.transitions.length);
+  });
+});
+
+describe('transitionLabel', () => {
+  it('shows actions and post actions next to the event and guards', () => {
+    expect(
+      transitionLabel({
+        ...sampleDocument.transitions[0],
+        trigger: { kind: 'event', event: 'TO_READY' },
+        conditions: ['signRequired'],
+        actions: ['autoSent'],
+        postActions: ['notifyUser'],
+      }),
+    ).toBe('TO_READY [signRequired] / autoSent post: notifyUser');
+  });
+
+  it('keeps timeout visible with action details', () => {
+    expect(
+      transitionLabel({
+        ...sampleDocument.transitions[0],
+        trigger: { kind: 'auto' },
+        actions: ['autoSent'],
+        postActions: ['notifyUser'],
+        timeout: { value: 5, unit: 'SECONDS' },
+      }),
+    ).toBe('auto / autoSent post: notifyUser 5s');
   });
 });

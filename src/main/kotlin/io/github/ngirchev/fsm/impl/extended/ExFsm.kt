@@ -31,6 +31,6 @@ open class ExFsm<STATE, EVENT> :
     override fun onEvent(event: EVENT) {
         val transition = transitionTable.getTransitionByEvent(context, event)
             ?: throw FsmEventSourcingTransitionFailedException(context.state.toString(), event.toString())
-        toState(transition)
+        toState(ExTransition(transition.from, transition.to, event))
     }
 }

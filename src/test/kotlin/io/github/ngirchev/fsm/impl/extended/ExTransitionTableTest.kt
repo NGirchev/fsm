@@ -9,6 +9,7 @@ import io.github.ngirchev.fsm.exception.FsmException
 import io.github.ngirchev.fsm.Timeout
 import io.github.ngirchev.fsm.To
 import io.github.ngirchev.fsm.StateContext
+import io.github.ngirchev.fsm.TypedEvent
 import io.github.ngirchev.fsm.it.document.Document
 import io.github.ngirchev.fsm.it.document.DocumentState
 import kotlin.test.DefaultAsserter.assertEquals
@@ -19,6 +20,16 @@ import kotlin.test.assertNull
 class ExTransitionTableTest {
 
     private class SimpleStateContext(override var state: String, override var currentTransition: io.github.ngirchev.fsm.Transition<String>? = null) : StateContext<String>
+
+    private enum class PaymentEventType {
+        SUBMIT,
+        CANCEL
+    }
+
+    private data class PaymentEvent(
+        override val eventType: PaymentEventType,
+        val paymentId: String
+    ) : TypedEvent<PaymentEventType>
 
     @Test
     @DisplayName("Should add the transition when the transition is not added")
@@ -155,6 +166,40 @@ class ExTransitionTableTest {
         assertEquals("from", t.from)
         assertEquals("to", t.to.state)
         assertEquals("event", t.event)
+    }
+
+    @Test
+    @DisplayName("getTransitionByEvent should match typed event by event type and ignore payload")
+    fun getTransitionByEventWhenTypedEventPayloadDiffersThenReturnTransition() {
+        val table = ExTransitionTable.Builder<String, PaymentEvent>()
+            .add("from", PaymentEvent(PaymentEventType.SUBMIT, paymentId = "definition"), "to")
+            .build()
+
+        val context = SimpleStateContext("from")
+        val transition = table.getTransitionByEvent(
+            context,
+            PaymentEvent(PaymentEventType.SUBMIT, paymentId = "runtime")
+        )
+
+        assertNotNull(transition)
+        val t = transition!!
+        assertEquals("to", t.to.state)
+    }
+
+    @Test
+    @DisplayName("getTransitionByEvent should not match typed event with different event type")
+    fun getTransitionByEventWhenTypedEventTypeDiffersThenReturnNull() {
+        val table = ExTransitionTable.Builder<String, PaymentEvent>()
+            .add("from", PaymentEvent(PaymentEventType.SUBMIT, paymentId = "definition"), "to")
+            .build()
+
+        val context = SimpleStateContext("from")
+        val transition = table.getTransitionByEvent(
+            context,
+            PaymentEvent(PaymentEventType.CANCEL, paymentId = "runtime")
+        )
+
+        assertNull(transition)
     }
 
     @Test

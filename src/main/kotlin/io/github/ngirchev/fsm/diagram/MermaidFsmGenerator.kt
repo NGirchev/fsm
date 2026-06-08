@@ -51,16 +51,9 @@ class MermaidFsmGenerator : FsmDiagramGenerator {
             val stateIdValue = stateId(state)
             val actions = stateActions[state] ?: emptyList()
             val postActions = statePostActions[state] ?: emptyList()
-            
-            // Output actions (without nested block to avoid cycle)
-            actions.forEach { action ->
-                sb.appendLine("    $stateIdValue : ▶ $action")
-            }
-            
-            // Output postActions
-            postActions.forEach { postAction ->
-                sb.appendLine("    $stateIdValue : ◀ $postAction")
-            }
+
+            sb.appendLine("    state \"$state\" as $stateIdValue")
+            appendActionsNote(sb, stateIdValue, actions, postActions)
         }
         
         if (stateActions.isNotEmpty() || statePostActions.isNotEmpty()) {
@@ -110,6 +103,26 @@ class MermaidFsmGenerator : FsmDiagramGenerator {
         }
 
         return parts.joinToString(" ")
+    }
+
+    private fun appendActionsNote(
+        sb: StringBuilder,
+        stateIdValue: String,
+        actions: List<String>,
+        postActions: List<String>
+    ) {
+        if (actions.isEmpty() && postActions.isEmpty()) {
+            return
+        }
+
+        sb.appendLine("    note right of $stateIdValue")
+        actions.forEach { action ->
+            sb.appendLine("        ▶ $action")
+        }
+        postActions.forEach { postAction ->
+            sb.appendLine("        ◀ $postAction")
+        }
+        sb.appendLine("    end note")
     }
 
     private fun <STATE> stateId(state: STATE): String {

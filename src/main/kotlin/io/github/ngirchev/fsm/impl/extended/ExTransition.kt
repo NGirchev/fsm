@@ -1,6 +1,7 @@
 package io.github.ngirchev.fsm.impl.extended
 
 import io.github.ngirchev.fsm.To
+import io.github.ngirchev.fsm.eventTypeOf
 import io.github.ngirchev.fsm.impl.basic.BTransition
 
 open class ExTransition<STATE, EVENT> : BTransition<STATE> {
@@ -22,14 +23,14 @@ open class ExTransition<STATE, EVENT> : BTransition<STATE> {
 
         other as ExTransition<*, *>
 
-        if (event != other.event) return false
+        if (eventTypeOf(event) != eventTypeOf(other.event)) return false
 
         return true
     }
 
     override fun hashCode(): Int {
         var result = super.hashCode()
-        result = 31 * result + (event?.hashCode() ?: 0)
+        result = 31 * result + (eventTypeOf(event)?.hashCode() ?: 0)
         return result
     }
 

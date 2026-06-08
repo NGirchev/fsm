@@ -12,8 +12,9 @@ internal constructor(
 ) : AbstractTransitionTable<STATE, ExTransition<STATE, EVENT>>(transitions, autoTransitionEnabled) {
 
     internal fun getTransitionByEvent(context: StateContext<STATE>, event: EVENT): ExTransition<STATE, EVENT>? {
+        val eventType = eventTypeOf(event)
         return transitions[context.state]
-            ?.filter { it.event == event }
+            ?.filter { eventTypeOf(it.event) == eventType }
             ?.firstOrNull { it.to.conditions.all { condition -> condition.invoke(context) } }
     }
 

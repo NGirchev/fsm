@@ -7,6 +7,14 @@ interface Transition<STATE> {
     val to: To<STATE>
 }
 
+interface TypedEvent<out TYPE : Any> {
+    val eventType: TYPE
+}
+
+internal fun eventTypeOf(event: Any?): Any? {
+    return if (event is TypedEvent<*>) event.eventType else event
+}
+
 fun interface Action<T> {
     operator fun invoke(context: T)
 }

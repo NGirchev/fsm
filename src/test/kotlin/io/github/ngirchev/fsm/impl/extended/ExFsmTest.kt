@@ -4,12 +4,23 @@ import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 import io.github.ngirchev.fsm.exception.FsmEventSourcingTransitionFailedException
 import io.github.ngirchev.fsm.StateContext
+import io.github.ngirchev.fsm.TypedEvent
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class ExFsmTest {
 
     private class SimpleStateContext(override var state: String, override var currentTransition: io.github.ngirchev.fsm.Transition<String>? = null) : StateContext<String>
+
+    private enum class PaymentEventType {
+        SUBMIT
+    }
+
+    private data class PaymentEvent(
+        override val eventType: PaymentEventType,
+        val paymentId: String,
+        val source: String = "unknown"
+    ) : TypedEvent<PaymentEventType>
 
     @Test
     fun constructorWithStateShouldCreateFsm() {
@@ -67,6 +78,40 @@ class ExFsmTest {
         fsm.onEvent("event")
 
         assertEquals("to", fsm.getState())
+    }
+
+    @Test
+    fun onEventWhenTypedEventPayloadDiffersShouldChangeState() {
+        val table = ExTransitionTable.Builder<String, PaymentEvent>()
+            .add("from", PaymentEvent(PaymentEventType.SUBMIT, paymentId = "definition"), "to")
+            .build()
+
+        val fsm = ExFsm("from", table)
+        fsm.onEvent(PaymentEvent(PaymentEventType.SUBMIT, paymentId = "runtime"))
+
+        assertEquals("to", fsm.getState())
+    }
+
+    @Test
+    fun onEventWhenTypedEventPayloadDiffersShouldExposeRuntimeEventInCurrentTransition() {
+        var capturedEvent: PaymentEvent? = null
+        val table = ExTransitionTable.Builder<String, PaymentEvent>()
+            .add(
+                from = "from",
+                onEvent = PaymentEvent(PaymentEventType.SUBMIT, paymentId = "definition", source = "definition-source"),
+                to = "to",
+                action = { context ->
+                    val transition = context.currentTransition as ExTransition<*, *>
+                    capturedEvent = transition.event as PaymentEvent?
+                }
+            )
+            .build()
+
+        val fsm = ExFsm("from", table)
+        fsm.onEvent(PaymentEvent(PaymentEventType.SUBMIT, paymentId = "runtime", source = "runtime-source"))
+
+        assertEquals("runtime", capturedEvent?.paymentId)
+        assertEquals("runtime-source", capturedEvent?.source)
     }
 
     @Test
