@@ -67,23 +67,6 @@ jobs:
           ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.GPG_PASSPHRASE }}
         run: ./gradlew clean publishAndReleaseToMavenCentral
 
-      - name: Wait for Maven Central sync
-        shell: bash
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          URL="https://repo1.maven.org/maven2/io/github/ngirchev/fsm/$VERSION/fsm-$VERSION.pom"
-          for attempt in {1..60}; do
-            status="$(curl -s -o /dev/null -w '%{http_code}' "$URL")"
-            if [ "$status" = "200" ]; then
-              echo "Maven Central artifact is available: $URL"
-              exit 0
-            fi
-            echo "Maven Central not synced yet (attempt $attempt/60, status $status)"
-            sleep 30
-          done
-          echo "Timed out waiting for Maven Central artifact: $URL"
-          exit 1
-
       - name: Build release notes
         shell: bash
         run: |
