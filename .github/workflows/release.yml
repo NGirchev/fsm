@@ -1,0 +1,112 @@
+name: Release to Maven Central
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version to publish, without v prefix (for example, 1.2.0)."
+        required: true
+        type: string
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid release version: $VERSION"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.ref || steps.version.outputs.tag }}
+          fetch-depth: 0
+
+      - name: Verify Gradle version matches tag
+        shell: bash
+        run: |
+          EXPECTED="${{ steps.version.outputs.version }}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            git fetch --force --tags origin
+            ACTUAL="$(git show "${{ steps.version.outputs.tag }}:gradle.properties" | grep '^version=' | cut -d= -f2)"
+          else
+            ACTUAL="$(grep '^version=' gradle.properties | cut -d= -f2)"
+          fi
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "Tag ${{ steps.version.outputs.tag }} has gradle.properties version=$ACTUAL, expected $EXPECTED"
+            exit 1
+          fi
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: temurin
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Publish to Maven Central
+        env:
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_TOKEN }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.GPG_PRIVATE_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.GPG_PASSPHRASE }}
+        run: ./gradlew clean publishAndReleaseToMavenCentral -Pversion=${{ steps.version.outputs.version }}
+
+      - name: Wait for Maven Central sync
+        shell: bash
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          URL="https://repo1.maven.org/maven2/io/github/ngirchev/fsm/$VERSION/fsm-$VERSION.pom"
+          for attempt in {1..60}; do
+            status="$(curl -s -o /dev/null -w '%{http_code}' "$URL")"
+            if [ "$status" = "200" ]; then
+              echo "Maven Central artifact is available: $URL"
+              exit 0
+            fi
+            echo "Maven Central not synced yet (attempt $attempt/60, status $status)"
+            sleep 30
+          done
+          echo "Timed out waiting for Maven Central artifact: $URL"
+          exit 1
+
+      - name: Build release notes
+        shell: bash
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          awk "/^## \\[$VERSION\\]/{flag=1; print; next} /^## \\[/{if(flag) exit} flag" CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "No CHANGELOG section found for $VERSION"
+            exit 1
+          fi
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --notes-file release-notes.md \
+            build/libs/*.jar \
+            build/libs/*.jar.asc

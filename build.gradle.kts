@@ -77,21 +77,9 @@ publishing {
     }
 }
 
-// Signing configuration for Maven Central
-// Equivalent to Maven maven-gpg-plugin in profile "release"
-// GPG settings are read from gradle.properties or ~/.gradle/gradle.properties:
-//   signing.gnupg.keyName
-//   signing.gnupg.passphrase  – passphrase for this key
-//   signing.gnupg.executable  – path to gpg binary (optional, defaults to "gpg")
-signing {
-    val isLocalPublish = project.gradle.startParameter.taskNames.any { 
-        it == "publishToMavenLocal" 
-    }
-    if (!isLocalPublish) {
-        useGpgCmd()
-        // Sign all Maven publications (including the one used by vanniktech plugin for Central)
-        sign(publishing.publications)
-    }
+mavenPublishing {
+    publishToMavenCentral(automaticRelease = true)
+    signAllPublications()
 }
 
 detekt {
