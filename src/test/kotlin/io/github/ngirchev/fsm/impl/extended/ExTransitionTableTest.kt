@@ -41,6 +41,19 @@ class ExTransitionTableTest {
     }
 
     @Test
+    @DisplayName("build should snapshot transitions from builder")
+    fun buildShouldSnapshotTransitionsFromBuilder() {
+        val builder = ExTransitionTable.Builder<String, String>()
+            .add("from", "event", "to")
+        val table = builder.build()
+
+        builder.add("from", "event", "later")
+
+        assertEquals(1, table.transitions["from"]?.size)
+        assertEquals("to", table.transitions["from"]?.single()?.to?.state)
+    }
+
+    @Test
     @DisplayName("Should throw an exception when the transition is already added")
     fun addWhenTransitionIsAlreadyAddedThenThrowException() {
         val builder = ExTransitionTable.Builder<String, String>()

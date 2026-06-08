@@ -58,6 +58,14 @@ class AbstractTransitionTest {
     }
 
     @Test
+    fun equalsWhenCustomTransitionHasSameStatesThenReturnTrue() {
+        val transition1 = CustomTransition("from", To("to"))
+        val transition2 = CustomTransition("from", To("to"))
+
+        assertTrue(transition1 == transition2)
+    }
+
+    @Test
     fun hashCodeWhenSameTransitionThenReturnSameHashCode() {
         val transition1 = BTransition("from", "to")
         val transition2 = BTransition("from", "to")
@@ -105,4 +113,9 @@ class AbstractTransitionTest {
         assertTrue(toString.contains("from=from"))
         assertTrue(toString.contains("to=to"))
     }
+
+    private class CustomTransition<STATE>(
+        from: STATE,
+        to: To<STATE>,
+    ) : AbstractTransition<STATE>(from, to)
 }

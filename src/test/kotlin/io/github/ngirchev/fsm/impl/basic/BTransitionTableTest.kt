@@ -26,6 +26,18 @@ class BTransitionTableTest {
     }
 
     @Test
+    fun buildShouldSnapshotTransitionsFromBuilder() {
+        val builder = BTransitionTable.Builder<String>()
+            .add("from", "to")
+        val table = builder.build()
+
+        builder.add("from", "later")
+
+        assertEquals(1, table.transitions["from"]?.size)
+        assertEquals("to", table.transitions["from"]?.single()?.to?.state)
+    }
+
+    @Test
     fun addWithVarargTransitionShouldAddTransitions() {
         val builder = BTransitionTable.Builder<String>()
         val transition1 = BTransition("from", "to1")

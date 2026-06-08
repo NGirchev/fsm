@@ -148,6 +148,61 @@ There are we add new extra steps. From `SIGNED` we have 3 different transitions 
 - `DONE` if condition `!document.signRequired` will be `true`.
 - `CANCELED` if both previous conditions were `false` (definitely this case impossible, but you can change conditions for `false` in both cases).
 
+### Deferred auto transitions after transaction commit
+
+Auto transitions are synchronous by default. If a domain state must be saved before the auto transition action runs, provide an `AutoTransitionScheduler`.
+
+```kotlin
+class SpringAfterCommitAutoTransitionScheduler<STATE>(
+    private val transactionTemplate: TransactionTemplate
+) : AutoTransitionScheduler<STATE> {
+    override fun schedule(
+        context: StateContext<STATE>,
+        transition: Transition<STATE>,
+        runTransition: () -> Unit
+    ) {
+        TransactionSynchronizationManager.registerSynchronization(
+            object : TransactionSynchronization {
+                override fun afterCommit() {
+                    transactionTemplate.executeWithoutResult {
+                        runTransition()
+                    }
+                }
+            }
+        )
+    }
+}
+
+val scheduler = SpringAfterCommitAutoTransitionScheduler<DocumentState>(transactionTemplate)
+
+val fsm = ExDomainFsm(
+    transitionTable = ExTransitionTable.Builder<DocumentState, String>()
+        .autoTransitionEnabled(true)
+        .add(from = NEW, onEvent = "APPROVE", to = READY_FOR_SIGN)
+        .add(
+            from = READY_FOR_SIGN,
+            to = SIGNED,
+            action = {
+                // External call or another action that may fail.
+                signatureClient.sendForSignature((it as Document).id)
+            }
+        )
+        .build(),
+    autoTransitionScheduler = scheduler
+)
+
+fsm.addStateChangeListener { context, _, _ ->
+    documentRepository.save(context as Document)
+}
+
+@Transactional
+fun approve(document: Document) {
+    fsm.handle(document, "APPROVE")
+}
+```
+
+With this setup, `approve` commits `NEW -> READY_FOR_SIGN` first. After commit, the scheduler opens a new transaction and runs the auto transition `READY_FOR_SIGN -> SIGNED`. If that action fails, the document remains in `READY_FOR_SIGN` and the auto transition can be retried.
+
 ### Example with fluent builder
 
 We rewrite code with the same transitions

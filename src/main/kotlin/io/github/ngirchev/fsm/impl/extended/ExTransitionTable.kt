@@ -82,7 +82,12 @@ internal constructor(
         }
 
         fun build(): ExTransitionTable<STATE, EVENT> {
-            return ExTransitionTable(transitions, autoTransitionEnabled)
+            return ExTransitionTable(snapshotTransitions(), autoTransitionEnabled)
+        }
+
+        private fun snapshotTransitions(): Map<STATE, LinkedHashSet<ExTransition<STATE, EVENT>>> {
+            // Keep insertion order: auto/event transitions use the first matching transition.
+            return transitions.mapValues { (_, transitions) -> LinkedHashSet(transitions) }
         }
     }
 

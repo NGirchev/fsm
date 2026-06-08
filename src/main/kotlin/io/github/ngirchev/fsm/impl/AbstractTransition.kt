@@ -1,7 +1,6 @@
 package io.github.ngirchev.fsm.impl
 
 import io.github.ngirchev.fsm.*
-import io.github.ngirchev.fsm.impl.basic.BTransition
 
 abstract class AbstractTransition<STATE> (
     override val from: STATE,
@@ -11,7 +10,7 @@ abstract class AbstractTransition<STATE> (
         if (this === other) return true
         if (javaClass != other?.javaClass) return false
 
-        other as BTransition<*>
+        other as AbstractTransition<*>
 
         if (from != other.from) return false
         if (to != other.to) return false

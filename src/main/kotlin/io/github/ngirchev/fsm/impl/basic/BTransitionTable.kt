@@ -9,7 +9,7 @@ import io.github.ngirchev.fsm.impl.AbstractTransitionTable
 
 open class BTransitionTable<STATE>
 internal constructor(
-    override val transitions: MutableMap<STATE, LinkedHashSet<BTransition<STATE>>>,
+    override val transitions: Map<STATE, LinkedHashSet<BTransition<STATE>>>,
     override var autoTransitionEnabled: Boolean
 ) : AbstractTransitionTable<STATE, BTransition<STATE>>(transitions, autoTransitionEnabled) {
 
@@ -73,7 +73,12 @@ internal constructor(
         }
 
         fun build(): BTransitionTable<STATE> {
-            return BTransitionTable(transitions, autoTransitionEnabled)
+            return BTransitionTable(snapshotTransitions(), autoTransitionEnabled)
+        }
+
+        private fun snapshotTransitions(): Map<STATE, LinkedHashSet<BTransition<STATE>>> {
+            // Keep insertion order: auto transitions use the first matching transition.
+            return transitions.mapValues { (_, transitions) -> LinkedHashSet(transitions) }
         }
     }
 

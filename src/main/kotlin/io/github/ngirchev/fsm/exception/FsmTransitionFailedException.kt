@@ -9,6 +9,6 @@ class FsmTransitionFailedException(
     text: String? = null
 ) :
     FsmException(
-        "Illegal ${domainName?.lowercase(Locale.getDefault()) ?: ""}" +
-                "state transition $source->$target" + (text?.map { ", $it" } ?: "")
+        "Illegal ${domainName?.lowercase(Locale.ROOT)?.let { "$it " } ?: ""}" +
+                "state transition $source->$target" + (text?.let { ", $it" } ?: "")
     )

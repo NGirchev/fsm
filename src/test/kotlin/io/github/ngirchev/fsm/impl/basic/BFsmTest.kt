@@ -4,8 +4,11 @@ import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 import io.github.ngirchev.fsm.StateContext
 import io.github.ngirchev.fsm.StateChangeListener
+import io.github.ngirchev.fsm.AutoTransitionScheduler
+import io.github.ngirchev.fsm.Timeout
 import io.github.ngirchev.fsm.exception.FsmTransitionFailedException
 import io.github.ngirchev.fsm.exception.FsmException
+import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
@@ -143,6 +146,35 @@ class BFsmTest {
     }
 
     @Test
+    fun toStateShouldNotifyListenersWhenPostActionFailsAfterStateChange() {
+        val table = BTransitionTable.Builder<String>()
+            .from("from")
+            .to("to")
+            .postAction { throw FsmException("post action failed") }
+            .end()
+            .build()
+        val fsm = BFsm("from", table)
+        var listenerCalled = false
+        var capturedOldState: String? = null
+        var capturedNewState: String? = null
+
+        fsm.addStateChangeListener { _, oldState, newState ->
+            listenerCalled = true
+            capturedOldState = oldState
+            capturedNewState = newState
+        }
+
+        assertThrows(FsmException::class.java) {
+            fsm.toState("to")
+        }
+
+        assertEquals("to", fsm.getState())
+        assertTrue(listenerCalled)
+        assertEquals("from", capturedOldState)
+        assertEquals("to", capturedNewState)
+    }
+
+    @Test
     fun toStateWithNullTimeoutShouldNotWait() {
         val start = System.currentTimeMillis()
         val table = BTransitionTable.Builder<String>()
@@ -154,6 +186,22 @@ class BFsmTest {
         val end = System.currentTimeMillis()
 
         assertEquals("to", fsm.getState())
+        assertTrue(end - start < 1000)
+    }
+
+    @Test
+    fun toStateWithMillisecondsTimeoutShouldUseTimeoutUnit() {
+        val start = System.currentTimeMillis()
+        val table = BTransitionTable.Builder<String>()
+            .add("from", io.github.ngirchev.fsm.To("to", timeout = Timeout(50, TimeUnit.MILLISECONDS)))
+            .build()
+
+        val fsm = BFsm("from", table)
+        fsm.toState("to")
+        val end = System.currentTimeMillis()
+
+        assertEquals("to", fsm.getState())
+        assertTrue(end - start >= 50)
         assertTrue(end - start < 1000)
     }
 
@@ -170,6 +218,23 @@ class BFsmTest {
         fsm.toState("intermediate1")
 
         assertEquals("to", fsm.getState())
+    }
+
+    @Test
+    fun defaultAutoTransitionSchedulerShouldHandleLongAutoTransitionChainWithoutStackOverflow() {
+        val transitionCount = 10_000
+        val builder = BTransitionTable.Builder<Int>()
+            .autoTransitionEnabled(true)
+            .add(0, 1)
+
+        for (state in 1 until transitionCount) {
+            builder.add(state, state + 1)
+        }
+
+        val fsm = BFsm(0, builder.build(), autoTransitionEnabled = true)
+        fsm.toState(1)
+
+        assertEquals(transitionCount, fsm.getState())
     }
 
     @Test
@@ -240,5 +305,40 @@ class BFsmTest {
 
         assertTrue(listener1Called)
         assertTrue(listener2Called)
+    }
+
+    @Test
+    fun subclassShouldCustomizeTransitionExecutionAndAccessRuntimeState() {
+        val scheduler = AutoTransitionScheduler<String> { _, _, runTransition -> runTransition() }
+        val table = BTransitionTable.Builder<String>()
+            .add("from", "to")
+            .build()
+        val fsm = CustomBFsm("from", table, scheduler)
+
+        fsm.toState("to")
+
+        assertEquals("to", fsm.getState())
+        assertEquals("from", fsm.stateBeforeExecution)
+        assertEquals("to", fsm.executedTransition?.to?.state)
+        assertTrue(fsm.usesScheduler(scheduler))
+    }
+
+    private class CustomBFsm(
+        state: String,
+        transitionTable: BTransitionTable<String>,
+        autoTransitionScheduler: AutoTransitionScheduler<String>,
+    ) : BFsm<String>(state, transitionTable, autoTransitionScheduler = autoTransitionScheduler) {
+        var stateBeforeExecution: String? = null
+            private set
+        var executedTransition: BTransition<String>? = null
+            private set
+
+        fun usesScheduler(scheduler: AutoTransitionScheduler<String>): Boolean = autoTransitionScheduler === scheduler
+
+        override fun transitionExecution(transition: BTransition<String>) {
+            stateBeforeExecution = context.state
+            executedTransition = transition
+            super.transitionExecution(transition)
+        }
     }
 }

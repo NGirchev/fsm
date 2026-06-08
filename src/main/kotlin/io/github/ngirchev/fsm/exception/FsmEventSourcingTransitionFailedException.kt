@@ -9,6 +9,6 @@ class FsmEventSourcingTransitionFailedException(
     text: String? = null
 ) :
     FsmException(
-        "Illegal ${domainName?.lowercase(Locale.getDefault()) ?: ""}" +
-            "state transition for state=[$source] by event=[$event]" + (text?.map { ", $it" } ?: "")
+        "Illegal ${domainName?.lowercase(Locale.ROOT)?.let { "$it " } ?: ""}" +
+            "state transition for state=[$source] by event=[$event]" + (text?.let { ", $it" } ?: "")
     )

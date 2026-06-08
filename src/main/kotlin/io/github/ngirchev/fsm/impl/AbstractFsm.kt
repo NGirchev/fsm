@@ -13,6 +13,7 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
     context: StateContext<STATE>,
     open val transitionTable: TRANSITION_TABLE,
     autoTransitionEnabled: Boolean? = null,
+    protected val autoTransitionScheduler: AutoTransitionScheduler<STATE> = ImmediateAutoTransitionScheduler(),
 ) : StateSupport<STATE>,
     TransitionSupport<STATE, TRANSITION>,
     Notifiable<STATE> {
@@ -37,27 +38,38 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
         state: STATE,
         transitionTable: TRANSITION_TABLE,
         autoTransitionEnabled: Boolean? = null,
+        autoTransitionScheduler: AutoTransitionScheduler<STATE> = ImmediateAutoTransitionScheduler(),
     ) : this(
         DefaultStateContext(state),
         transitionTable,
         autoTransitionEnabled,
+        autoTransitionScheduler,
     )
 
-    internal val context: StateContext<STATE> = context
+    protected val context: StateContext<STATE> = context
 
     override fun getState(): STATE = this.context.state
 
     private val stateChangeListeners = CopyOnWriteArrayList<StateChangeListener<STATE>>()
+    private val autoTransitionCompletionListeners = CopyOnWriteArrayList<() -> Unit>()
 
-    fun addStateChangeListener(listener: StateChangeListener<STATE>) {
+    open fun addStateChangeListener(listener: StateChangeListener<STATE>) {
         stateChangeListeners.add(listener)
     }
 
-    fun removeStateChangeListener(listener: StateChangeListener<STATE>) {
+    open fun removeStateChangeListener(listener: StateChangeListener<STATE>) {
         stateChangeListeners.remove(listener)
     }
 
-    override fun notify(
+    open fun addAutoTransitionCompletionListener(listener: () -> Unit) {
+        autoTransitionCompletionListeners.add(listener)
+    }
+
+    open fun removeAutoTransitionCompletionListener(listener: () -> Unit) {
+        autoTransitionCompletionListeners.remove(listener)
+    }
+
+    open override fun notify(
         context: StateContext<STATE>,
         oldState: STATE,
         newState: STATE,
@@ -83,10 +95,12 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
         executeSingleTransition(transition)
         if (autoTransitionEnabled) {
             performAutoTransitions()
+        } else {
+            notifyAutoTransitionCompleted()
         }
     }
 
-    private fun executeSingleTransition(transition: TRANSITION) {
+    protected open fun executeSingleTransition(transition: TRANSITION) {
         val oldState = context.state
         if (transition.from != oldState) {
             throw FsmException(
@@ -94,20 +108,54 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
                     "to change, because transition from=[${transition.from}]",
             )
         }
-        transition.to.timeout?.value?.also {
-            Thread.sleep(it * 1000)
+        transition.to.timeout?.also {
+            it.unit.sleep(it.value)
         }
         transitionExecution(transition)
     }
 
-    private fun performAutoTransitions() {
+    protected open fun performAutoTransitions() {
+        if (autoTransitionScheduler is ImmediateAutoTransitionScheduler) {
+            performImmediateAutoTransitions()
+            notifyAutoTransitionCompleted()
+            return
+        }
+        performScheduledAutoTransitions()
+    }
+
+    protected open fun performImmediateAutoTransitions() {
         while (true) {
             val autoTransition = transitionTable.getAutoTransition(context) ?: return
             executeSingleTransition(autoTransition)
         }
     }
 
-    private fun transitionExecution(transition: TRANSITION) {
+    protected open fun performScheduledAutoTransitions() {
+        val autoTransition = transitionTable.getAutoTransition(context) ?: run {
+            notifyAutoTransitionCompleted()
+            return
+        }
+        autoTransitionScheduler.schedule(context, autoTransition) {
+            executeSingleTransition(autoTransition)
+            if (autoTransitionEnabled) {
+                performScheduledAutoTransitions()
+            } else {
+                notifyAutoTransitionCompleted()
+            }
+        }
+    }
+
+    protected open fun notifyAutoTransitionCompleted() {
+        autoTransitionCompletionListeners.forEach { listener ->
+            try {
+                listener.invoke()
+            } catch (e: Exception) {
+                logger.error("Error in auto transition completion listener", e)
+            }
+        }
+    }
+
+    protected open fun transitionExecution(transition: TRANSITION) {
         val oldState = context.state
         val newState = transition.to.state
 
@@ -116,8 +164,11 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
 
         transition.to.actions.forEach { it.invoke(context) }
         context.state = newState
-        transition.to.postActions.forEach { it.invoke(context) }
-        notify(context, oldState, newState)
+        try {
+            transition.to.postActions.forEach { it.invoke(context) }
+        } finally {
+            notify(context, oldState, newState)
+        }
     }
 
     private class DefaultStateContext<STATE>(
