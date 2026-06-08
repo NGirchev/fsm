@@ -154,8 +154,12 @@ Auto transitions are synchronous by default. If a domain state must be saved bef
 
 ```kotlin
 class SpringAfterCommitAutoTransitionScheduler<STATE>(
-    private val transactionTemplate: TransactionTemplate
+    transactionManager: PlatformTransactionManager
 ) : AutoTransitionScheduler<STATE> {
+    private val transactionTemplate = TransactionTemplate(transactionManager).apply {
+        propagationBehavior = TransactionDefinition.PROPAGATION_REQUIRES_NEW
+    }
+
     override fun schedule(
         context: StateContext<STATE>,
         transition: Transition<STATE>,
@@ -173,7 +177,7 @@ class SpringAfterCommitAutoTransitionScheduler<STATE>(
     }
 }
 
-val scheduler = SpringAfterCommitAutoTransitionScheduler<DocumentState>(transactionTemplate)
+val scheduler = SpringAfterCommitAutoTransitionScheduler<DocumentState>(transactionManager)
 
 val fsm = ExTransitionTable.Builder<DocumentState, String>()
     .autoTransitionEnabled(true)
@@ -200,7 +204,7 @@ fun approve(document: Document) {
 }
 ```
 
-With this setup, `approve` commits `NEW -> READY_FOR_SIGN` first. After commit, the scheduler opens a new transaction and runs the auto transition `READY_FOR_SIGN -> SIGNED`. If that action fails, the document remains in `READY_FOR_SIGN` and the auto transition can be retried.
+With this setup, `approve` commits `NEW -> READY_FOR_SIGN` first. After commit, the scheduler opens a new `PROPAGATION_REQUIRES_NEW` transaction and runs the auto transition `READY_FOR_SIGN -> SIGNED`. If that action fails, the document remains in `READY_FOR_SIGN` and the auto transition can be retried.
 
 ### Example with fluent builder
 

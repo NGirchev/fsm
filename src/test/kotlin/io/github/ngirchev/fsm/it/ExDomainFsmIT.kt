@@ -312,23 +312,22 @@ internal class ExDomainFsmIT {
             afterCommitCallbacks.add(runTransition)
         }
 
-        val fsm = ExDomainFsm(
-            transitionTable = ExTransitionTable.Builder<DocumentState, String>()
-                .autoTransitionEnabled(true)
-                .add(from = NEW, onEvent = "APPROVE", to = READY_FOR_SIGN)
-                .add(
-                    from = READY_FOR_SIGN,
-                    to = SIGNED,
-                    action = {
-                        autoTransitionAttempts++
-                        if (autoTransitionAttempts == 1) {
-                            throw IllegalStateException("External call failed")
-                        }
+        val fsm = ExTransitionTable.Builder<DocumentState, String>()
+            .autoTransitionEnabled(true)
+            .autoTransitionScheduler(afterCommitScheduler)
+            .add(from = NEW, onEvent = "APPROVE", to = READY_FOR_SIGN)
+            .add(
+                from = READY_FOR_SIGN,
+                to = SIGNED,
+                action = {
+                    autoTransitionAttempts++
+                    if (autoTransitionAttempts == 1) {
+                        throw IllegalStateException("External call failed")
                     }
-                )
-                .build(),
-            autoTransitionScheduler = afterCommitScheduler
-        )
+                }
+            )
+            .build()
+            .createDomainFsm<Document>()
         // Spring version of this scheduler would register runTransition with
         // TransactionSynchronizationManager.registerSynchronization(... afterCommit { runTransition() }).
         fsm.addStateChangeListener { _, _, newState -> persistedStates.add(newState) }

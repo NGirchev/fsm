@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [1.2.0] - 2026-06-08
+
+### Added
+- Added `AutoTransitionScheduler` so auto transitions can be scheduled after an external commit boundary while preserving synchronous auto transitions by default.
+- Added builder-level `autoTransitionScheduler` configuration for deferred auto transitions.
+- Added documentation and an integration test for deferring a domain auto transition until after an intermediate state is persisted, including a Spring `afterCommit` example.
+- Added `fsm-visual-editor`, a local visual FSM editor for designing finite state machine flows.
+- Added `.fsm.json` editor project import/export, autosave, recent-project loading, and local project storage.
+- Added Java and Kotlin factory code generation from visual FSM diagrams.
+- Added generated state/event enums, `StateContext` domain DTOs, guard/action placeholders, auto transitions, timeouts, and post-action support.
+- Added validation and unit coverage for editor IDs, document import normalization, storage, project API calls, layout, and Java/Kotlin generators.
+- Added README documentation and visual editor GIF for the new editor workflow.
+
+### Changed
+- Renamed the frontend tool to `fsm-visual-editor` and aligned package names, local storage keys, documentation, and UI labels.
+- Updated README discovery text for Kotlin finite state machines, visual FSM editing, and Java/Kotlin code generation.
+- Replaced hardcoded installation versions with a `VERSION` placeholder that points users to the latest Maven Central release.
+- Removed maintainer-only Maven Central publishing instructions from the public README.
+
+### Fixed
+- Preserved runtime `TypedEvent` payloads in `currentTransition` for event actions and post-actions.
+- Preserved transition insertion order in built transition tables while isolating them from later builder mutations.
+- Clarified the Spring `afterCommit` scheduler example to use `PROPAGATION_REQUIRES_NEW` for persisted auto-transition results.
+- Prevented duplicate visual-editor transitions when the same states are connected twice, and surfaced matching imported duplicates in validation.
+- Shortened generated PlantUML and Mermaid labels for unnamed guard/action lambdas while preserving explicit named behavior labels.
+- Fixed generated duplicate event/guard/action IDs so UI-created refs remain Java/Kotlin identifier-safe.
+- Rejected qualified names for generated nested domain and state types.
+- Hardened `.fsm.json` import and saved-document loading to reject malformed array elements before normalization.
+
+### Security
+- Upgraded Jackson dependencies to 2.21.1 to resolve the `jackson-core` async parser DoS advisory (`GHSA-72hv-8253-57qq`).
+
 ## [1.1.0] - 2026-04-01
 
 ### Changed
@@ -65,9 +99,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Actions and post-actions
 - Exception handling for invalid transitions
 
-[Unreleased]: https://github.com/NGirchev/fsm/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/NGirchev/fsm/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/NGirchev/fsm/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/NGirchev/fsm/compare/v1.0.2...v1.1.0
 [1.0.2]: https://github.com/NGirchev/fsm/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/NGirchev/fsm/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/NGirchev/fsm/releases/tag/v1.0.0
-
