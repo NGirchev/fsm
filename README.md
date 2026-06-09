@@ -102,6 +102,11 @@ And two transitions from the status `AUTO_SENT`:
 - `DONE` if event `SUCCESS_EVENT` will be thrown.
 - `CANCELED` if event `FAILED_EVENT` will be thrown.
 
+Event matching rule:
+- For simple events like `String` or `enum`, FSM compares the event value as-is.
+- For object events, FSM also compares the event value as-is unless the event implements `TypedEvent<T>`.
+- If an event implements `TypedEvent<T>`, FSM matches transitions by `eventType` instead of the whole object payload.
+
 
 ### Example for `io.github.ngirchev.fsm.impl.extended.ExDomainFsm`.
 
@@ -147,6 +152,54 @@ There are we add new extra steps. From `SIGNED` we have 3 different transitions 
 - `AUTO_SENT` if condition `document.signRequired` will be `true`.
 - `DONE` if condition `!document.signRequired` will be `true`.
 - `CANCELED` if both previous conditions were `false` (definitely this case impossible, but you can change conditions for `false` in both cases).
+
+### Typed events for object payloads
+
+If your event is an object and you want transition matching by logical event kind rather than by the whole object `equals`, implement `TypedEvent<T>`.
+
+Without `TypedEvent<T>`, these two events are treated as different values:
+
+```kotlin
+data class PaymentEvent(
+    val type: String,
+    val paymentId: String
+)
+
+PaymentEvent("SUBMIT", "definition") != PaymentEvent("SUBMIT", "runtime")
+```
+
+With `TypedEvent<T>`, FSM matches by `eventType` and ignores the rest of the payload when selecting a transition:
+
+```kotlin
+enum class PaymentEventType {
+    SUBMIT,
+    CANCEL
+}
+
+data class PaymentEvent(
+    override val eventType: PaymentEventType,
+    val paymentId: String,
+    val source: String
+) : TypedEvent<PaymentEventType>
+
+val fsm = FsmFactory.statesWithEvents<String, PaymentEvent>()
+    .add(
+        from = "NEW",
+        onEvent = PaymentEvent(PaymentEventType.SUBMIT, paymentId = "definition", source = "builder"),
+        to = "READY"
+    )
+    .build()
+    .createFsm("NEW")
+
+// Transition is matched by PaymentEventType.SUBMIT, not by the whole PaymentEvent.equals(...)
+fsm.onEvent(PaymentEvent(PaymentEventType.SUBMIT, paymentId = "runtime", source = "api"))
+
+println(fsm.getState()) // READY
+```
+
+Summary:
+- `TypedEvent<T>` implemented -> compare by `eventType`
+- `TypedEvent<T>` not implemented -> compare by ordinary `equals`
 
 ### Deferred auto transitions after transaction commit
 
