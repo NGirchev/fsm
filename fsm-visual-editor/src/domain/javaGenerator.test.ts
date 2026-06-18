@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { generateJavaFactory, sampleDocument } from './index';
 
 describe('generateJavaFactory', () => {
-  it('generates ExDomainFsm factory class with global guard and action lambdas', () => {
+  it('generates ExDomainFsm factory class with named guards and actions', () => {
     const java = generateJavaFactory(sampleDocument);
 
     expect(java).toContain('public final class DocumentFsmFactory');
@@ -11,8 +11,15 @@ describe('generateJavaFactory', () => {
     expect(java).toContain('TO_READY, USER_SIGN, FAILED_EVENT, TO_END');
     expect(java).toContain('public static final class Document implements StateContext<DocumentState>');
     expect(java).toContain('private Transition<DocumentState> currentTransition;');
-    expect(java).toContain('private static final Guard<StateContext<DocumentState>> signRequired = ctx -> false;');
-    expect(java).toContain('private static final Action<StateContext<DocumentState>> autoSent = ctx -> { };');
+    expect(java).toContain('import io.github.ngirchev.fsm.NamedAction;');
+    expect(java).toContain('import io.github.ngirchev.fsm.NamedGuard;');
+    expect(java).toContain('import kotlin.Unit;');
+    expect(java).toContain(
+      'private static final Guard<StateContext<DocumentState>> signRequired = new NamedGuard<>("signRequired", ctx -> false);',
+    );
+    expect(java).toContain(
+      'private static final Action<StateContext<DocumentState>> autoSent = new NamedAction<>("autoSent", ctx -> Unit.INSTANCE);',
+    );
     expect(java).toContain('public static ExDomainFsm<Document, DocumentState, DocumentEvent> create()');
     expect(java).toContain('FsmFactory.INSTANCE.<DocumentState, DocumentEvent>statesWithEvents()');
   });

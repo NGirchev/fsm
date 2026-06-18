@@ -13,6 +13,8 @@ export function generateKotlinFactory(document: FsmEditorDocument): string {
   lines.push(
     'import io.github.ngirchev.fsm.Action',
     'import io.github.ngirchev.fsm.Guard',
+    'import io.github.ngirchev.fsm.NamedAction',
+    'import io.github.ngirchev.fsm.NamedGuard',
     'import io.github.ngirchev.fsm.StateContext',
   );
 
@@ -38,8 +40,8 @@ export function generateKotlinFactory(document: FsmEditorDocument): string {
   appendStateEnum(lines, document);
   appendEventEnum(lines, document);
   appendDomainDto(lines, document);
-  appendBehaviorFields(lines, 'Guard', document.codegen.stateType, conditionNames, 'false');
-  appendBehaviorFields(lines, 'Action', document.codegen.stateType, actionNames, '');
+  appendBehaviorFields(lines, 'Guard', document.codegen.stateType, conditionNames);
+  appendBehaviorFields(lines, 'Action', document.codegen.stateType, actionNames);
 
   if (style === 'builder') {
     appendBuilderFactory(lines, document, conditionNames, actionNames);
@@ -157,13 +159,16 @@ function appendBehaviorFields(
   kind: 'Guard' | 'Action',
   stateType: string,
   names: Map<string, string>,
-  guardDefault: string,
 ): void {
-  names.forEach((kotlinName) => {
+  names.forEach((kotlinName, behaviorName) => {
     if (kind === 'Guard') {
-      lines.push(`    private val ${kotlinName}: Guard<StateContext<${stateType}>> = Guard { ${guardDefault} }`);
+      lines.push(
+        `    private val ${kotlinName}: Guard<StateContext<${stateType}>> = NamedGuard(${stringLiteral(behaviorName)}) { false }`,
+      );
     } else {
-      lines.push(`    private val ${kotlinName}: Action<StateContext<${stateType}>> = Action { }`);
+      lines.push(
+        `    private val ${kotlinName}: Action<StateContext<${stateType}>> = NamedAction(${stringLiteral(behaviorName)}) { }`,
+      );
     }
   });
 

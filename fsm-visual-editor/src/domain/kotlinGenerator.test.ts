@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { generateKotlinFactory, sampleDocument } from './index';
 
 describe('generateKotlinFactory', () => {
-  it('generates self-contained ExDomainFsm factory object', () => {
+  it('generates self-contained ExDomainFsm factory object with named guards and actions', () => {
     const kotlin = generateKotlinFactory(sampleDocument);
 
     expect(kotlin).toContain('object DocumentFsmFactory');
@@ -11,8 +11,14 @@ describe('generateKotlinFactory', () => {
     expect(kotlin).toContain('TO_READY,');
     expect(kotlin).toContain('data class Document(');
     expect(kotlin).toContain(') : StateContext<DocumentState>');
-    expect(kotlin).toContain('private val signRequired: Guard<StateContext<DocumentState>> = Guard { false }');
-    expect(kotlin).toContain('private val autoSent: Action<StateContext<DocumentState>> = Action { }');
+    expect(kotlin).toContain('import io.github.ngirchev.fsm.NamedAction');
+    expect(kotlin).toContain('import io.github.ngirchev.fsm.NamedGuard');
+    expect(kotlin).toContain(
+      'private val signRequired: Guard<StateContext<DocumentState>> = NamedGuard("signRequired") { false }',
+    );
+    expect(kotlin).toContain(
+      'private val autoSent: Action<StateContext<DocumentState>> = NamedAction("autoSent") { }',
+    );
     expect(kotlin).toContain('fun create(): ExDomainFsm<Document, DocumentState, DocumentEvent>');
     expect(kotlin).toContain('FsmFactory.statesWithEvents<DocumentState, DocumentEvent>()');
   });

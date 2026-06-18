@@ -13,6 +13,8 @@ export function generateJavaFactory(document: FsmEditorDocument): string {
   lines.push(
     'import io.github.ngirchev.fsm.Action;',
     'import io.github.ngirchev.fsm.Guard;',
+    'import io.github.ngirchev.fsm.NamedAction;',
+    'import io.github.ngirchev.fsm.NamedGuard;',
     'import io.github.ngirchev.fsm.StateContext;',
   );
 
@@ -32,6 +34,7 @@ export function generateJavaFactory(document: FsmEditorDocument): string {
     'import io.github.ngirchev.fsm.impl.extended.ExDomainFsm;',
     ...(style === 'builder' ? ['import java.util.List;'] : []),
     'import java.util.concurrent.TimeUnit;',
+    'import kotlin.Unit;',
     '',
     `public final class ${document.codegen.className} {`,
     `    private ${document.codegen.className}() {`,
@@ -42,8 +45,8 @@ export function generateJavaFactory(document: FsmEditorDocument): string {
   appendStateEnum(lines, document);
   appendEventEnum(lines, document);
   appendDomainDto(lines, document);
-  appendBehaviorFields(lines, 'Guard', document.codegen.stateType, conditionNames, 'false');
-  appendBehaviorFields(lines, 'Action', document.codegen.stateType, actionNames, '');
+  appendBehaviorFields(lines, 'Guard', document.codegen.stateType, conditionNames);
+  appendBehaviorFields(lines, 'Action', document.codegen.stateType, actionNames);
 
   if (style === 'builder') {
     appendBuilderFactory(lines, document, conditionNames, actionNames);
@@ -131,13 +134,16 @@ function appendBehaviorFields(
   kind: 'Guard' | 'Action',
   stateType: string,
   names: Map<string, string>,
-  guardDefault: string,
 ): void {
-  names.forEach((javaName) => {
+  names.forEach((javaName, behaviorName) => {
     if (kind === 'Guard') {
-      lines.push(`    private static final Guard<StateContext<${stateType}>> ${javaName} = ctx -> ${guardDefault};`);
+      lines.push(
+        `    private static final Guard<StateContext<${stateType}>> ${javaName} = new NamedGuard<>(${stringLiteral(behaviorName)}, ctx -> false);`,
+      );
     } else {
-      lines.push(`    private static final Action<StateContext<${stateType}>> ${javaName} = ctx -> { };`);
+      lines.push(
+        `    private static final Action<StateContext<${stateType}>> ${javaName} = new NamedAction<>(${stringLiteral(behaviorName)}, ctx -> Unit.INSTANCE);`,
+      );
     }
   });
 
