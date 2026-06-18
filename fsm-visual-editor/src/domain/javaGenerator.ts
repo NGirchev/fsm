@@ -1,9 +1,11 @@
+import { orderTransitionsFromInitial } from './codegenOrdering';
 import type { CodegenStyle, FsmEditorDocument, FsmTransition } from './types';
 
 export function generateJavaFactory(document: FsmEditorDocument): string {
   const conditionNames = buildIdentifierMap(document.behaviors.conditions.map((behavior) => behavior.id));
   const actionNames = buildIdentifierMap(document.behaviors.actions.map((behavior) => behavior.id));
   const style = codegenStyle(document);
+  const orderedTransitions = orderTransitionsFromInitial(document);
   const lines: string[] = [];
 
   if (document.codegen.packageName.trim()) {
@@ -49,9 +51,9 @@ export function generateJavaFactory(document: FsmEditorDocument): string {
   appendBehaviorFields(lines, 'Action', document.codegen.stateType, actionNames);
 
   if (style === 'builder') {
-    appendBuilderFactory(lines, document, conditionNames, actionNames);
+    appendBuilderFactory(lines, document, orderedTransitions, conditionNames, actionNames);
   } else {
-    appendFluentFactory(lines, document, conditionNames, actionNames);
+    appendFluentFactory(lines, document, orderedTransitions, conditionNames, actionNames);
   }
 
   lines.push('}');
@@ -62,10 +64,11 @@ export function generateJavaFactory(document: FsmEditorDocument): string {
 function appendFluentFactory(
   lines: string[],
   document: FsmEditorDocument,
+  transitions: FsmTransition[],
   conditionNames: Map<string, string>,
   actionNames: Map<string, string>,
 ): void {
-  const groups = groupTransitions(document.transitions);
+  const groups = groupTransitions(transitions);
 
   lines.push(
     `    public static ExDomainFsm<${document.codegen.domainType}, ${document.codegen.stateType}, ${document.codegen.eventType}> ${document.codegen.factoryMethodName}() {`,
@@ -90,6 +93,7 @@ function appendFluentFactory(
 function appendBuilderFactory(
   lines: string[],
   document: FsmEditorDocument,
+  transitions: FsmTransition[],
   conditionNames: Map<string, string>,
   actionNames: Map<string, string>,
 ): void {
@@ -102,7 +106,7 @@ function appendBuilderFactory(
     lines.push('                .autoTransitionEnabled(true)');
   }
 
-  document.transitions.forEach((transition) => {
+  transitions.forEach((transition) => {
     lines.push(
       '                .add(',
       '                        new ExTransition<>(',

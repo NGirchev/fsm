@@ -157,4 +157,74 @@ describe('generateJavaFactory', () => {
     expect(builder).toContain('List.<Guard<StateContext<DocumentState>>>of(signNotRequired)');
     expect(builder).toContain('null');
   });
+
+  it('orders transitions from initial state and leaves unreachable transitions at end', () => {
+    const document = {
+      ...sampleDocument,
+      states: [
+        { id: 'state-a', label: 'A', position: { x: 0, y: 0 } },
+        { id: 'state-b', label: 'B', position: { x: 10, y: 0 } },
+        { id: 'state-c', label: 'C', position: { x: 20, y: 0 } },
+        { id: 'state-x', label: 'X', position: { x: 30, y: 0 } },
+        { id: 'state-y', label: 'Y', position: { x: 40, y: 0 } },
+      ],
+      events: [{ id: 'TO_B' }, { id: 'TO_C' }, { id: 'TO_Y' }],
+      transitions: [
+        {
+          id: 'out-of-order-reachable-b-c',
+          from: 'state-b',
+          to: 'state-c',
+          trigger: { kind: 'event' as const, event: 'TO_C' },
+          conditions: [],
+          actions: [],
+          postActions: [],
+        },
+        {
+          id: 'out-of-order-unreachable-x-y',
+          from: 'state-x',
+          to: 'state-y',
+          trigger: { kind: 'event' as const, event: 'TO_Y' },
+          conditions: [],
+          actions: [],
+          postActions: [],
+        },
+        {
+          id: 'out-of-order-reachable-a-b',
+          from: 'state-a',
+          to: 'state-b',
+          trigger: { kind: 'event' as const, event: 'TO_B' },
+          conditions: [],
+          actions: [],
+          postActions: [],
+        },
+      ],
+      codegen: { ...sampleDocument.codegen, initialState: 'A' },
+    };
+
+    const fluent = generateJavaFactory({ ...document, codegen: { ...document.codegen, style: 'fluent' } });
+    const builder = generateJavaFactory({ ...document, codegen: { ...document.codegen, style: 'builder' } });
+
+    const fluentStart = fluent.indexOf('FsmFactory.INSTANCE');
+    const builderStart = builder.indexOf('new ExTransitionTable.Builder');
+
+    const fluentAtoB = fluent.indexOf('.from(DocumentState.A).onEvent(DocumentEvent.TO_B).to(DocumentState.B)', fluentStart);
+    const fluentBtoC = fluent.indexOf('.from(DocumentState.B).onEvent(DocumentEvent.TO_C).to(DocumentState.C)', fluentStart);
+    const fluentXtoY = fluent.indexOf('.from(DocumentState.X).onEvent(DocumentEvent.TO_Y).to(DocumentState.Y)', fluentStart);
+
+    expect(fluentAtoB).toBeGreaterThan(-1);
+    expect(fluentBtoC).toBeGreaterThan(-1);
+    expect(fluentXtoY).toBeGreaterThan(-1);
+    expect(fluentAtoB).toBeLessThan(fluentBtoC);
+    expect(fluentBtoC).toBeLessThan(fluentXtoY);
+
+    const builderAtoB = builder.indexOf('DocumentEvent.TO_B', builderStart);
+    const builderBtoC = builder.indexOf('DocumentEvent.TO_C', builderStart);
+    const builderXtoY = builder.indexOf('DocumentEvent.TO_Y', builderStart);
+
+    expect(builderAtoB).toBeGreaterThan(-1);
+    expect(builderBtoC).toBeGreaterThan(-1);
+    expect(builderXtoY).toBeGreaterThan(-1);
+    expect(builderAtoB).toBeLessThan(builderBtoC);
+    expect(builderBtoC).toBeLessThan(builderXtoY);
+  });
 });
