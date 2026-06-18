@@ -48,6 +48,7 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
 
     protected val context: StateContext<STATE> = context
 
+    @Synchronized
     override fun getState(): STATE = this.context.state
 
     private val stateChangeListeners = CopyOnWriteArrayList<StateChangeListener<STATE>>()
@@ -84,6 +85,7 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
         }
     }
 
+    @Synchronized
     override fun toState(newState: STATE) {
         val transition = transitionTable.getTransitionByState(context, newState)
         val oldState = context.state
@@ -91,6 +93,7 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
         toState(transition)
     }
 
+    @Synchronized
     override fun toState(transition: TRANSITION) {
         executeSingleTransition(transition)
         if (autoTransitionEnabled) {
@@ -100,6 +103,7 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
         }
     }
 
+    @Synchronized
     protected open fun executeSingleTransition(transition: TRANSITION) {
         val oldState = context.state
         if (transition.from != oldState) {
@@ -130,6 +134,7 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
         }
     }
 
+    @Synchronized
     protected open fun performScheduledAutoTransitions() {
         val autoTransition = transitionTable.getAutoTransition(context) ?: run {
             notifyAutoTransitionCompleted()

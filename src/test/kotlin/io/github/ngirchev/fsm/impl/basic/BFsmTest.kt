@@ -8,7 +8,10 @@ import io.github.ngirchev.fsm.AutoTransitionScheduler
 import io.github.ngirchev.fsm.Timeout
 import io.github.ngirchev.fsm.exception.FsmTransitionFailedException
 import io.github.ngirchev.fsm.exception.FsmException
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
@@ -308,6 +311,51 @@ class BFsmTest {
     }
 
     @Test
+    fun concurrentTransitionsShouldNotExecuteActionsInParallelForSameFsm() {
+        val activeActions = AtomicInteger()
+        val maxActiveActions = AtomicInteger()
+        val table = BTransitionTable.Builder<String>()
+            .from("pending")
+            .to("approved")
+            .action { trackActionOverlap(activeActions, maxActiveActions) }
+            .end()
+            .from("pending")
+            .to("rejected")
+            .action { trackActionOverlap(activeActions, maxActiveActions) }
+            .end()
+            .build()
+        val fsm = BFsm("pending", table)
+        val ready = CountDownLatch(2)
+        val start = CountDownLatch(1)
+        val succeeded = AtomicInteger()
+        val failed = AtomicInteger()
+        val executor = Executors.newFixedThreadPool(2)
+
+        val futures = listOf("approved", "rejected").map { target ->
+            executor.submit {
+                ready.countDown()
+                start.await()
+                try {
+                    fsm.toState(target)
+                    succeeded.incrementAndGet()
+                } catch (e: FsmException) {
+                    failed.incrementAndGet()
+                }
+            }
+        }
+
+        assertTrue(ready.await(1, TimeUnit.SECONDS))
+        start.countDown()
+        futures.forEach { it.get(1, TimeUnit.SECONDS) }
+        executor.shutdownNow()
+
+        assertEquals(1, succeeded.get())
+        assertEquals(1, failed.get())
+        assertEquals(1, maxActiveActions.get())
+        assertTrue(fsm.getState() == "approved" || fsm.getState() == "rejected")
+    }
+
+    @Test
     fun subclassShouldCustomizeTransitionExecutionAndAccessRuntimeState() {
         val scheduler = AutoTransitionScheduler<String> { _, _, runTransition -> runTransition() }
         val table = BTransitionTable.Builder<String>()
@@ -340,5 +388,12 @@ class BFsmTest {
             executedTransition = transition
             super.transitionExecution(transition)
         }
+    }
+
+    private fun trackActionOverlap(activeActions: AtomicInteger, maxActiveActions: AtomicInteger) {
+        val active = activeActions.incrementAndGet()
+        maxActiveActions.updateAndGet { current -> maxOf(current, active) }
+        Thread.sleep(50)
+        activeActions.decrementAndGet()
     }
 }

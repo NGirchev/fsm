@@ -10,7 +10,7 @@ internal constructor(
 ) : TransitionTable<STATE, TRANSITION> {
 
     override fun getTransitionByState(context: StateContext<STATE>, newState: STATE): TRANSITION? {
-        return transitions[context.state]?.singleOrNull {
+        return transitions[context.state]?.firstOrNull {
             it.to.state == newState && it.to.conditions.all { condition -> condition.invoke(context) }
         }
     }

@@ -4,6 +4,7 @@ import io.github.ngirchev.fsm.*
 import io.github.ngirchev.fsm.exception.DuplicateTransitionException
 import io.github.ngirchev.fsm.exception.FsmException
 import io.github.ngirchev.fsm.impl.AbstractTransitionTable
+import io.github.ngirchev.fsm.impl.TransitionTableDiagnostics
 
 open class ExTransitionTable<STATE, EVENT>
 internal constructor(
@@ -75,7 +76,17 @@ internal constructor(
             for (t in to) {
                 transitions.getOrPut(from) { LinkedHashSet() }
                     .also { transitionSet ->
-                        val transition = ExTransition(from, t, onEvent)
+                        val transition = ExTransition(
+                            from,
+                            To(
+                                state = t.state,
+                                conditions = t.conditions.toList(),
+                                actions = t.actions.toList(),
+                                postActions = t.postActions.toList(),
+                                timeout = t.timeout,
+                            ),
+                            onEvent,
+                        )
                         if (!transitionSet.add(transition)) {
                             throw DuplicateTransitionException(transition)
                         }
@@ -89,7 +100,15 @@ internal constructor(
         }
 
         fun build(): ExTransitionTable<STATE, EVENT> {
-            return ExTransitionTable(snapshotTransitions(), autoTransitionEnabled, autoTransitionScheduler)
+            val snapshot = snapshotTransitions()
+            TransitionTableDiagnostics.warnOnCatchAllBeforeLaterTransitions(
+                snapshot,
+                groupKey = { eventTypeOf(it.event) },
+                groupLabel = { eventType ->
+                    if (eventType == null) " for auto transitions" else " for event [$eventType]"
+                },
+            )
+            return ExTransitionTable(snapshot, autoTransitionEnabled, autoTransitionScheduler)
         }
 
         private fun snapshotTransitions(): Map<STATE, LinkedHashSet<ExTransition<STATE, EVENT>>> {
@@ -173,7 +192,9 @@ class ToBuilder<STATE, EVENT>(
     }
 
     fun end(): ExTransitionTable.Builder<STATE, EVENT> {
-        return rootBuilder.add(ExTransition(from, To(to, conditions, actions, postActions, timeout), event))
+        return rootBuilder.add(
+            ExTransition(from, To(to, conditions.toList(), actions.toList(), postActions.toList(), timeout), event)
+        )
     }
 }
 
@@ -244,6 +265,8 @@ class ToMultipleTransitionBuilder<STATE, EVENT>(
     }
 
     fun end(): ToMultipleBuilder<STATE, EVENT> {
-        return multipleBuilder.addTransition(ExTransition(from, To(to, conditions, actions, postActions, timeout), event))
+        return multipleBuilder.addTransition(
+            ExTransition(from, To(to, conditions.toList(), actions.toList(), postActions.toList(), timeout), event)
+        )
     }
 }

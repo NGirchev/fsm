@@ -1,5 +1,8 @@
 package io.github.ngirchev.fsm.impl.extended
 
+import ch.qos.logback.classic.Logger
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.read.ListAppender
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
@@ -11,12 +14,15 @@ import io.github.ngirchev.fsm.Timeout
 import io.github.ngirchev.fsm.To
 import io.github.ngirchev.fsm.StateContext
 import io.github.ngirchev.fsm.TypedEvent
+import io.github.ngirchev.fsm.impl.TransitionTableDiagnostics
 import io.github.ngirchev.fsm.it.document.Document
 import io.github.ngirchev.fsm.it.document.DocumentState
+import org.slf4j.LoggerFactory
 import kotlin.test.DefaultAsserter.assertEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class ExTransitionTableTest {
 
@@ -471,6 +477,93 @@ class ExTransitionTableTest {
     }
 
     @Test
+    @DisplayName("build should warn when unguarded event transition hides later branch")
+    fun buildShouldWarnWhenUnguardedEventTransitionHidesLaterBranch() {
+        val messages = collectDiagnosticMessages {
+            ExTransitionTable.Builder<String, String>()
+                .from("processing")
+                .onEvent("payment-confirmed")
+                .toMultiple()
+                .to("approved").end()
+                .to("manual-review").onCondition { true }.end()
+                .endMultiple()
+                .build()
+        }
+
+        assertTrue(
+            messages.any {
+                it.contains("Ambiguous transition order from [processing] for event [payment-confirmed]") &&
+                    it.contains("unguarded transition to [approved]") &&
+                    it.contains("transition to [manual-review]")
+            }
+        )
+    }
+
+    @Test
+    @DisplayName("build should warn when unguarded auto transition hides later branch")
+    fun buildShouldWarnWhenUnguardedAutoTransitionHidesLaterBranch() {
+        val messages = collectDiagnosticMessages {
+            ExTransitionTable.Builder<String, String>()
+                .from("processing")
+                .toMultiple()
+                .to("approved").end()
+                .to("manual-review").onCondition { true }.end()
+                .endMultiple()
+                .build()
+        }
+
+        assertTrue(
+            messages.any {
+                it.contains("Ambiguous transition order from [processing] for auto transitions") &&
+                    it.contains("unguarded transition to [approved]") &&
+                    it.contains("transition to [manual-review]")
+            }
+        )
+    }
+
+    @Test
+    @DisplayName("build should not warn when unguarded transition is last fallback")
+    fun buildShouldNotWarnWhenUnguardedTransitionIsLastFallback() {
+        val messages = collectDiagnosticMessages {
+            ExTransitionTable.Builder<String, String>()
+                .from("processing")
+                .onEvent("payment-confirmed")
+                .toMultiple()
+                .to("manual-review").onCondition { true }.end()
+                .to("approved").onCondition { true }.end()
+                .to("rejected").end()
+                .endMultiple()
+                .build()
+        }
+
+        assertTrue(messages.none { it.contains("Ambiguous transition order") })
+    }
+
+    @Test
+    @DisplayName("toMultiple end should snapshot mutable builder lists")
+    fun toMultipleEndShouldSnapshotMutableBuilderLists() {
+        val builder = ExTransitionTable.Builder<String, String>()
+        val transitionBuilder = builder.from("from")
+            .toMultiple()
+            .to("to")
+            .onCondition { true }
+            .action { }
+            .postAction { }
+        transitionBuilder.end().endMultiple()
+
+        transitionBuilder
+            .onCondition { false }
+            .action { }
+            .postAction { }
+
+        val transition = builder.build().transitions["from"]!!.single()
+
+        assertEquals(1, transition.to.conditions.size)
+        assertEquals(1, transition.to.actions.size)
+        assertEquals(1, transition.to.postActions.size)
+    }
+
+    @Test
     @DisplayName("getTransitionByEvent should return first matching transition when multiple transitions exist")
     fun getTransitionByEventWhenMultipleTransitionsExistShouldReturnFirstMatching() {
         val table = ExTransitionTable.Builder<String, String>()
@@ -508,7 +601,7 @@ class ExTransitionTableTest {
     @DisplayName("getTransitionByState should return first matching transition when multiple transitions exist")
     fun getTransitionByStateWhenMultipleTransitionsExistShouldReturnFirstMatching() {
         val table = ExTransitionTable.Builder<String, String>()
-            .add("from", null, "to", condition = { false })
+            .add("from", null, "to", condition = { true })
             .add("from", null, "to", condition = { true })
             .build()
 
@@ -518,5 +611,18 @@ class ExTransitionTableTest {
         assertNotNull(transition)
         val t = transition!!
         assertEquals("to", t.to.state)
+    }
+
+    private fun collectDiagnosticMessages(block: () -> Unit): List<String> {
+        val logger = LoggerFactory.getLogger(TransitionTableDiagnostics::class.java) as Logger
+        val appender = ListAppender<ILoggingEvent>()
+        appender.start()
+        logger.addAppender(appender)
+        return try {
+            block()
+            appender.list.map { it.formattedMessage }
+        } finally {
+            logger.detachAppender(appender)
+        }
     }
 }

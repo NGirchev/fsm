@@ -8,6 +8,7 @@ import io.github.ngirchev.fsm.StateContext
 import io.github.ngirchev.fsm.To
 import io.github.ngirchev.fsm.exception.DuplicateTransitionException
 import io.github.ngirchev.fsm.impl.AbstractTransitionTable
+import io.github.ngirchev.fsm.impl.TransitionTableDiagnostics
 
 open class BTransitionTable<STATE>
 internal constructor(
@@ -64,9 +65,9 @@ internal constructor(
                     from,
                     To(
                         state = t.state,
-                        conditions = t.conditions,
-                        actions = t.actions,
-                        postActions = t.postActions,
+                        conditions = t.conditions.toList(),
+                        actions = t.actions.toList(),
+                        postActions = t.postActions.toList(),
                         timeout = t.timeout,
                     )
                 )
@@ -82,7 +83,13 @@ internal constructor(
         }
 
         fun build(): BTransitionTable<STATE> {
-            return BTransitionTable(snapshotTransitions(), autoTransitionEnabled, autoTransitionScheduler)
+            val snapshot = snapshotTransitions()
+            TransitionTableDiagnostics.warnOnCatchAllBeforeLaterTransitions(
+                snapshot,
+                groupKey = { Unit },
+                groupLabel = { "" },
+            )
+            return BTransitionTable(snapshot, autoTransitionEnabled, autoTransitionScheduler)
         }
 
         private fun snapshotTransitions(): Map<STATE, LinkedHashSet<BTransition<STATE>>> {
@@ -145,7 +152,7 @@ class ToBuilder<STATE>(
     }
 
     fun end(): BTransitionTable.Builder<STATE> {
-        return rootBuilder.add(BTransition(from, To(to, conditions, actions, postActions)))
+        return rootBuilder.add(BTransition(from, To(to, conditions.toList(), actions.toList(), postActions.toList())))
     }
 }
 
@@ -197,6 +204,8 @@ class ToMultipleTransitionBuilder<STATE>(
     }
 
     fun end(): ToMultipleBuilder<STATE> {
-        return multipleBuilder.addTransition(BTransition(from, To(to, conditions, actions, postActions)))
+        return multipleBuilder.addTransition(
+            BTransition(from, To(to, conditions.toList(), actions.toList(), postActions.toList()))
+        )
     }
 }
