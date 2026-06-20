@@ -5,6 +5,7 @@ import io.github.ngirchev.fsm.exception.FsmException
 import io.github.ngirchev.fsm.exception.FsmTransitionFailedException
 import org.slf4j.LoggerFactory
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.locks.ReentrantReadWriteLock
 
 /**
  * Finite-state machine
@@ -47,9 +48,9 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
     )
 
     protected val context: StateContext<STATE> = context
+    private val stateLock = ReentrantReadWriteLock()
 
-    @Synchronized
-    override fun getState(): STATE = this.context.state
+    override fun getState(): STATE = readLocked { this.context.state }
 
     private val stateChangeListeners = CopyOnWriteArrayList<StateChangeListener<STATE>>()
     private val autoTransitionCompletionListeners = CopyOnWriteArrayList<() -> Unit>()
@@ -85,16 +86,22 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
         }
     }
 
-    @Synchronized
     override fun toState(newState: STATE) {
-        val transition = transitionTable.getTransitionByState(context, newState)
-        val oldState = context.state
-        if (transition == null) throw FsmTransitionFailedException(oldState.toString(), newState.toString())
-        toState(transition)
+        writeLocked {
+            val transition = transitionTable.getTransitionByState(context, newState)
+            val oldState = context.state
+            if (transition == null) throw FsmTransitionFailedException(oldState.toString(), newState.toString())
+            transitionToState(transition)
+        }
     }
 
-    @Synchronized
     override fun toState(transition: TRANSITION) {
+        writeLocked {
+            transitionToState(transition)
+        }
+    }
+
+    protected fun transitionToState(transition: TRANSITION) {
         executeSingleTransition(transition)
         if (autoTransitionEnabled) {
             performAutoTransitions()
@@ -103,7 +110,6 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
         }
     }
 
-    @Synchronized
     protected open fun executeSingleTransition(transition: TRANSITION) {
         val oldState = context.state
         if (transition.from != oldState) {
@@ -134,19 +140,41 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
         }
     }
 
-    @Synchronized
     protected open fun performScheduledAutoTransitions() {
-        val autoTransition = transitionTable.getAutoTransition(context) ?: run {
+        val autoTransition = transitionTable.getAutoTransition(context)
+        if (autoTransition == null) {
             notifyAutoTransitionCompleted()
-            return
-        }
-        autoTransitionScheduler.schedule(context, autoTransition) {
-            executeSingleTransition(autoTransition)
-            if (autoTransitionEnabled) {
-                performScheduledAutoTransitions()
-            } else {
-                notifyAutoTransitionCompleted()
+        } else {
+            autoTransitionScheduler.schedule(context, autoTransition) {
+                writeLocked {
+                    executeSingleTransition(autoTransition)
+                    if (autoTransitionEnabled) {
+                        performScheduledAutoTransitions()
+                    } else {
+                        notifyAutoTransitionCompleted()
+                    }
+                }
             }
+        }
+    }
+
+    private fun <T> readLocked(block: () -> T): T {
+        val lock = stateLock.readLock()
+        lock.lock()
+        try {
+            return block()
+        } finally {
+            lock.unlock()
+        }
+    }
+
+    protected fun <T> writeLocked(block: () -> T): T {
+        val lock = stateLock.writeLock()
+        lock.lock()
+        try {
+            return block()
+        } finally {
+            lock.unlock()
         }
     }
 

@@ -5,6 +5,10 @@ import org.junit.jupiter.api.Test
 import io.github.ngirchev.fsm.exception.FsmEventSourcingTransitionFailedException
 import io.github.ngirchev.fsm.StateContext
 import io.github.ngirchev.fsm.TypedEvent
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
@@ -205,6 +209,38 @@ class ExFsmTest {
     }
 
     @Test
+    fun onEventWhenActionFailsShouldReleaseWriteLockForNextEvent() {
+        val table = ExTransitionTable.Builder<String, String>()
+            .from("from")
+            .onEvent("fail")
+            .to("broken")
+            .action { throw IllegalStateException("boom") }
+            .end()
+            .from("from")
+            .onEvent("recover")
+            .to("recovered")
+            .end()
+            .build()
+        val fsm = ExFsm("from", table)
+        val executor = Executors.newSingleThreadExecutor()
+
+        try {
+            assertThrows(IllegalStateException::class.java) {
+                fsm.onEvent("fail")
+            }
+
+            val recovery = executor.submit<String> {
+                fsm.onEvent("recover")
+                fsm.getState()
+            }
+
+            assertEquals("recovered", recovery.get(1, TimeUnit.SECONDS))
+        } finally {
+            executor.shutdownNow()
+        }
+    }
+
+    @Test
     fun toStateWhenTransitionDoesNotExistShouldThrowException() {
         val table = ExTransitionTable.Builder<String, String>()
             .add("from", null, "to")
@@ -243,6 +279,23 @@ class ExFsmTest {
         fsm.toState("intermediate1")
 
         assertEquals("to", fsm.getState())
+    }
+
+    @Test
+    fun defaultAutoTransitionSchedulerShouldHandleLongAutoTransitionChainWithoutStackOverflow() {
+        val transitionCount = 10_000
+        val builder = ExTransitionTable.Builder<Int, String>()
+            .autoTransitionEnabled(true)
+            .add(0, null, 1)
+
+        for (state in 1 until transitionCount) {
+            builder.add(state, null, state + 1)
+        }
+
+        val fsm = ExFsm(0, builder.build(), autoTransitionEnabled = true)
+        fsm.toState(1)
+
+        assertEquals(transitionCount, fsm.getState())
     }
 
     @Test
@@ -328,5 +381,66 @@ class ExFsmTest {
         assertEquals("to", fsm.getState())
         assertTrue(condition1Called)
         assertTrue(condition2Called)
+    }
+
+    @Test
+    fun concurrentEventsShouldNotExecuteActionsInParallelForSameFsm() {
+        val activeActions = AtomicInteger()
+        val maxActiveActions = AtomicInteger()
+        val table = ExTransitionTable.Builder<String, String>()
+            .from("pending")
+            .onEvent("approve")
+            .to("approved")
+            .action { trackActionOverlap(activeActions, maxActiveActions) }
+            .end()
+            .from("pending")
+            .onEvent("reject")
+            .to("rejected")
+            .action { trackActionOverlap(activeActions, maxActiveActions) }
+            .end()
+            .build()
+        val fsm = ExFsm("pending", table)
+        val ready = CountDownLatch(2)
+        val start = CountDownLatch(1)
+        val succeeded = AtomicInteger()
+        val failed = AtomicInteger()
+        val executor = Executors.newFixedThreadPool(2)
+
+        try {
+            val futures = listOf("approve", "reject").map { event ->
+                executor.submit {
+                    ready.countDown()
+                    start.await()
+                    try {
+                        fsm.onEvent(event)
+                        succeeded.incrementAndGet()
+                    } catch (e: Exception) {
+                        failed.incrementAndGet()
+                    }
+                }
+            }
+
+            assertTrue(ready.await(1, TimeUnit.SECONDS))
+            start.countDown()
+            futures.forEach { it.get(1, TimeUnit.SECONDS) }
+
+            assertEquals(1, succeeded.get())
+            assertEquals(1, failed.get())
+            assertEquals(1, maxActiveActions.get())
+            assertTrue(fsm.getState() == "approved" || fsm.getState() == "rejected")
+        } finally {
+            start.countDown()
+            executor.shutdownNow()
+        }
+    }
+
+    private fun trackActionOverlap(activeActions: AtomicInteger, maxActiveActions: AtomicInteger) {
+        val active = activeActions.incrementAndGet()
+        maxActiveActions.updateAndGet { current -> maxOf(current, active) }
+        try {
+            Thread.sleep(50)
+        } finally {
+            activeActions.decrementAndGet()
+        }
     }
 }

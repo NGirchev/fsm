@@ -58,10 +58,11 @@ open class ExFsm<STATE, EVENT> :
         autoTransitionScheduler,
     )
 
-    @Synchronized
     override fun onEvent(event: EVENT) {
-        val transition = transitionTable.getTransitionByEvent(context, event)
-            ?: throw FsmEventSourcingTransitionFailedException(context.state.toString(), event.toString())
-        toState(ExTransition(transition.from, transition.to, event))
+        writeLocked {
+            val transition = transitionTable.getTransitionByEvent(context, event)
+                ?: throw FsmEventSourcingTransitionFailedException(context.state.toString(), event.toString())
+            transitionToState(ExTransition(transition.from, transition.to, event))
+        }
     }
 }

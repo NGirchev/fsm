@@ -19,6 +19,30 @@ class BFsmTest {
 
     private class SimpleStateContext(override var state: String, override var currentTransition: io.github.ngirchev.fsm.Transition<String>? = null) : StateContext<String>
 
+    private class TrackingReadStateContext(initialState: String) : StateContext<String> {
+        private var stateValue = initialState
+        private val activeReads = AtomicInteger()
+
+        val readersEntered = CountDownLatch(2)
+        val releaseReaders = CountDownLatch(1)
+        val maxActiveReads = AtomicInteger()
+        override var currentTransition: io.github.ngirchev.fsm.Transition<String>? = null
+
+        override var state: String
+            get() {
+                readersEntered.countDown()
+                releaseReaders.await(1, TimeUnit.SECONDS)
+                val active = activeReads.incrementAndGet()
+                maxActiveReads.updateAndGet { current -> maxOf(current, active) }
+                Thread.sleep(50)
+                activeReads.decrementAndGet()
+                return stateValue
+            }
+            set(value) {
+                stateValue = value
+            }
+    }
+
     @Test
     fun constructorWithStateAndNullAutoTransitionShouldUseTableValue() {
         val table = BTransitionTable.Builder<String>()
@@ -146,6 +170,34 @@ class BFsmTest {
         assertEquals("to", fsm.getState())
         assertTrue(actionCalled)
         assertTrue(postActionCalled)
+    }
+
+    @Test
+    fun toStateWhenActionFailsShouldReleaseWriteLockForNextTransition() {
+        val table = BTransitionTable.Builder<String>()
+            .from("from")
+            .to("broken")
+            .action { throw IllegalStateException("boom") }
+            .end()
+            .add("from", "recovered")
+            .build()
+        val fsm = BFsm("from", table)
+        val executor = Executors.newSingleThreadExecutor()
+
+        try {
+            assertThrows(IllegalStateException::class.java) {
+                fsm.toState("broken")
+            }
+
+            val recovery = executor.submit<String> {
+                fsm.toState("recovered")
+                fsm.getState()
+            }
+
+            assertEquals("recovered", recovery.get(1, TimeUnit.SECONDS))
+        } finally {
+            executor.shutdownNow()
+        }
     }
 
     @Test
@@ -331,28 +383,144 @@ class BFsmTest {
         val failed = AtomicInteger()
         val executor = Executors.newFixedThreadPool(2)
 
-        val futures = listOf("approved", "rejected").map { target ->
-            executor.submit {
-                ready.countDown()
-                start.await()
-                try {
-                    fsm.toState(target)
-                    succeeded.incrementAndGet()
-                } catch (e: FsmException) {
-                    failed.incrementAndGet()
+        try {
+            val futures = listOf("approved", "rejected").map { target ->
+                executor.submit {
+                    ready.countDown()
+                    start.await()
+                    try {
+                        fsm.toState(target)
+                        succeeded.incrementAndGet()
+                    } catch (e: FsmException) {
+                        failed.incrementAndGet()
+                    }
                 }
             }
+
+            assertTrue(ready.await(1, TimeUnit.SECONDS))
+            start.countDown()
+            futures.forEach { it.get(1, TimeUnit.SECONDS) }
+
+            assertEquals(1, succeeded.get())
+            assertEquals(1, failed.get())
+            assertEquals(1, maxActiveActions.get())
+            assertTrue(fsm.getState() == "approved" || fsm.getState() == "rejected")
+        } finally {
+            start.countDown()
+            executor.shutdownNow()
         }
+    }
 
-        assertTrue(ready.await(1, TimeUnit.SECONDS))
-        start.countDown()
-        futures.forEach { it.get(1, TimeUnit.SECONDS) }
-        executor.shutdownNow()
+    @Test
+    fun concurrentStateReadsShouldOverlapWhenNoTransitionIsRunning() {
+        val table = BTransitionTable.Builder<String>()
+            .add("from", "to")
+            .build()
+        val context = TrackingReadStateContext("from")
+        val fsm = BFsm(context, table)
+        val executor = Executors.newFixedThreadPool(2)
 
-        assertEquals(1, succeeded.get())
-        assertEquals(1, failed.get())
-        assertEquals(1, maxActiveActions.get())
-        assertTrue(fsm.getState() == "approved" || fsm.getState() == "rejected")
+        try {
+            val futures = List(2) {
+                executor.submit<String> {
+                    fsm.getState()
+                }
+            }
+
+            assertTrue(context.readersEntered.await(500, TimeUnit.MILLISECONDS))
+            context.releaseReaders.countDown()
+            futures.forEach { assertEquals("from", it.get(1, TimeUnit.SECONDS)) }
+
+            assertEquals(2, context.maxActiveReads.get())
+        } finally {
+            context.releaseReaders.countDown()
+            executor.shutdownNow()
+        }
+    }
+
+    @Test
+    fun stateReadShouldWaitForRunningTransition() {
+        val actionStarted = CountDownLatch(1)
+        val releaseAction = CountDownLatch(1)
+        val table = BTransitionTable.Builder<String>()
+            .from("from")
+            .to("to")
+            .action {
+                actionStarted.countDown()
+                releaseAction.await(1, TimeUnit.SECONDS)
+            }
+            .end()
+            .build()
+        val fsm = BFsm("from", table)
+        val executor = Executors.newFixedThreadPool(2)
+
+        try {
+            val transitionFuture = executor.submit {
+                fsm.toState("to")
+            }
+            assertTrue(actionStarted.await(1, TimeUnit.SECONDS))
+
+            val readFuture = executor.submit<String> {
+                fsm.getState()
+            }
+            Thread.sleep(50)
+            assertTrue(!readFuture.isDone)
+
+            releaseAction.countDown()
+            transitionFuture.get(1, TimeUnit.SECONDS)
+            assertEquals("to", readFuture.get(1, TimeUnit.SECONDS))
+        } finally {
+            releaseAction.countDown()
+            executor.shutdownNow()
+        }
+    }
+
+    @Test
+    fun scheduledAutoTransitionCallbackShouldNotDeadlockAndShouldBlockReads() {
+        val actionStarted = CountDownLatch(1)
+        val releaseAction = CountDownLatch(1)
+        val scheduledCallbacks = mutableListOf<() -> Unit>()
+        val scheduler = AutoTransitionScheduler<String> { _, _, runTransition ->
+            scheduledCallbacks.add(runTransition)
+        }
+        val table = BTransitionTable.Builder<String>()
+            .autoTransitionEnabled(true)
+            .add("from", "intermediate")
+            .from("intermediate")
+            .to("to")
+            .action {
+                actionStarted.countDown()
+                releaseAction.await(1, TimeUnit.SECONDS)
+            }
+            .end()
+            .build()
+        val fsm = BFsm("from", table, autoTransitionEnabled = true, autoTransitionScheduler = scheduler)
+        val executor = Executors.newFixedThreadPool(2)
+
+        fsm.toState("intermediate")
+
+        try {
+            assertEquals("intermediate", fsm.getState())
+            assertEquals(1, scheduledCallbacks.size)
+
+            val autoTransitionFuture = executor.submit {
+                scheduledCallbacks.single().invoke()
+            }
+            assertTrue(actionStarted.await(1, TimeUnit.SECONDS))
+
+            val readFuture = executor.submit<String> {
+                fsm.getState()
+            }
+            Thread.sleep(50)
+            assertTrue(!readFuture.isDone)
+
+            releaseAction.countDown()
+            autoTransitionFuture.get(1, TimeUnit.SECONDS)
+            assertEquals("to", readFuture.get(1, TimeUnit.SECONDS))
+        } finally {
+            releaseAction.countDown()
+            executor.shutdownNow()
+        }
     }
 
     @Test
@@ -393,7 +561,10 @@ class BFsmTest {
     private fun trackActionOverlap(activeActions: AtomicInteger, maxActiveActions: AtomicInteger) {
         val active = activeActions.incrementAndGet()
         maxActiveActions.updateAndGet { current -> maxOf(current, active) }
-        Thread.sleep(50)
-        activeActions.decrementAndGet()
+        try {
+            Thread.sleep(50)
+        } finally {
+            activeActions.decrementAndGet()
+        }
     }
 }
