@@ -40,7 +40,7 @@ open class ExTransitionTable<STATE, EVENT>(
             ?.firstOrNull { it.to.conditions.all { condition -> condition.invoke(context) } }
     }
 
-    protected open fun matchesEvent(transitionEvent: EVENT?, runtimeEvent: EVENT): Boolean {
+    protected fun matchesEvent(transitionEvent: EVENT?, runtimeEvent: EVENT): Boolean {
         return eventIdentity(transitionEvent) == eventIdentity(runtimeEvent)
     }
 

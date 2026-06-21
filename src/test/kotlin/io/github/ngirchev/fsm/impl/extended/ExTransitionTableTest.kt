@@ -522,6 +522,37 @@ class ExTransitionTableTest {
     }
 
     @Test
+    @DisplayName("build should warn using custom event identity from factory table")
+    fun buildWithFactoryShouldWarnUsingCustomEventIdentity() {
+        val messages = collectDiagnosticMessages {
+            ExTransitionTable.Builder<DocumentState, RoutingEvent>()
+                .add(
+                    from = DocumentState.NEW,
+                    onEvent = RoutingEvent("SUBMIT", "tenant-a", "request-1"),
+                    to = DocumentState.READY_FOR_SIGN,
+                )
+                .add(
+                    from = DocumentState.NEW,
+                    onEvent = RoutingEvent("SUBMIT", "tenant-a", "request-2"),
+                    to = DocumentState.SIGNED,
+                    condition = { true },
+                )
+                .build(::RoutingEventTransitionTable)
+        }
+
+        assertTrue(
+            messages.any {
+                it.contains(
+                    "Ambiguous transition order from [NEW] " +
+                        "for event [RoutingEventKey(type=SUBMIT, tenantId=tenant-a)]"
+                ) &&
+                    it.contains("unguarded transition to [READY_FOR_SIGN]") &&
+                    it.contains("transition to [SIGNED]")
+            }
+        )
+    }
+
+    @Test
     @DisplayName("build should warn when unguarded auto transition hides later branch")
     fun buildShouldWarnWhenUnguardedAutoTransitionHidesLaterBranch() {
         val messages = collectDiagnosticMessages {
@@ -653,6 +684,28 @@ class ExTransitionTableTest {
         autoTransitionEnabled: Boolean,
         autoTransitionScheduler: AutoTransitionScheduler<DocumentState>,
     ) : ExTransitionTable<DocumentState, String>(transitions, autoTransitionEnabled, autoTransitionScheduler)
+
+    private data class RoutingEvent(
+        val type: String,
+        val tenantId: String,
+        val requestId: String,
+    )
+
+    private data class RoutingEventKey(
+        val type: String,
+        val tenantId: String,
+    )
+
+    private class RoutingEventTransitionTable(
+        transitions: Map<DocumentState, LinkedHashSet<ExTransition<DocumentState, RoutingEvent>>>,
+        autoTransitionEnabled: Boolean,
+        autoTransitionScheduler: AutoTransitionScheduler<DocumentState>,
+    ) : ExTransitionTable<DocumentState, RoutingEvent>(transitions, autoTransitionEnabled, autoTransitionScheduler) {
+
+        override fun eventIdentity(event: RoutingEvent?): Any? {
+            return event?.let { RoutingEventKey(it.type, it.tenantId) }
+        }
+    }
 
     private class FactoryExDomainFsm(
         transitionTable: ExTransitionTable<DocumentState, String>,

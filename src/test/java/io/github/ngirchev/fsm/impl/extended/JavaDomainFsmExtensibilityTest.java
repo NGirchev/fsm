@@ -66,10 +66,8 @@ class JavaDomainFsmExtensibilityTest {
         }
 
         @Override
-        protected boolean matchesEvent(OrderEvent transitionEvent, OrderEvent runtimeEvent) {
-            return transitionEvent != null
-                && transitionEvent.type == runtimeEvent.type
-                && Objects.equals(transitionEvent.tenantId, runtimeEvent.tenantId);
+        protected Object eventIdentity(OrderEvent event) {
+            return event == null ? null : new OrderEventIdentity(event.type, event.tenantId);
         }
     }
 
@@ -142,6 +140,34 @@ class JavaDomainFsmExtensibilityTest {
                 ", tenantId='" + tenantId + '\'' +
                 ", requestId='" + requestId + '\'' +
                 '}';
+        }
+    }
+
+    private static final class OrderEventIdentity {
+
+        private final OrderEventType type;
+        private final String tenantId;
+
+        private OrderEventIdentity(OrderEventType type, String tenantId) {
+            this.type = type;
+            this.tenantId = tenantId;
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (this == other) {
+                return true;
+            }
+            if (!(other instanceof OrderEventIdentity)) {
+                return false;
+            }
+            OrderEventIdentity that = (OrderEventIdentity) other;
+            return type == that.type && Objects.equals(tenantId, that.tenantId);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(type, tenantId);
         }
     }
 }
