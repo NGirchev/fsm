@@ -124,6 +124,20 @@ class ExDomainFsmTest {
         assertEquals(true, fsm.createdAutoTransitionEnabled)
     }
 
+    @Test
+    fun subclassShouldOverrideHandleFlow() {
+        val transitionTable = ExTransitionTable.Builder<DocumentState, String>()
+            .add(DocumentState.NEW, "RUN", DocumentState.READY_FOR_SIGN)
+            .build()
+        val fsm = HandleTrackingExDomainFsm(transitionTable)
+        val document = Document()
+
+        fsm.handle(document, "RUN")
+
+        assertEquals(DocumentState.READY_FOR_SIGN, document.state)
+        assertEquals(1, fsm.handleCalls)
+    }
+
     private class CustomExDomainFsm(
         transitionTable: ExTransitionTable<DocumentState, String>,
         scheduler: AutoTransitionScheduler<DocumentState>,
@@ -153,6 +167,21 @@ class ExDomainFsmTest {
         autoTransitionEnabled: Boolean,
         autoTransitionScheduler: AutoTransitionScheduler<DocumentState>,
     ) : ExFsm<DocumentState, String>(context, transitionTable, autoTransitionEnabled, autoTransitionScheduler)
+
+    private class HandleTrackingExDomainFsm(
+        transitionTable: ExTransitionTable<DocumentState, String>,
+    ) : ExDomainFsm<Document, DocumentState, String>(transitionTable) {
+        var handleCalls: Int = 0
+            private set
+
+        override fun handle(
+            domain: Document,
+            event: String,
+        ) {
+            handleCalls++
+            super.handle(domain, event)
+        }
+    }
 
     @Test
     fun handleShouldRemoveForwardingListenerAfterImmediateAutoTransitionsComplete() {

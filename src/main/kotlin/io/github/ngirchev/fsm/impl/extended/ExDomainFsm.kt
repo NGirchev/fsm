@@ -61,7 +61,7 @@ open class ExDomainFsm<DOMAIN : StateContext<STATE>, STATE, EVENT> :
     /**
      * handle event for passed document.
      */
-    fun handle(
+    open fun handle(
         domain: DOMAIN,
         event: EVENT,
     ) {
@@ -75,7 +75,7 @@ open class ExDomainFsm<DOMAIN : StateContext<STATE>, STATE, EVENT> :
         handleWithListeners(domain) { fsm -> fsm.toState(newState) }
     }
 
-    fun handleWithListeners(
+    open fun handleWithListeners(
         domain: DOMAIN,
         action: (ExFsm<STATE, EVENT>) -> Unit,
     ) {

@@ -45,6 +45,15 @@ class BTransitionTableTest {
     }
 
     @Test
+    fun buildWithFactoryShouldCreateCustomTransitionTable() {
+        val table = BTransitionTable.Builder<DocumentState>()
+            .add(DocumentState.NEW, DocumentState.READY_FOR_SIGN)
+            .build(::CustomBTransitionTable)
+
+        assertEquals(CustomBTransitionTable::class, table::class)
+    }
+
+    @Test
     fun addWithVarargTransitionShouldAddTransitions() {
         val builder = BTransitionTable.Builder<String>()
         val transition1 = BTransition("from", "to1")
@@ -268,6 +277,17 @@ class BTransitionTableTest {
     }
 
     @Test
+    fun createDomainFsmWithFactoryShouldCreateCustomDomainFsm() {
+        val table = BTransitionTable.Builder<DocumentState>()
+            .add(DocumentState.NEW, DocumentState.READY_FOR_SIGN)
+            .build()
+
+        val domainFsm = table.createDomainFsm(::FactoryBDomainFsm)
+
+        assertEquals(FactoryBDomainFsm::class, domainFsm::class)
+    }
+
+    @Test
     fun createDomainFsmShouldUseAutoTransitionScheduler() {
         var scheduledTransitions = 0
         val scheduler = AutoTransitionScheduler<DocumentState> { _, _, runTransition ->
@@ -301,4 +321,16 @@ class BTransitionTableTest {
             logger.detachAppender(appender)
         }
     }
+
+    private class CustomBTransitionTable(
+        transitions: Map<DocumentState, LinkedHashSet<BTransition<DocumentState>>>,
+        autoTransitionEnabled: Boolean,
+        autoTransitionScheduler: AutoTransitionScheduler<DocumentState>,
+    ) : BTransitionTable<DocumentState>(transitions, autoTransitionEnabled, autoTransitionScheduler)
+
+    private class FactoryBDomainFsm(
+        transitionTable: BTransitionTable<DocumentState>,
+        autoTransitionEnabled: Boolean,
+        autoTransitionScheduler: AutoTransitionScheduler<DocumentState>,
+    ) : BDomainFsm<Document, DocumentState>(transitionTable, autoTransitionEnabled, autoTransitionScheduler)
 }

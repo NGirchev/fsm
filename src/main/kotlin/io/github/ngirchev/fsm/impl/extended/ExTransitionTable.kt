@@ -5,19 +5,47 @@ import io.github.ngirchev.fsm.exception.DuplicateTransitionException
 import io.github.ngirchev.fsm.exception.FsmException
 import io.github.ngirchev.fsm.impl.AbstractTransitionTable
 import io.github.ngirchev.fsm.impl.TransitionTableDiagnostics
+import kotlin.jvm.JvmSuppressWildcards
 
-open class ExTransitionTable<STATE, EVENT>
-internal constructor(
-    override val transitions: Map<STATE, LinkedHashSet<ExTransition<STATE, EVENT>>>,
+fun interface ExTransitionTableFactory<STATE, EVENT, TABLE : ExTransitionTable<STATE, EVENT>> {
+    fun create(
+        transitions: Map<STATE, @JvmSuppressWildcards LinkedHashSet<ExTransition<STATE, EVENT>>>,
+        autoTransitionEnabled: Boolean,
+        autoTransitionScheduler: AutoTransitionScheduler<STATE>,
+    ): TABLE
+}
+
+fun interface ExDomainFsmFactory<
+    DOMAIN : StateContext<STATE>,
+    STATE,
+    EVENT,
+    FSM : ExDomainFsm<DOMAIN, STATE, EVENT>,
+> {
+    fun create(
+        transitionTable: ExTransitionTable<STATE, EVENT>,
+        autoTransitionEnabled: Boolean,
+        autoTransitionScheduler: AutoTransitionScheduler<STATE>,
+    ): FSM
+}
+
+open class ExTransitionTable<STATE, EVENT>(
+    transitions: Map<STATE, LinkedHashSet<ExTransition<STATE, EVENT>>>,
     override var autoTransitionEnabled: Boolean = false,
-    private val autoTransitionScheduler: AutoTransitionScheduler<STATE>,
+    protected val autoTransitionScheduler: AutoTransitionScheduler<STATE>,
 ) : AbstractTransitionTable<STATE, ExTransition<STATE, EVENT>>(transitions, autoTransitionEnabled) {
 
     internal fun getTransitionByEvent(context: StateContext<STATE>, event: EVENT): ExTransition<STATE, EVENT>? {
-        val eventType = eventTypeOf(event)
         return transitions[context.state]
-            ?.filter { eventTypeOf(it.event) == eventType }
+            ?.filter { matchesEvent(it.event, event) }
             ?.firstOrNull { it.to.conditions.all { condition -> condition.invoke(context) } }
+    }
+
+    protected open fun matchesEvent(transitionEvent: EVENT?, runtimeEvent: EVENT): Boolean {
+        return eventIdentity(transitionEvent) == eventIdentity(runtimeEvent)
+    }
+
+    protected open fun eventIdentity(event: EVENT?): Any? {
+        return eventTypeOf(event)
     }
 
     override fun getAutoTransition(context: StateContext<STATE>): ExTransition<STATE, EVENT>? {
@@ -101,14 +129,16 @@ internal constructor(
 
         fun build(): ExTransitionTable<STATE, EVENT> {
             val snapshot = snapshotTransitions()
-            TransitionTableDiagnostics.warnOnCatchAllBeforeLaterTransitions(
-                snapshot,
-                groupKey = { eventTypeOf(it.event) },
-                groupLabel = { eventType ->
-                    if (eventType == null) " for auto transitions" else " for event [$eventType]"
-                },
-            )
             return ExTransitionTable(snapshot, autoTransitionEnabled, autoTransitionScheduler)
+                .also { it.warnOnAmbiguousTransitions() }
+        }
+
+        fun <TABLE : ExTransitionTable<STATE, EVENT>> build(
+            factory: ExTransitionTableFactory<STATE, EVENT, TABLE>,
+        ): TABLE {
+            val snapshot = snapshotTransitions()
+            return factory.create(snapshot, autoTransitionEnabled, autoTransitionScheduler)
+                .also { it.warnOnAmbiguousTransitions() }
         }
 
         private fun snapshotTransitions(): Map<STATE, LinkedHashSet<ExTransition<STATE, EVENT>>> {
@@ -117,12 +147,30 @@ internal constructor(
         }
     }
 
+    internal fun warnOnAmbiguousTransitions() {
+        @Suppress("UNCHECKED_CAST")
+        val transitionSnapshot = transitions as Map<STATE, LinkedHashSet<ExTransition<STATE, EVENT>>>
+        TransitionTableDiagnostics.warnOnCatchAllBeforeLaterTransitions(
+            transitionSnapshot,
+            groupKey = { eventIdentity(it.event) },
+            groupLabel = { eventType ->
+                if (eventType == null) " for auto transitions" else " for event [$eventType]"
+            },
+        )
+    }
+
     override fun createFsm(initialState: STATE): ExFsm<STATE, EVENT> {
         return ExFsm(initialState, this, autoTransitionEnabled, autoTransitionScheduler)
     }
 
     override fun <DOMAIN : StateContext<STATE>> createDomainFsm(): ExDomainFsm<DOMAIN, STATE, EVENT> {
         return ExDomainFsm(this, autoTransitionEnabled, autoTransitionScheduler)
+    }
+
+    fun <DOMAIN : StateContext<STATE>, FSM : ExDomainFsm<DOMAIN, STATE, EVENT>> createDomainFsm(
+        factory: ExDomainFsmFactory<DOMAIN, STATE, EVENT, FSM>,
+    ): FSM {
+        return factory.create(this, autoTransitionEnabled, autoTransitionScheduler)
     }
 }
 

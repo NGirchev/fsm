@@ -61,6 +61,16 @@ class ExTransitionTableTest {
     }
 
     @Test
+    @DisplayName("build should create custom transition table with factory")
+    fun buildWithFactoryShouldCreateCustomTransitionTable() {
+        val table = ExTransitionTable.Builder<DocumentState, String>()
+            .add(DocumentState.NEW, "event", DocumentState.READY_FOR_SIGN)
+            .build(::CustomExTransitionTable)
+
+        assertEquals(CustomExTransitionTable::class, table::class)
+    }
+
+    @Test
     @DisplayName("Should throw an exception when the transition is already added")
     fun addWhenTransitionIsAlreadyAddedThenThrowException() {
         val builder = ExTransitionTable.Builder<String, String>()
@@ -288,6 +298,18 @@ class ExTransitionTableTest {
         val domainFsm = table.createDomainFsm<Document>()
 
         assertNotNull(domainFsm)
+    }
+
+    @Test
+    @DisplayName("createDomainFsm should create custom domain FSM with factory")
+    fun createDomainFsmWithFactoryShouldCreateCustomDomainFsm() {
+        val table = ExTransitionTable.Builder<DocumentState, String>()
+            .add(DocumentState.NEW, "event", DocumentState.READY_FOR_SIGN)
+            .build()
+
+        val domainFsm = table.createDomainFsm(::FactoryExDomainFsm)
+
+        assertEquals(FactoryExDomainFsm::class, domainFsm::class)
     }
 
     @Test
@@ -625,4 +647,16 @@ class ExTransitionTableTest {
             logger.detachAppender(appender)
         }
     }
+
+    private class CustomExTransitionTable(
+        transitions: Map<DocumentState, LinkedHashSet<ExTransition<DocumentState, String>>>,
+        autoTransitionEnabled: Boolean,
+        autoTransitionScheduler: AutoTransitionScheduler<DocumentState>,
+    ) : ExTransitionTable<DocumentState, String>(transitions, autoTransitionEnabled, autoTransitionScheduler)
+
+    private class FactoryExDomainFsm(
+        transitionTable: ExTransitionTable<DocumentState, String>,
+        autoTransitionEnabled: Boolean,
+        autoTransitionScheduler: AutoTransitionScheduler<DocumentState>,
+    ) : ExDomainFsm<Document, DocumentState, String>(transitionTable, autoTransitionEnabled, autoTransitionScheduler)
 }

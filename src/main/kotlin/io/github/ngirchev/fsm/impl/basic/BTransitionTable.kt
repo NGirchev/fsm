@@ -9,12 +9,28 @@ import io.github.ngirchev.fsm.To
 import io.github.ngirchev.fsm.exception.DuplicateTransitionException
 import io.github.ngirchev.fsm.impl.AbstractTransitionTable
 import io.github.ngirchev.fsm.impl.TransitionTableDiagnostics
+import kotlin.jvm.JvmSuppressWildcards
 
-open class BTransitionTable<STATE>
-internal constructor(
-    override val transitions: Map<STATE, LinkedHashSet<BTransition<STATE>>>,
+fun interface BTransitionTableFactory<STATE, TABLE : BTransitionTable<STATE>> {
+    fun create(
+        transitions: Map<STATE, @JvmSuppressWildcards LinkedHashSet<BTransition<STATE>>>,
+        autoTransitionEnabled: Boolean,
+        autoTransitionScheduler: AutoTransitionScheduler<STATE>,
+    ): TABLE
+}
+
+fun interface BDomainFsmFactory<DOMAIN : StateContext<STATE>, STATE, FSM : BDomainFsm<DOMAIN, STATE>> {
+    fun create(
+        transitionTable: BTransitionTable<STATE>,
+        autoTransitionEnabled: Boolean,
+        autoTransitionScheduler: AutoTransitionScheduler<STATE>,
+    ): FSM
+}
+
+open class BTransitionTable<STATE>(
+    transitions: Map<STATE, LinkedHashSet<BTransition<STATE>>>,
     override var autoTransitionEnabled: Boolean,
-    private val autoTransitionScheduler: AutoTransitionScheduler<STATE>,
+    protected val autoTransitionScheduler: AutoTransitionScheduler<STATE>,
 ) : AbstractTransitionTable<STATE, BTransition<STATE>>(transitions, autoTransitionEnabled) {
 
     class Builder<STATE> {
@@ -84,12 +100,26 @@ internal constructor(
 
         fun build(): BTransitionTable<STATE> {
             val snapshot = snapshotTransitions()
+            warnOnAmbiguousTransitions(snapshot)
+            return BTransitionTable(snapshot, autoTransitionEnabled, autoTransitionScheduler)
+        }
+
+        fun <TABLE : BTransitionTable<STATE>> build(
+            factory: BTransitionTableFactory<STATE, TABLE>,
+        ): TABLE {
+            val snapshot = snapshotTransitions()
+            warnOnAmbiguousTransitions(snapshot)
+            return factory.create(snapshot, autoTransitionEnabled, autoTransitionScheduler)
+        }
+
+        private fun warnOnAmbiguousTransitions(
+            snapshot: Map<STATE, LinkedHashSet<BTransition<STATE>>>,
+        ) {
             TransitionTableDiagnostics.warnOnCatchAllBeforeLaterTransitions(
                 snapshot,
                 groupKey = { Unit },
                 groupLabel = { "" },
             )
-            return BTransitionTable(snapshot, autoTransitionEnabled, autoTransitionScheduler)
         }
 
         private fun snapshotTransitions(): Map<STATE, LinkedHashSet<BTransition<STATE>>> {
@@ -104,6 +134,12 @@ internal constructor(
 
     override fun <DOMAIN : StateContext<STATE>> createDomainFsm(): BDomainFsm<DOMAIN, STATE> {
         return BDomainFsm(this, autoTransitionEnabled, autoTransitionScheduler)
+    }
+
+    fun <DOMAIN : StateContext<STATE>, FSM : BDomainFsm<DOMAIN, STATE>> createDomainFsm(
+        factory: BDomainFsmFactory<DOMAIN, STATE, FSM>,
+    ): FSM {
+        return factory.create(this, autoTransitionEnabled, autoTransitionScheduler)
     }
 
     override fun getAutoTransition(context: StateContext<STATE>): BTransition<STATE>? {

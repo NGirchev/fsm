@@ -1,0 +1,147 @@
+package io.github.ngirchev.fsm.impl.extended;
+
+import io.github.ngirchev.fsm.AutoTransitionScheduler;
+import io.github.ngirchev.fsm.StateContext;
+import io.github.ngirchev.fsm.Transition;
+import org.junit.jupiter.api.Test;
+
+import java.util.LinkedHashSet;
+import java.util.Map;
+import java.util.Objects;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+class JavaDomainFsmExtensibilityTest {
+
+    @Test
+    void javaDomainFsmCanHideGenericTypesAndOverrideEventMatching() {
+        OrderFsm fsm = OrderFsm.create();
+        Order order = new Order(OrderState.NEW);
+
+        fsm.submit(order, "tenant-a", "runtime-request");
+
+        assertEquals(OrderState.SUBMITTED, order.getState());
+    }
+
+    private static final class OrderFsm extends ExDomainFsm<Order, OrderState, OrderEvent> {
+
+        private OrderFsm(
+            ExTransitionTable<OrderState, OrderEvent> transitionTable,
+            boolean autoTransitionEnabled,
+            AutoTransitionScheduler<OrderState> autoTransitionScheduler
+        ) {
+            super(transitionTable, autoTransitionEnabled, autoTransitionScheduler);
+        }
+
+        static OrderFsm create() {
+            OrderTransitionTable table = new ExTransitionTable.Builder<OrderState, OrderEvent>()
+                .add(new ExTransition<>(
+                    OrderState.NEW,
+                    OrderState.SUBMITTED,
+                    new OrderEvent(OrderEventType.SUBMIT, "tenant-a", "definition-request")
+                ))
+                .add(new ExTransition<>(
+                    OrderState.NEW,
+                    OrderState.REJECTED,
+                    new OrderEvent(OrderEventType.SUBMIT, "tenant-b", "definition-request")
+                ))
+                .build(OrderTransitionTable::new);
+
+            return table.<Order, OrderFsm>createDomainFsm(OrderFsm::new);
+        }
+
+        void submit(Order order, String tenantId, String requestId) {
+            handle(order, new OrderEvent(OrderEventType.SUBMIT, tenantId, requestId));
+        }
+    }
+
+    private static final class OrderTransitionTable extends ExTransitionTable<OrderState, OrderEvent> {
+
+        private OrderTransitionTable(
+            Map<OrderState, LinkedHashSet<ExTransition<OrderState, OrderEvent>>> transitions,
+            boolean autoTransitionEnabled,
+            AutoTransitionScheduler<OrderState> autoTransitionScheduler
+        ) {
+            super(transitions, autoTransitionEnabled, autoTransitionScheduler);
+        }
+
+        @Override
+        protected boolean matchesEvent(OrderEvent transitionEvent, OrderEvent runtimeEvent) {
+            return transitionEvent != null
+                && transitionEvent.type == runtimeEvent.type
+                && Objects.equals(transitionEvent.tenantId, runtimeEvent.tenantId);
+        }
+    }
+
+    private static final class Order implements StateContext<OrderState> {
+
+        private OrderState state;
+        private Transition<OrderState> currentTransition;
+
+        private Order(OrderState state) {
+            this.state = state;
+        }
+
+        @Override
+        public OrderState getState() {
+            return state;
+        }
+
+        @Override
+        public void setState(OrderState state) {
+            this.state = state;
+        }
+
+        @Override
+        public Transition<OrderState> getCurrentTransition() {
+            return currentTransition;
+        }
+
+        @Override
+        public void setCurrentTransition(Transition<OrderState> currentTransition) {
+            this.currentTransition = currentTransition;
+        }
+    }
+
+    private enum OrderState {
+        NEW,
+        SUBMITTED,
+        REJECTED
+    }
+
+    private enum OrderEventType {
+        SUBMIT
+    }
+
+    private static final class OrderEvent {
+
+        private final OrderEventType type;
+        private final String tenantId;
+        private final String requestId;
+
+        private OrderEvent(OrderEventType type, String tenantId, String requestId) {
+            this.type = type;
+            this.tenantId = tenantId;
+            this.requestId = requestId;
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            throw new AssertionError("OrderEvent.equals must not be used for transition matching");
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(type, tenantId, requestId);
+        }
+
+        @Override
+        public String toString() {
+            return "OrderEvent{" +
+                "type=" + type +
+                ", tenantId='" + tenantId + '\'' +
+                ", requestId='" + requestId + '\'' +
+                '}';
+        }
+    }
+}
