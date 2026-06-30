@@ -86,5 +86,5 @@ jobs:
           gh release create "$TAG" \
             --title "$TAG" \
             --notes-file release-notes.md \
-            build/libs/*.jar \
-            build/libs/*.jar.asc
+            fsm-core/build/libs/*.jar \
+            fsm-core/build/libs/*.jar.asc

@@ -48,22 +48,22 @@ jobs:
       with:
         name: coverage-reports
         path: |
-          build/reports/jacoco/test/html/**
-          build/reports/jacoco/test/jacocoTestReport.xml
+          fsm-core/build/reports/jacoco/test/html/**
+          fsm-core/build/reports/jacoco/test/jacocoTestReport.xml
 
     - name: Upload detekt reports
       uses: actions/upload-artifact@v4
       if: always()
       with:
         name: detekt-reports
-        path: build/reports/detekt/**
+        path: fsm-core/build/reports/detekt/**
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       if: success()
       with:
         name: build-artifacts
-        path: build/libs/*.jar
+        path: fsm-core/build/libs/*.jar
 
   dependency-submission:
     runs-on: ubuntu-latest
@@ -82,4 +82,3 @@ jobs:
 
     - name: Generate and submit dependency graph
       uses: gradle/actions/dependency-submission@v4
-

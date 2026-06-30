@@ -1,0 +1,165 @@
+package io.github.ngirchev.fsm
+
+import java.util.concurrent.TimeUnit
+
+interface Transition<STATE> {
+    val from: STATE
+    val to: To<STATE>
+}
+
+interface TypedEvent<out TYPE : Any> {
+    val eventType: TYPE
+}
+
+internal fun eventTypeOf(event: Any?): Any? {
+    return if (event is TypedEvent<*>) event.eventType else event
+}
+
+fun interface Action<T> {
+    operator fun invoke(context: T)
+}
+
+/**
+ * Interface for actions that can be identified by ID for serialization
+ */
+interface IdentifiableAction<T> : Action<T> {
+    val id: String?
+}
+
+fun interface Guard<T> {
+    operator fun invoke(context: T): Boolean
+}
+
+/**
+ * Interface for guards that can be identified by ID for serialization
+ */
+interface IdentifiableGuard<T> : Guard<T> {
+    val id: String?
+}
+
+/**
+ * Named action wrapper that provides meaningful toString() representation.
+ * Use this when you need a named action for better debugging/logging.
+ * Example:
+ * ```
+ * val action = NamedAction("SendEmail") { ctx -> sendEmail(ctx) }
+ * println(action) // prints "SendEmail"
+ * ```
+ */
+open class NamedAction<T>(
+    private val name: String,
+    private val action: (T) -> Unit
+) : Action<T>, IdentifiableAction<T> {
+    override fun invoke(context: T) = action(context)
+    override fun toString(): String = name
+    override val id: String? = name
+}
+
+/**
+ * Action wrapper with ID for serialization
+ */
+class IdAction<T>(
+    override val id: String,
+    private val action: (T) -> Unit
+) : Action<T>, IdentifiableAction<T> {
+    override fun invoke(context: T) = action(context)
+}
+
+/**
+ * Named guard/condition wrapper that provides meaningful toString() representation.
+ * Use this when you need a named condition for better debugging/logging.
+ * Example:
+ * ```
+ * val guard = NamedGuard("IsAdmin") { ctx -> ctx.user.isAdmin }
+ * println(guard) // prints "IsAdmin"
+ * ```
+ */
+open class NamedGuard<T>(
+    private val name: String,
+    private val guard: (T) -> Boolean
+) : Guard<T>, IdentifiableGuard<T> {
+    override fun invoke(context: T): Boolean = guard(context)
+    override fun toString(): String = name
+    override val id: String? = name
+}
+
+/**
+ * Guard wrapper with ID for serialization
+ */
+class IdGuard<T>(
+    override val id: String,
+    private val guard: (T) -> Boolean
+) : Guard<T>, IdentifiableGuard<T> {
+    override fun invoke(context: T): Boolean = guard(context)
+}
+
+/**
+ * Target state of a transition together with its declarative content
+ * (conditions, actions, postActions, timeout) and an optional per-transition
+ * [autoTransitionScheduler].
+ *
+ * Equality and hashCode intentionally exclude [autoTransitionScheduler]:
+ *   - schedulers are typically lambdas, which have no meaningful identity-based equality;
+ *   - transition deduplication in builder sets is based on declarative content, so two
+ *     transitions with identical state/conditions/actions/postActions/timeout but different
+ *     schedulers are treated as duplicates (the second one is rejected with
+ *     [io.github.ngirchev.fsm.exception.DuplicateTransitionException]). Use the DSL
+ *     `scheduleWith(...)` on a single transition to attach a scheduler.
+ */
+data class To<STATE>(
+    val state: STATE,
+    val conditions: List<Guard<in StateContext<STATE>>>,
+    val actions: List<Action<in StateContext<STATE>>>,
+    val postActions: List<Action<in StateContext<STATE>>>,
+    val timeout: Timeout? = null,
+) {
+    var autoTransitionScheduler: AutoTransitionScheduler<STATE>? = null
+        private set
+
+    constructor(
+        state: STATE,
+        conditions: List<Guard<in StateContext<STATE>>>,
+        actions: List<Action<in StateContext<STATE>>>,
+        postActions: List<Action<in StateContext<STATE>>>,
+        timeout: Timeout? = null,
+        autoTransitionScheduler: AutoTransitionScheduler<STATE>? = null,
+    ) : this(state, conditions, actions, postActions, timeout) {
+        this.autoTransitionScheduler = autoTransitionScheduler
+    }
+}
+
+// Top-level factory function for backwards compatibility - accepts single nullable values
+fun <STATE> To(
+    state: STATE,
+    condition: Guard<in StateContext<STATE>>? = null,
+    action: Action<in StateContext<STATE>>? = null,
+    postAction: Action<in StateContext<STATE>>? = null,
+    timeout: Timeout? = null
+): To<STATE> = To(
+    state = state,
+    conditions = listOfNotNull(condition),
+    actions = listOfNotNull(action),
+    postActions = listOfNotNull(postAction),
+    timeout = timeout,
+)
+
+fun <STATE> To(
+    state: STATE,
+    condition: Guard<in StateContext<STATE>>? = null,
+    action: Action<in StateContext<STATE>>? = null,
+    postAction: Action<in StateContext<STATE>>? = null,
+    timeout: Timeout? = null,
+    autoTransitionScheduler: AutoTransitionScheduler<STATE>?
+): To<STATE> = To(
+    state = state,
+    conditions = listOfNotNull(condition),
+    actions = listOfNotNull(action),
+    postActions = listOfNotNull(postAction),
+    timeout = timeout,
+    autoTransitionScheduler = autoTransitionScheduler,
+)
+
+data class Timeout(
+    val value: Long,
+    val unit: TimeUnit = TimeUnit.SECONDS
+)

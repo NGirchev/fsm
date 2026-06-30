@@ -27,6 +27,12 @@ The library contains several implementations for common use cases:
 
 You can also use the `io.github.ngirchev.fsm.impl` package with basic implementations.
 
+## Repository Modules
+
+- `fsm-core` - the Kotlin/JVM library published as `io.github.ngirchev:fsm`.
+- `fsm-spring-boot-transactional-example` - an executable Spring Boot example that depends on `fsm-core`.
+- `fsm-visual-editor` - a Vite/React editor for designing FSM flows and generating Java/Kotlin factories.
+
 ## Installation
 
 Replace `VERSION` with the latest version from Maven Central.
@@ -532,7 +538,7 @@ This is the **standard Gradle command** for running tests. The command will:
 ./gradlew test --info
 
 # Run a specific test class
-./gradlew test --tests "io.github.ngirchev.fsm.impl.basic.BFsmTest"
+./gradlew :fsm-core:test --tests "io.github.ngirchev.fsm.impl.basic.BFsmTest"
 
 # Run tests and generate coverage report
 ./gradlew test jacocoTestReport
@@ -554,7 +560,7 @@ JaCoCo is:
 * Minimum line coverage: 80%
 * Minimum branch coverage: 70%
 
-Coverage reports are generated automatically during the build and can be viewed at `build/reports/jacoco/test/html/index.html` after running `./gradlew test jacocoTestReport`.
+Coverage reports are generated automatically during the build and can be viewed at `fsm-core/build/reports/jacoco/test/html/index.html` after running `./gradlew test jacocoTestReport`.
 
 To check coverage thresholds:
 
