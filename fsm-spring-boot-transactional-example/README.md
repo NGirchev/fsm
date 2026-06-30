@@ -16,7 +16,7 @@ NOTIFY
 END
 ```
 
-Each transition uses `PersistWorkflowStatusAction` as a `postAction`, so the new state is saved after the FSM changes the state. Auto transitions use `scheduleWith(AfterCommitAutoTransitionScheduler)`, so every auto transition runs after the previous transaction commits and opens its own `REQUIRES_NEW` transaction. That is what lets Envers keep every intermediate status in the audit history.
+Each transition uses `PersistWorkflowStatusAction` as a `postAction`, so the new state is saved after the FSM changes the state. Auto transitions use `auto().deferWith(AfterCommitAutoTransitionScheduler)`, so every deferred auto transition runs after the previous transaction commits and opens its own `REQUIRES_NEW` transaction. That is what lets Envers keep every intermediate status in the audit history.
 
 Run the example tests:
 

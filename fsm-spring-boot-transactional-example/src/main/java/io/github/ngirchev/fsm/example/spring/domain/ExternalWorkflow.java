@@ -10,10 +10,16 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Transient;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.hibernate.envers.Audited;
 
 @Entity
 @Audited
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ExternalWorkflow implements StateContext<ExternalWorkflowStatus> {
 
     @Id
@@ -22,61 +28,25 @@ public class ExternalWorkflow implements StateContext<ExternalWorkflowStatus> {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
+    @Setter
     private ExternalWorkflowStatus state;
 
     @Enumerated(EnumType.STRING)
+    @Setter
     private ExternalCallResult externalResult;
 
     @Column(nullable = false)
     private boolean notificationSent;
 
     @Transient
+    @Setter
     private Transition<ExternalWorkflowStatus> currentTransition;
-
-    protected ExternalWorkflow() {
-    }
 
     public ExternalWorkflow(ExternalWorkflowStatus state) {
         this.state = state;
     }
 
-    public Long getId() {
-        return id;
-    }
-
-    @Override
-    public ExternalWorkflowStatus getState() {
-        return state;
-    }
-
-    @Override
-    public void setState(ExternalWorkflowStatus state) {
-        this.state = state;
-    }
-
-    public ExternalCallResult getExternalResult() {
-        return externalResult;
-    }
-
-    public void setExternalResult(ExternalCallResult externalResult) {
-        this.externalResult = externalResult;
-    }
-
-    public boolean isNotificationSent() {
-        return notificationSent;
-    }
-
     public void markNotificationSent() {
         this.notificationSent = true;
-    }
-
-    @Override
-    public Transition<ExternalWorkflowStatus> getCurrentTransition() {
-        return currentTransition;
-    }
-
-    @Override
-    public void setCurrentTransition(Transition<ExternalWorkflowStatus> currentTransition) {
-        this.currentTransition = currentTransition;
     }
 }

@@ -56,7 +56,7 @@ open class BTransitionTable<STATE>(
         /**
          * Simplified add for state-only transitions (no conditions, actions, or scheduler).
          * To attach a per-transition [AutoTransitionScheduler], use the [To]-object overload
-         * [add] or the fluent DSL ([FromBuilder] / [ToBuilder] with `scheduleWith`).
+         * [add] or the fluent DSL ([FromBuilder] / [ToBuilder] with `auto().deferWith(...)`).
          */
         fun add(from: STATE, vararg to: STATE): Builder<STATE> {
             val list: List<BTransition<STATE>> = to.map { BTransition(from, To(it)) }
@@ -91,6 +91,7 @@ open class BTransitionTable<STATE>(
                         postActions = t.postActions.toList(),
                         timeout = t.timeout,
                         autoTransitionScheduler = t.autoTransitionScheduler,
+                        autoTransitionEnabled = t.autoTransitionEnabled,
                     )
                 )
                 if (!transitions[from]!!.add(transition)) {
@@ -148,10 +149,14 @@ open class BTransitionTable<STATE>(
         return factory.create(this, autoTransitionEnabled, autoTransitionScheduler)
     }
 
-    override fun getAutoTransition(context: StateContext<STATE>): BTransition<STATE>? {
+    override fun getAutoTransition(
+        context: StateContext<STATE>,
+        autoTransitionEnabled: Boolean,
+    ): BTransition<STATE>? {
         return transitions[context.state]
             ?.firstOrNull {
-                it.to.conditions.all { condition -> condition.invoke(context) }
+                (autoTransitionEnabled || it.to.autoTransitionEnabled) &&
+                    it.to.conditions.all { condition -> condition.invoke(context) }
             }
     }
 }
@@ -178,6 +183,7 @@ class ToBuilder<STATE>(
     private val actions: MutableList<Action<in StateContext<STATE>>> = mutableListOf()
     private val postActions: MutableList<Action<in StateContext<STATE>>> = mutableListOf()
     private var autoTransitionScheduler: AutoTransitionScheduler<STATE>? = null
+    private var autoTransitionEnabled: Boolean = false
 
     fun condition(condition: Guard<in StateContext<STATE>>): ToBuilder<STATE> {
         this.conditions.add(condition)
@@ -194,7 +200,12 @@ class ToBuilder<STATE>(
         return this
     }
 
-    fun scheduleWith(scheduler: AutoTransitionScheduler<STATE>): ToBuilder<STATE> {
+    fun auto(): AutoToBuilder<STATE> {
+        this.autoTransitionEnabled = true
+        return AutoToBuilder(this)
+    }
+
+    internal fun deferWithForAuto(scheduler: AutoTransitionScheduler<STATE>): ToBuilder<STATE> {
         this.autoTransitionScheduler = scheduler
         return this
     }
@@ -209,9 +220,38 @@ class ToBuilder<STATE>(
                     actions.toList(),
                     postActions.toList(),
                     autoTransitionScheduler = autoTransitionScheduler,
+                    autoTransitionEnabled = autoTransitionEnabled,
                 ),
             )
         )
+    }
+}
+
+class AutoToBuilder<STATE> internal constructor(
+    private val delegate: ToBuilder<STATE>
+) {
+    fun condition(condition: Guard<in StateContext<STATE>>): AutoToBuilder<STATE> {
+        delegate.condition(condition)
+        return this
+    }
+
+    fun action(action: Action<in StateContext<STATE>>): AutoToBuilder<STATE> {
+        delegate.action(action)
+        return this
+    }
+
+    fun postAction(postAction: Action<in StateContext<STATE>>): AutoToBuilder<STATE> {
+        delegate.postAction(postAction)
+        return this
+    }
+
+    fun deferWith(scheduler: AutoTransitionScheduler<STATE>): AutoToBuilder<STATE> {
+        delegate.deferWithForAuto(scheduler)
+        return this
+    }
+
+    fun end(): BTransitionTable.Builder<STATE> {
+        return delegate.end()
     }
 }
 
@@ -247,6 +287,7 @@ class ToMultipleTransitionBuilder<STATE>(
     private val actions: MutableList<Action<in StateContext<STATE>>> = mutableListOf()
     private val postActions: MutableList<Action<in StateContext<STATE>>> = mutableListOf()
     private var autoTransitionScheduler: AutoTransitionScheduler<STATE>? = null
+    private var autoTransitionEnabled: Boolean = false
 
     fun condition(condition: Guard<in StateContext<STATE>>): ToMultipleTransitionBuilder<STATE> {
         this.conditions.add(condition)
@@ -263,7 +304,12 @@ class ToMultipleTransitionBuilder<STATE>(
         return this
     }
 
-    fun scheduleWith(scheduler: AutoTransitionScheduler<STATE>): ToMultipleTransitionBuilder<STATE> {
+    fun auto(): AutoToMultipleTransitionBuilder<STATE> {
+        this.autoTransitionEnabled = true
+        return AutoToMultipleTransitionBuilder(this)
+    }
+
+    internal fun deferWithForAuto(scheduler: AutoTransitionScheduler<STATE>): ToMultipleTransitionBuilder<STATE> {
         this.autoTransitionScheduler = scheduler
         return this
     }
@@ -278,8 +324,37 @@ class ToMultipleTransitionBuilder<STATE>(
                     actions.toList(),
                     postActions.toList(),
                     autoTransitionScheduler = autoTransitionScheduler,
+                    autoTransitionEnabled = autoTransitionEnabled,
                 )
             )
         )
+    }
+}
+
+class AutoToMultipleTransitionBuilder<STATE> internal constructor(
+    private val delegate: ToMultipleTransitionBuilder<STATE>
+) {
+    fun condition(condition: Guard<in StateContext<STATE>>): AutoToMultipleTransitionBuilder<STATE> {
+        delegate.condition(condition)
+        return this
+    }
+
+    fun action(action: Action<in StateContext<STATE>>): AutoToMultipleTransitionBuilder<STATE> {
+        delegate.action(action)
+        return this
+    }
+
+    fun postAction(postAction: Action<in StateContext<STATE>>): AutoToMultipleTransitionBuilder<STATE> {
+        delegate.postAction(postAction)
+        return this
+    }
+
+    fun deferWith(scheduler: AutoTransitionScheduler<STATE>): AutoToMultipleTransitionBuilder<STATE> {
+        delegate.deferWithForAuto(scheduler)
+        return this
+    }
+
+    fun end(): ToMultipleBuilder<STATE> {
+        return delegate.end()
     }
 }

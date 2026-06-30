@@ -138,6 +138,23 @@ class BFsmTest {
     }
 
     @Test
+    fun toStateWithLocalAutoTransitionShouldPerformAutoTransitionWhenGlobalAutoIsDisabled() {
+        val table = BTransitionTable.Builder<String>()
+            .autoTransitionEnabled(false)
+            .add("from", "intermediate")
+            .from("intermediate")
+            .to("to")
+            .auto()
+            .end()
+            .build()
+
+        val fsm = BFsm("from", table, autoTransitionEnabled = false)
+        fsm.toState("intermediate")
+
+        assertEquals("to", fsm.getState())
+    }
+
+    @Test
     fun toStateWithTimeoutShouldWait() {
         val start = System.currentTimeMillis()
         val table = BTransitionTable.Builder<String>()
@@ -567,7 +584,8 @@ class BFsmTest {
             .end()
             .from("intermediate")
             .to("to")
-            .scheduleWith(scheduler)
+            .auto()
+            .deferWith(scheduler)
             .end()
             .build()
 
@@ -600,7 +618,8 @@ class BFsmTest {
             .end()
             .from("middle")
             .to("to")
-            .scheduleWith(scheduler)
+            .auto()
+            .deferWith(scheduler)
             .end()
             .build()
 

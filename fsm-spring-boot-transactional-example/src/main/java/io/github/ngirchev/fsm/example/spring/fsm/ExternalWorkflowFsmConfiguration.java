@@ -29,8 +29,6 @@ public class ExternalWorkflowFsmConfiguration {
             AfterCommitAutoTransitionScheduler afterCommitScheduler
     ) {
         return FsmFactory.INSTANCE.<ExternalWorkflowStatus, ExternalWorkflowEvent>statesWithEvents()
-                .autoTransitionEnabled(true)
-
                 .from(NEW).onEvent(START).to(AWAITING_EXTERNAL_SERVICE_RESULT)
                 .action(context -> {
                     ExternalWorkflow workflow = (ExternalWorkflow) context;
@@ -43,30 +41,35 @@ public class ExternalWorkflowFsmConfiguration {
                 .to(EXTERNAL_SERVICE_DONE)
                 .onCondition(context -> ((ExternalWorkflow) context).getExternalResult() == DONE)
                 .postAction(persistWorkflowStatus)
-                .scheduleWith(afterCommitScheduler)
+                .auto()
+                .deferWith(afterCommitScheduler)
                 .end()
                 .to(EXTERNAL_SERVICE_FAILED)
                 .onCondition(context -> ((ExternalWorkflow) context).getExternalResult() == FAILED)
                 .postAction(persistWorkflowStatus)
-                .scheduleWith(afterCommitScheduler)
+                .auto()
+                .deferWith(afterCommitScheduler)
                 .end()
                 .endMultiple()
 
                 .from(EXTERNAL_SERVICE_DONE).to(NOTIFY)
                 .action(context -> ((ExternalWorkflow) context).markNotificationSent())
                 .postAction(persistWorkflowStatus)
-                .scheduleWith(afterCommitScheduler)
+                .auto()
+                .deferWith(afterCommitScheduler)
                 .end()
 
                 .from(EXTERNAL_SERVICE_FAILED).to(NOTIFY)
                 .action(context -> ((ExternalWorkflow) context).markNotificationSent())
                 .postAction(persistWorkflowStatus)
-                .scheduleWith(afterCommitScheduler)
+                .auto()
+                .deferWith(afterCommitScheduler)
                 .end()
 
                 .from(NOTIFY).to(END)
                 .postAction(persistWorkflowStatus)
-                .scheduleWith(afterCommitScheduler)
+                .auto()
+                .deferWith(afterCommitScheduler)
                 .end()
 
                 .build()

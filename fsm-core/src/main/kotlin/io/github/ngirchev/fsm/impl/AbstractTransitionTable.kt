@@ -6,7 +6,7 @@ import io.github.ngirchev.fsm.TransitionTable
 abstract class AbstractTransitionTable<STATE, TRANSITION : AbstractTransition<STATE>>
 internal constructor(
     override val transitions: Map<STATE, LinkedHashSet<out TRANSITION>>,
-    open var autoTransitionEnabled: Boolean
+    override var autoTransitionEnabled: Boolean
 ) : TransitionTable<STATE, TRANSITION> {
 
     override fun getTransitionByState(context: StateContext<STATE>, newState: STATE): TRANSITION? {

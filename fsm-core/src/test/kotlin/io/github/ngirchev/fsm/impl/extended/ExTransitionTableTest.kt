@@ -6,7 +6,6 @@ import ch.qos.logback.core.read.ListAppender
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
-import org.mockito.kotlin.mock
 import io.github.ngirchev.fsm.AutoTransitionScheduler
 import io.github.ngirchev.fsm.exception.DuplicateTransitionException
 import io.github.ngirchev.fsm.exception.FsmException
@@ -41,7 +40,7 @@ class ExTransitionTableTest {
     @Test
     @DisplayName("Should add the transition when the transition is not added")
     fun addWhenTransitionIsNotAddedThenAddTheTransition() {
-        val transition: ExTransition<String, String> = mock()
+        val transition = ExTransition("from", "to", "event")
         val builder = ExTransitionTable.Builder<String, String>()
         builder.add(transition)
         assertEquals(expected = 1, actual = builder.transitions.size, message = "")
@@ -85,33 +84,18 @@ class ExTransitionTableTest {
     }
 
     @Test
-    @DisplayName("FromBuilder should throw exception when onEvent is called twice")
-    fun fromBuilderOnEventWhenCalledTwiceThenThrowException() {
-        val builder = ExTransitionTable.Builder<String, String>()
-        val fromBuilder = builder.from("from")
+    @DisplayName("FromBuilder should create event transition through event builder")
+    fun fromBuilderOnEventShouldCreateEventTransition() {
+        val table = ExTransitionTable.Builder<String, String>()
+            .from("from")
+            .onEvent("event")
+            .to("to")
+            .end()
+            .build()
 
-        fromBuilder.onEvent("event1")
+        val transition = table.transitions["from"]?.single() ?: error("Expected transition")
 
-        val exception = assertThrows(FsmException::class.java) {
-            fromBuilder.onEvent("event2")
-        }
-
-        assertEquals("Already has event", exception.message)
-    }
-
-    @Test
-    @DisplayName("ToBuilder should throw exception when onEvent is called twice")
-    fun toBuilderOnEventWhenCalledTwiceThenThrowException() {
-        val builder = ExTransitionTable.Builder<String, String>()
-        val toBuilder = builder.from("from").to("to")
-
-        toBuilder.onEvent("event1")
-
-        val exception = assertThrows(FsmException::class.java) {
-            toBuilder.onEvent("event2")
-        }
-
-        assertEquals("Already has event", exception.message)
+        assertEquals("event", transition.event)
     }
 
     @Test
@@ -134,8 +118,8 @@ class ExTransitionTableTest {
     fun toBuilderShouldAllowChainingMethods() {
         val builder = ExTransitionTable.Builder<String, String>()
         val result = builder.from("from")
-            .to("to")
             .onEvent("event")
+            .to("to")
             .onCondition { true }
             .action { }
             .postAction { }
@@ -249,6 +233,7 @@ class ExTransitionTableTest {
     @DisplayName("getAutoTransition should return transition when event is null")
     fun getAutoTransitionWhenEventIsNullThenReturnTransition() {
         val table = ExTransitionTable.Builder<String, String>()
+            .autoTransitionEnabled(true)
             .add("from", null, "to")
             .build()
 
@@ -342,15 +327,16 @@ class ExTransitionTableTest {
 
         val table = ExTransitionTable.Builder<DocumentState, String>()
             .from(DocumentState.NEW)
-            .onEvent("event")
             .to(DocumentState.READY_FOR_SIGN)
-            .scheduleWith(scheduler)
+            .auto()
+            .deferWith(scheduler)
             .end()
             .build()
 
         val transition = table.transitions[DocumentState.NEW]?.single() ?: error("Expected transition")
 
         assertEquals(scheduler, transition.to.autoTransitionScheduler)
+        assertTrue(transition.to.autoTransitionEnabled)
     }
 
     @Test
@@ -361,7 +347,7 @@ class ExTransitionTableTest {
         val table = ExTransitionTable.Builder<DocumentState, String>()
             .add(
                 DocumentState.NEW,
-                "event",
+                null,
                 To(DocumentState.READY_FOR_SIGN, autoTransitionScheduler = scheduler),
             )
             .build()
@@ -369,6 +355,7 @@ class ExTransitionTableTest {
         val transition = table.transitions[DocumentState.NEW]?.single() ?: error("Expected transition")
 
         assertEquals(scheduler, transition.to.autoTransitionScheduler)
+        assertTrue(transition.to.autoTransitionEnabled)
     }
 
     @Test
@@ -379,7 +366,6 @@ class ExTransitionTableTest {
         val table = ExTransitionTable.Builder<DocumentState, String>()
             .add(
                 from = DocumentState.NEW,
-                onEvent = "event",
                 to = DocumentState.READY_FOR_SIGN,
                 autoTransitionScheduler = scheduler,
             )
@@ -388,6 +374,25 @@ class ExTransitionTableTest {
         val transition = table.transitions[DocumentState.NEW]?.single() ?: error("Expected transition")
 
         assertEquals(scheduler, transition.to.autoTransitionScheduler)
+        assertTrue(transition.to.autoTransitionEnabled)
+    }
+
+    @Test
+    @DisplayName("event transition should reject auto transition scheduler")
+    fun eventTransitionShouldRejectAutoTransitionScheduler() {
+        val scheduler = AutoTransitionScheduler<DocumentState> { _, _, runTransition -> runTransition() }
+
+        val exception = assertThrows(FsmException::class.java) {
+            ExTransitionTable.Builder<DocumentState, String>()
+                .add(
+                    from = DocumentState.NEW,
+                    onEvent = "event",
+                    to = DocumentState.READY_FOR_SIGN,
+                    autoTransitionScheduler = scheduler,
+                )
+        }
+
+        assertEquals("Auto transition settings can only be configured for eventless transitions", exception.message)
     }
 
     @Test
@@ -420,6 +425,7 @@ class ExTransitionTableTest {
     @DisplayName("getAutoTransition should return transition when condition is true")
     fun getAutoTransitionWhenConditionIsTrueThenReturnTransition() {
         val table = ExTransitionTable.Builder<String, String>()
+            .autoTransitionEnabled(true)
             .add("from", null, "to", condition = { it.state == "from" })
             .build()
 
@@ -433,6 +439,7 @@ class ExTransitionTableTest {
     @DisplayName("getAutoTransition should return null when condition is false")
     fun getAutoTransitionWhenConditionIsFalseThenReturnNull() {
         val table = ExTransitionTable.Builder<String, String>()
+            .autoTransitionEnabled(true)
             .add("from", null, "to", condition = { it.state == "other" })
             .build()
 
@@ -494,6 +501,7 @@ class ExTransitionTableTest {
     @DisplayName("getTransitionByState should return null when state does not match")
     fun getTransitionByStateWhenStateDoesNotMatchThenReturnNull() {
         val table = ExTransitionTable.Builder<String, String>()
+            .autoTransitionEnabled(true)
             .add("from", null, "to")
             .build()
 
@@ -559,10 +567,9 @@ class ExTransitionTableTest {
         val messages = collectDiagnosticMessages {
             ExTransitionTable.Builder<String, String>()
                 .from("processing")
-                .onEvent("payment-confirmed")
                 .toMultiple()
-                .to("approved").end()
-                .to("manual-review").onCondition { true }.end()
+                .onEvent("payment-confirmed").to("approved").end()
+                .onEvent("payment-confirmed").to("manual-review").onCondition { true }.end()
                 .endMultiple()
                 .build()
         }
@@ -635,11 +642,10 @@ class ExTransitionTableTest {
         val messages = collectDiagnosticMessages {
             ExTransitionTable.Builder<String, String>()
                 .from("processing")
-                .onEvent("payment-confirmed")
                 .toMultiple()
-                .to("manual-review").onCondition { true }.end()
-                .to("approved").onCondition { true }.end()
-                .to("rejected").end()
+                .onEvent("payment-confirmed").to("manual-review").onCondition { true }.end()
+                .onEvent("payment-confirmed").to("approved").onCondition { true }.end()
+                .onEvent("payment-confirmed").to("rejected").end()
                 .endMultiple()
                 .build()
         }
@@ -692,6 +698,7 @@ class ExTransitionTableTest {
     @DisplayName("getAutoTransition should return first matching transition when multiple transitions exist")
     fun getAutoTransitionWhenMultipleTransitionsExistShouldReturnFirstMatching() {
         val table = ExTransitionTable.Builder<String, String>()
+            .autoTransitionEnabled(true)
             .add("from", null, "to1", condition = { false })
             .add("from", null, "to2", condition = { true })
             .add("from", null, "to3", condition = { true })

@@ -48,10 +48,15 @@ open class ExTransitionTable<STATE, EVENT>(
         return eventTypeOf(event)
     }
 
-    override fun getAutoTransition(context: StateContext<STATE>): ExTransition<STATE, EVENT>? {
+    override fun getAutoTransition(
+        context: StateContext<STATE>,
+        autoTransitionEnabled: Boolean,
+    ): ExTransition<STATE, EVENT>? {
         return transitions[context.state]
             ?.firstOrNull {
-                it.event == null && it.to.conditions.all { condition -> condition.invoke(context) }
+                it.event == null &&
+                    (autoTransitionEnabled || it.to.autoTransitionEnabled) &&
+                    it.to.conditions.all { condition -> condition.invoke(context) }
             }
     }
 
@@ -80,12 +85,14 @@ open class ExTransitionTable<STATE, EVENT>(
             postAction: Action<in StateContext<STATE>>? = null,
             timeout: Timeout? = null,
             autoTransitionScheduler: AutoTransitionScheduler<STATE>? = null,
+            autoTransitionEnabled: Boolean = false,
         ): Builder<STATE, EVENT> {
+            requireAutoTransitionSettingsCanBeUsed(onEvent, autoTransitionScheduler, autoTransitionEnabled)
             transitions.getOrPut(from) { LinkedHashSet() }
                 .also { transitionSet ->
                     val transition = ExTransition(
                         from,
-                        To(to, condition, action, postAction, timeout, autoTransitionScheduler),
+                        To(to, condition, action, postAction, timeout, autoTransitionScheduler, autoTransitionEnabled),
                         onEvent,
                     )
                     if (!transitionSet.add(transition)) {
@@ -97,6 +104,7 @@ open class ExTransitionTable<STATE, EVENT>(
 
         fun add(vararg transition: ExTransition<STATE, EVENT>): Builder<STATE, EVENT> {
             for (t in transition) {
+                requireAutoTransitionSettingsCanBeUsed(t.event, t.to.autoTransitionScheduler, t.to.autoTransitionEnabled)
                 transitions.putIfAbsent(t.from, LinkedHashSet())
                 if (!transitions[t.from]!!.add(t)) {
                     throw DuplicateTransitionException(t)
@@ -107,6 +115,7 @@ open class ExTransitionTable<STATE, EVENT>(
 
         fun add(from: STATE, onEvent: EVENT? = null, vararg to: To<STATE>): Builder<STATE, EVENT> {
             for (t in to) {
+                requireAutoTransitionSettingsCanBeUsed(onEvent, t.autoTransitionScheduler, t.autoTransitionEnabled)
                 transitions.getOrPut(from) { LinkedHashSet() }
                     .also { transitionSet ->
                         val transition = ExTransition(
@@ -118,6 +127,7 @@ open class ExTransitionTable<STATE, EVENT>(
                                 postActions = t.postActions.toList(),
                                 timeout = t.timeout,
                                 autoTransitionScheduler = t.autoTransitionScheduler,
+                                autoTransitionEnabled = t.autoTransitionEnabled,
                             ),
                             onEvent,
                         )
@@ -131,6 +141,16 @@ open class ExTransitionTable<STATE, EVENT>(
 
         fun from(from: STATE): FromBuilder<STATE, EVENT> {
             return FromBuilder(from, this)
+        }
+
+        private fun requireAutoTransitionSettingsCanBeUsed(
+            event: EVENT?,
+            scheduler: AutoTransitionScheduler<STATE>?,
+            localAutoTransitionEnabled: Boolean,
+        ) {
+            if (event != null && (scheduler != null || localAutoTransitionEnabled)) {
+                throw FsmException("Auto transition settings can only be configured for eventless transitions")
+            }
         }
 
         fun build(): ExTransitionTable<STATE, EVENT> {
@@ -184,22 +204,26 @@ class FromBuilder<STATE, EVENT>(
     private val from: STATE,
     private val rootBuilder: ExTransitionTable.Builder<STATE, EVENT>
 ) {
-    private var event: EVENT? = null
-
-    fun onEvent(event: EVENT): FromBuilder<STATE, EVENT> {
-        if (this.event != null) {
-            throw FsmException("Already has event")
-        }
-        this.event = event
-        return this
+    fun onEvent(event: EVENT): EventFromBuilder<STATE, EVENT> {
+        return EventFromBuilder(from, rootBuilder, event)
     }
 
     fun to(to: STATE): ToBuilder<STATE, EVENT> {
-        return ToBuilder(from, to, rootBuilder, event)
+        return ToBuilder(from, to, rootBuilder)
     }
 
     fun toMultiple(): ToMultipleBuilder<STATE, EVENT> {
-        return ToMultipleBuilder(from, rootBuilder, event)
+        return ToMultipleBuilder(from, rootBuilder)
+    }
+}
+
+class EventFromBuilder<STATE, EVENT> internal constructor(
+    private val from: STATE,
+    private val rootBuilder: ExTransitionTable.Builder<STATE, EVENT>,
+    private val event: EVENT,
+) {
+    fun to(to: STATE): EventToBuilder<STATE, EVENT> {
+        return EventToBuilder(ToBuilder(from, to, rootBuilder, event))
     }
 }
 
@@ -214,14 +238,7 @@ class ToBuilder<STATE, EVENT>(
     private val postActions: MutableList<Action<in StateContext<STATE>>> = mutableListOf()
     private var timeout: Timeout? = null
     private var autoTransitionScheduler: AutoTransitionScheduler<STATE>? = null
-
-    fun onEvent(event: EVENT): ToBuilder<STATE, EVENT> {
-        if (this.event != null) {
-            throw FsmException("Already has event")
-        }
-        this.event = event
-        return this
-    }
+    private var autoTransitionEnabled: Boolean = false
 
     fun onCondition(condition: Guard<in StateContext<STATE>>): ToBuilder<STATE, EVENT> {
         this.conditions.add(condition)
@@ -238,7 +255,14 @@ class ToBuilder<STATE, EVENT>(
         return this
     }
 
-    fun scheduleWith(scheduler: AutoTransitionScheduler<STATE>): ToBuilder<STATE, EVENT> {
+    fun auto(): AutoToBuilder<STATE, EVENT> {
+        requireAutoTransition()
+        this.autoTransitionEnabled = true
+        return AutoToBuilder(this)
+    }
+
+    internal fun deferWithForAuto(scheduler: AutoTransitionScheduler<STATE>): ToBuilder<STATE, EVENT> {
+        requireAutoTransition()
         this.autoTransitionScheduler = scheduler
         return this
     }
@@ -262,10 +286,78 @@ class ToBuilder<STATE, EVENT>(
                     postActions.toList(),
                     timeout,
                     autoTransitionScheduler,
+                    autoTransitionEnabled,
                 ),
                 event,
             )
         )
+    }
+
+    private fun requireAutoTransition() {
+        if (event != null) {
+            throw FsmException("Only eventless auto transitions can be configured as auto")
+        }
+    }
+}
+
+class EventToBuilder<STATE, EVENT> internal constructor(
+    private val delegate: ToBuilder<STATE, EVENT>
+) {
+    fun onCondition(condition: Guard<in StateContext<STATE>>): EventToBuilder<STATE, EVENT> {
+        delegate.onCondition(condition)
+        return this
+    }
+
+    fun action(action: Action<in StateContext<STATE>>): EventToBuilder<STATE, EVENT> {
+        delegate.action(action)
+        return this
+    }
+
+    fun postAction(postAction: Action<in StateContext<STATE>>): EventToBuilder<STATE, EVENT> {
+        delegate.postAction(postAction)
+        return this
+    }
+
+    fun timeout(timeout: Timeout): EventToBuilder<STATE, EVENT> {
+        delegate.timeout(timeout)
+        return this
+    }
+
+    fun end(): ExTransitionTable.Builder<STATE, EVENT> {
+        return delegate.end()
+    }
+}
+
+class AutoToBuilder<STATE, EVENT> internal constructor(
+    private val delegate: ToBuilder<STATE, EVENT>
+) {
+    fun onCondition(condition: Guard<in StateContext<STATE>>): AutoToBuilder<STATE, EVENT> {
+        delegate.onCondition(condition)
+        return this
+    }
+
+    fun action(action: Action<in StateContext<STATE>>): AutoToBuilder<STATE, EVENT> {
+        delegate.action(action)
+        return this
+    }
+
+    fun postAction(postAction: Action<in StateContext<STATE>>): AutoToBuilder<STATE, EVENT> {
+        delegate.postAction(postAction)
+        return this
+    }
+
+    fun deferWith(scheduler: AutoTransitionScheduler<STATE>): AutoToBuilder<STATE, EVENT> {
+        delegate.deferWithForAuto(scheduler)
+        return this
+    }
+
+    fun timeout(timeout: Timeout): AutoToBuilder<STATE, EVENT> {
+        delegate.timeout(timeout)
+        return this
+    }
+
+    fun end(): ExTransitionTable.Builder<STATE, EVENT> {
+        return delegate.end()
     }
 }
 
@@ -283,6 +375,14 @@ class ToMultipleBuilder<STATE, EVENT>(
 
     fun to(to: STATE): ToMultipleTransitionBuilder<STATE, EVENT> {
         return ToMultipleTransitionBuilder(from, to, this, event)
+    }
+
+    internal fun to(to: STATE, event: EVENT): ToMultipleTransitionBuilder<STATE, EVENT> {
+        return ToMultipleTransitionBuilder(from, to, this, event)
+    }
+
+    fun onEvent(event: EVENT): EventToMultipleBuilder<STATE, EVENT> {
+        return EventToMultipleBuilder(this, event)
     }
 
     fun endMultiple(): ExTransitionTable.Builder<STATE, EVENT> {
@@ -304,14 +404,7 @@ class ToMultipleTransitionBuilder<STATE, EVENT>(
     private val postActions: MutableList<Action<in StateContext<STATE>>> = mutableListOf()
     private var timeout: Timeout? = null
     private var autoTransitionScheduler: AutoTransitionScheduler<STATE>? = null
-
-    fun onEvent(event: EVENT): ToMultipleTransitionBuilder<STATE, EVENT> {
-        if (this.event != null) {
-            throw FsmException("Already has event")
-        }
-        this.event = event
-        return this
-    }
+    private var autoTransitionEnabled: Boolean = false
 
     fun onCondition(condition: Guard<in StateContext<STATE>>): ToMultipleTransitionBuilder<STATE, EVENT> {
         this.conditions.add(condition)
@@ -328,7 +421,14 @@ class ToMultipleTransitionBuilder<STATE, EVENT>(
         return this
     }
 
-    fun scheduleWith(scheduler: AutoTransitionScheduler<STATE>): ToMultipleTransitionBuilder<STATE, EVENT> {
+    fun auto(): AutoToMultipleTransitionBuilder<STATE, EVENT> {
+        requireAutoTransition()
+        this.autoTransitionEnabled = true
+        return AutoToMultipleTransitionBuilder(this)
+    }
+
+    internal fun deferWithForAuto(scheduler: AutoTransitionScheduler<STATE>): ToMultipleTransitionBuilder<STATE, EVENT> {
+        requireAutoTransition()
         this.autoTransitionScheduler = scheduler
         return this
     }
@@ -352,9 +452,90 @@ class ToMultipleTransitionBuilder<STATE, EVENT>(
                     postActions.toList(),
                     timeout,
                     autoTransitionScheduler,
+                    autoTransitionEnabled,
                 ),
                 event,
             )
         )
+    }
+
+    private fun requireAutoTransition() {
+        if (event != null) {
+            throw FsmException("Only eventless auto transitions can be configured as auto")
+        }
+    }
+}
+
+class EventToMultipleBuilder<STATE, EVENT> internal constructor(
+    private val delegate: ToMultipleBuilder<STATE, EVENT>,
+    private val event: EVENT,
+) {
+    fun to(to: STATE): EventToMultipleTransitionBuilder<STATE, EVENT> {
+        return EventToMultipleTransitionBuilder(delegate.to(to, event))
+    }
+
+    fun endMultiple(): ExTransitionTable.Builder<STATE, EVENT> {
+        return delegate.endMultiple()
+    }
+}
+
+class EventToMultipleTransitionBuilder<STATE, EVENT> internal constructor(
+    private val delegate: ToMultipleTransitionBuilder<STATE, EVENT>
+) {
+    fun onCondition(condition: Guard<in StateContext<STATE>>): EventToMultipleTransitionBuilder<STATE, EVENT> {
+        delegate.onCondition(condition)
+        return this
+    }
+
+    fun action(action: Action<in StateContext<STATE>>): EventToMultipleTransitionBuilder<STATE, EVENT> {
+        delegate.action(action)
+        return this
+    }
+
+    fun postAction(postAction: Action<in StateContext<STATE>>): EventToMultipleTransitionBuilder<STATE, EVENT> {
+        delegate.postAction(postAction)
+        return this
+    }
+
+    fun timeout(timeout: Timeout): EventToMultipleTransitionBuilder<STATE, EVENT> {
+        delegate.timeout(timeout)
+        return this
+    }
+
+    fun end(): ToMultipleBuilder<STATE, EVENT> {
+        return delegate.end()
+    }
+}
+
+class AutoToMultipleTransitionBuilder<STATE, EVENT> internal constructor(
+    private val delegate: ToMultipleTransitionBuilder<STATE, EVENT>
+) {
+    fun onCondition(condition: Guard<in StateContext<STATE>>): AutoToMultipleTransitionBuilder<STATE, EVENT> {
+        delegate.onCondition(condition)
+        return this
+    }
+
+    fun action(action: Action<in StateContext<STATE>>): AutoToMultipleTransitionBuilder<STATE, EVENT> {
+        delegate.action(action)
+        return this
+    }
+
+    fun postAction(postAction: Action<in StateContext<STATE>>): AutoToMultipleTransitionBuilder<STATE, EVENT> {
+        delegate.postAction(postAction)
+        return this
+    }
+
+    fun deferWith(scheduler: AutoTransitionScheduler<STATE>): AutoToMultipleTransitionBuilder<STATE, EVENT> {
+        delegate.deferWithForAuto(scheduler)
+        return this
+    }
+
+    fun timeout(timeout: Timeout): AutoToMultipleTransitionBuilder<STATE, EVENT> {
+        delegate.timeout(timeout)
+        return this
+    }
+
+    fun end(): ToMultipleBuilder<STATE, EVENT> {
+        return delegate.end()
     }
 }

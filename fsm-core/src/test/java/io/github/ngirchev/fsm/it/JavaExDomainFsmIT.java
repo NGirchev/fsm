@@ -21,19 +21,19 @@ class JavaExDomainFsmIT {
 
         ExDomainFsm<Document, DocumentState, String> fsm =
                 FsmFactory.INSTANCE.<DocumentState, String>statesWithEvents()
-                        .from(NEW).to(READY_FOR_SIGN).onEvent("TO_READY").end()
+                        .from(NEW).onEvent("TO_READY").to(READY_FOR_SIGN).end()
 
                         .from(READY_FOR_SIGN).toMultiple()
-                        .to(SIGNED).onEvent("USER_SIGN").end()
-                        .to(CANCELED).onEvent("FAILED_EVENT").end()
+                        .onEvent("USER_SIGN").to(SIGNED).end()
+                        .onEvent("FAILED_EVENT").to(CANCELED).end()
                         .endMultiple()
 
-                        .from(SIGNED).onEvent("TO_END").toMultiple()
-                        .to(AUTO_SENT).onCondition(ctx -> ((Document) ctx).getSignRequired())
+                        .from(SIGNED).toMultiple()
+                        .onEvent("TO_END").to(AUTO_SENT).onCondition(ctx -> ((Document) ctx).getSignRequired())
                         .action(ctx -> System.out.println("AUTO_SENT"))
                         .end()
-                        .to(DONE).onCondition(ctx -> !((Document) ctx).getSignRequired()).end()
-                        .to(CANCELED).end()
+                        .onEvent("TO_END").to(DONE).onCondition(ctx -> !((Document) ctx).getSignRequired()).end()
+                        .onEvent("TO_END").to(CANCELED).end()
                         .endMultiple()
 
                         .from(AUTO_SENT).onEvent("TO_END").to(DONE).end()

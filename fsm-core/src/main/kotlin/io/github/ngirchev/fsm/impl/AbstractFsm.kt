@@ -103,11 +103,7 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
 
     protected fun transitionToState(transition: TRANSITION) {
         executeSingleTransition(transition)
-        if (autoTransitionEnabled) {
-            performAutoTransitions()
-        } else {
-            notifyAutoTransitionCompleted()
-        }
+        performAutoTransitions()
     }
 
     protected open fun executeSingleTransition(transition: TRANSITION) {
@@ -136,7 +132,7 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
         // (after the deferred transition and any follow-up chain have run), NOT immediately
         // after scheduling.
         while (true) {
-            val autoTransition = transitionTable.getAutoTransition(context) ?: run {
+            val autoTransition = transitionTable.getAutoTransition(context, autoTransitionEnabled) ?: run {
                 notifyAutoTransitionCompleted()
                 return
             }
@@ -150,11 +146,7 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
             scheduler.schedule(context, autoTransition) {
                 writeLocked {
                     executeSingleTransition(autoTransition)
-                    if (autoTransitionEnabled) {
-                        performScheduledAutoTransitions()
-                    } else {
-                        notifyAutoTransitionCompleted()
-                    }
+                    performScheduledAutoTransitions()
                 }
             }
             return

@@ -1,6 +1,7 @@
 package io.github.ngirchev.fsm.serialization
 
 import io.github.ngirchev.fsm.*
+import io.github.ngirchev.fsm.exception.FsmException
 import io.github.ngirchev.fsm.impl.extended.ExTransition
 import io.github.ngirchev.fsm.impl.extended.ExTransitionTable
 import java.util.concurrent.TimeUnit
@@ -35,6 +36,7 @@ data class ToDto(
     val timeout: TimeoutDto?,
 ) {
     var autoTransitionScheduler: String? = null
+    var autoTransitionEnabled: Boolean = false
 
     constructor(
         state: String,
@@ -43,8 +45,10 @@ data class ToDto(
         postActions: List<String>,
         timeout: TimeoutDto?,
         autoTransitionScheduler: String?,
+        autoTransitionEnabled: Boolean = false,
     ) : this(state, conditions, actions, postActions, timeout) {
         this.autoTransitionScheduler = autoTransitionScheduler
+        this.autoTransitionEnabled = autoTransitionEnabled || autoTransitionScheduler != null
     }
 }
 
@@ -110,6 +114,7 @@ private fun <STATE> To<STATE>.toDto(): ToDto {
         postActions = postActionIds,
         timeout = timeout?.toDto(),
         autoTransitionScheduler = (autoTransitionScheduler as? IdentifiableAutoTransitionScheduler<*>)?.id,
+        autoTransitionEnabled = autoTransitionEnabled,
     )
 }
 
@@ -182,7 +187,10 @@ fun <STATE> ToDto.toTo(
     
     val timeout = this.timeout?.toTimeout()
     val autoTransitionScheduler = this.autoTransitionScheduler?.let { id ->
-        autoTransitionSchedulerFactory?.createScheduler(id)
+        val factory = autoTransitionSchedulerFactory
+            ?: throw FsmException("Cannot restore auto transition scheduler [$id] without AutoTransitionSchedulerFactory")
+        factory.createScheduler(id)
+            ?: throw FsmException("Cannot restore auto transition scheduler [$id]")
     }
     
     return To(
@@ -192,6 +200,7 @@ fun <STATE> ToDto.toTo(
         postActions = postActions,
         timeout = timeout,
         autoTransitionScheduler = autoTransitionScheduler,
+        autoTransitionEnabled = autoTransitionEnabled,
     )
 }
 

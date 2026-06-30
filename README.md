@@ -239,17 +239,15 @@ class SpringAfterCommitAutoTransitionScheduler<STATE>(
 val scheduler = SpringAfterCommitAutoTransitionScheduler<DocumentState>(transactionManager)
 
 val fsm = ExTransitionTable.Builder<DocumentState, String>()
-    .autoTransitionEnabled(true)
-    .autoTransitionScheduler(scheduler)
     .add(from = NEW, onEvent = "APPROVE", to = READY_FOR_SIGN)
-    .add(
-        from = READY_FOR_SIGN,
-        to = SIGNED,
-        action = {
+    .from(READY_FOR_SIGN).to(SIGNED)
+        .auto()
+        .action {
             // External call or another action that may fail.
             signatureClient.sendForSignature((it as Document).id)
         }
-    )
+        .deferWith(scheduler)
+        .end()
     .build()
     .createDomainFsm<Document>()
 
@@ -272,17 +270,17 @@ We rewrite code with the same transitions
 fun main() {
     val document = Document(signRequired = true)
     val fsm = FsmFactory.statesWithEvents<DocumentState, String>()
-            .from(NEW).to(READY_FOR_SIGN).onEvent("TO_READY").end()
+            .from(NEW).onEvent("TO_READY").to(READY_FOR_SIGN).end()
 
             .from(READY_FOR_SIGN).toMultiple()
-            .to(SIGNED).onEvent("USER_SIGN").end()
-            .to(CANCELED).onEvent("FAILED_EVENT").end()
+            .onEvent("USER_SIGN").to(SIGNED).end()
+            .onEvent("FAILED_EVENT").to(CANCELED).end()
             .endMultiple()
 
-            .from(SIGNED).onEvent("TO_END").toMultiple()
-            .to(AUTO_SENT).condition { document.signRequired }.end()
-            .to(DONE).condition { !document.signRequired }.end()
-            .to(CANCELED).end()
+            .from(SIGNED).toMultiple()
+            .onEvent("TO_END").to(AUTO_SENT).onCondition { document.signRequired }.end()
+            .onEvent("TO_END").to(DONE).onCondition { !document.signRequired }.end()
+            .onEvent("TO_END").to(CANCELED).end()
             .endMultiple()
 
             .from(AUTO_SENT).onEvent("TO_END").to(DONE).end()
@@ -324,7 +322,7 @@ OR
 ```
 fun main() {
     val fsm = FsmFactory.statesWithEvents<String, String>()
-            .from("INITIAL").to("GREEN").onEvent("RUN").end()
+            .from("INITIAL").onEvent("RUN").to("GREEN").end()
             .from("RED").to("GREEN").timeout(Timeout(3)).action { println(it) }.end()
             .from("GREEN").to("YELLOW").timeout(Timeout(3)).action { println(it) }.end()
             .from("YELLOW").to("RED").timeout(Timeout(3)).action { println(it) }.end()
@@ -345,9 +343,9 @@ import io.github.ngirchev.fsm.diagram.*
 
 // Create FSM
 val transitionTable = ExTransitionTable.Builder<DocumentState, String>()
-    .from(NEW).to(READY_FOR_SIGN).onEvent("TO_READY").end()
-    .from(READY_FOR_SIGN).to(SIGNED).onEvent("USER_SIGN").timeout(Timeout(1)).end()
-    .from(SIGNED).to(DONE).onEvent("TO_END").end()
+    .from(NEW).onEvent("TO_READY").to(READY_FOR_SIGN).end()
+    .from(READY_FOR_SIGN).onEvent("USER_SIGN").to(SIGNED).timeout(Timeout(1)).end()
+    .from(SIGNED).onEvent("TO_END").to(DONE).end()
     .build()
 
 // Generate diagrams

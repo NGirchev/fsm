@@ -32,6 +32,7 @@ class ExDomainFsmTest {
             from = DocumentState.NEW,
             to = DocumentState.READY_FOR_SIGN
         )
+        every { exTransitionTable.getAutoTransition(any(), any()) } returns null
         val fsm = ExDomainFsm(exTransitionTable, autoTransitionEnabled = false)
 
         val document = Document()

@@ -229,6 +229,7 @@ class BTransitionTableTest {
     @Test
     fun getAutoTransitionShouldReturnTransitionWhenConditionIsTrue() {
         val table = BTransitionTable.Builder<String>()
+            .autoTransitionEnabled(true)
             .add("from", To("to", condition = { it.state == "from" }))
             .build()
 
@@ -244,6 +245,7 @@ class BTransitionTableTest {
     @Test
     fun getAutoTransitionShouldReturnNullWhenConditionIsFalse() {
         val table = BTransitionTable.Builder<String>()
+            .autoTransitionEnabled(true)
             .add("from", To("to", condition = { it.state == "other" }))
             .build()
 
@@ -316,7 +318,8 @@ class BTransitionTableTest {
         val table = BTransitionTable.Builder<DocumentState>()
             .from(DocumentState.NEW)
             .to(DocumentState.READY_FOR_SIGN)
-            .scheduleWith(scheduler)
+            .auto()
+            .deferWith(scheduler)
             .end()
             .build()
 

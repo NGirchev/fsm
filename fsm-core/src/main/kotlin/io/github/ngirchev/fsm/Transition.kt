@@ -95,16 +95,16 @@ class IdGuard<T>(
 
 /**
  * Target state of a transition together with its declarative content
- * (conditions, actions, postActions, timeout) and an optional per-transition
- * [autoTransitionScheduler].
+ * (conditions, actions, postActions, timeout) plus optional per-transition
+ * auto-transition settings.
  *
- * Equality and hashCode intentionally exclude [autoTransitionScheduler]:
+ * Equality and hashCode intentionally exclude auto-transition settings:
  *   - schedulers are typically lambdas, which have no meaningful identity-based equality;
  *   - transition deduplication in builder sets is based on declarative content, so two
  *     transitions with identical state/conditions/actions/postActions/timeout but different
- *     schedulers are treated as duplicates (the second one is rejected with
+ *     auto-transition settings are treated as duplicates (the second one is rejected with
  *     [io.github.ngirchev.fsm.exception.DuplicateTransitionException]). Use the DSL
- *     `scheduleWith(...)` on a single transition to attach a scheduler.
+ *     `auto().deferWith(...)` on a single transition to attach a scheduler.
  */
 data class To<STATE>(
     val state: STATE,
@@ -116,6 +116,9 @@ data class To<STATE>(
     var autoTransitionScheduler: AutoTransitionScheduler<STATE>? = null
         private set
 
+    var autoTransitionEnabled: Boolean = false
+        private set
+
     constructor(
         state: STATE,
         conditions: List<Guard<in StateContext<STATE>>>,
@@ -123,8 +126,10 @@ data class To<STATE>(
         postActions: List<Action<in StateContext<STATE>>>,
         timeout: Timeout? = null,
         autoTransitionScheduler: AutoTransitionScheduler<STATE>? = null,
+        autoTransitionEnabled: Boolean = false,
     ) : this(state, conditions, actions, postActions, timeout) {
         this.autoTransitionScheduler = autoTransitionScheduler
+        this.autoTransitionEnabled = autoTransitionEnabled || autoTransitionScheduler != null
     }
 }
 
@@ -149,7 +154,8 @@ fun <STATE> To(
     action: Action<in StateContext<STATE>>? = null,
     postAction: Action<in StateContext<STATE>>? = null,
     timeout: Timeout? = null,
-    autoTransitionScheduler: AutoTransitionScheduler<STATE>?
+    autoTransitionScheduler: AutoTransitionScheduler<STATE>?,
+    autoTransitionEnabled: Boolean = false,
 ): To<STATE> = To(
     state = state,
     conditions = listOfNotNull(condition),
@@ -157,6 +163,7 @@ fun <STATE> To(
     postActions = listOfNotNull(postAction),
     timeout = timeout,
     autoTransitionScheduler = autoTransitionScheduler,
+    autoTransitionEnabled = autoTransitionEnabled,
 )
 
 data class Timeout(

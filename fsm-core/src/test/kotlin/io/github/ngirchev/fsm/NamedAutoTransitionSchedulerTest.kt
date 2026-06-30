@@ -35,7 +35,7 @@ class NamedAutoTransitionSchedulerTest {
         val table = BTransitionTable.Builder<String>()
             .autoTransitionEnabled(true)
             .from("from").to("intermediate").end()
-            .from("intermediate").to("to").scheduleWith(named).end()
+            .from("intermediate").to("to").auto().deferWith(named).end()
             .build()
         val fsm = BFsm("from", table, autoTransitionEnabled = true)
 

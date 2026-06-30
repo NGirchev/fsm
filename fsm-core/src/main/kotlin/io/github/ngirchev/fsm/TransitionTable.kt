@@ -2,6 +2,7 @@ package io.github.ngirchev.fsm
 
 interface TransitionTable<STATE, TRANSITION : Transition<STATE>> {
     val transitions: Map<STATE, LinkedHashSet<out TRANSITION>>
+    val autoTransitionEnabled: Boolean
 
     /**
      * get transition by target state.
@@ -12,7 +13,10 @@ interface TransitionTable<STATE, TRANSITION : Transition<STATE>> {
      * get auto transition for current state.
      * Default implementation doesn't provide auto transitions.
      */
-    fun getAutoTransition(context: StateContext<STATE>): TRANSITION? = null
+    fun getAutoTransition(
+        context: StateContext<STATE>,
+        autoTransitionEnabled: Boolean = this.autoTransitionEnabled,
+    ): TRANSITION? = null
 
     fun createFsm(initialState: STATE): StateSupport<STATE>
     fun <DOMAIN : StateContext<STATE>> createDomainFsm(): DomainSupport<DOMAIN, STATE>

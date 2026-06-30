@@ -15,6 +15,7 @@ release {
     }
 }
 
+// Task to create GitHub release
 tasks.register<Exec>("githubRelease") {
     group = "publishing"
     description = "Creates GitHub release with CHANGELOG and uploads artifacts"

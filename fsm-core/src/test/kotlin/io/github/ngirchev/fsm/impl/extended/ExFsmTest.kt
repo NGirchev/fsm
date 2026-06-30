@@ -161,6 +161,23 @@ class ExFsmTest {
     }
 
     @Test
+    fun onEventWithLocalAutoTransitionShouldPerformAutoTransitionWhenGlobalAutoIsDisabled() {
+        val table = ExTransitionTable.Builder<String, String>()
+            .autoTransitionEnabled(false)
+            .add("from", "event", "intermediate")
+            .from("intermediate")
+            .to("to")
+            .auto()
+            .end()
+            .build()
+
+        val fsm = ExFsm("from", table, autoTransitionEnabled = false)
+        fsm.onEvent("event")
+
+        assertEquals("to", fsm.getState())
+    }
+
+    @Test
     fun toStateWithAutoTransitionEnabledShouldPerformAutoTransitions() {
         val table = ExTransitionTable.Builder<String, String>()
             .autoTransitionEnabled(true)
@@ -297,7 +314,8 @@ class ExFsmTest {
             .end()
             .from("intermediate")
             .to("to")
-            .scheduleWith(scheduler)
+            .auto()
+            .deferWith(scheduler)
             .end()
             .build()
 
@@ -328,7 +346,8 @@ class ExFsmTest {
             .end()
             .from("intermediate")
             .to("middle")
-            .scheduleWith(scheduler)
+            .auto()
+            .deferWith(scheduler)
             .end()
             .from("middle")
             .to("to")
