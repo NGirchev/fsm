@@ -11,12 +11,6 @@ repositories {
     mavenCentral()
 }
 
-java {
-    toolchain {
-        languageVersion.set(JavaLanguageVersion.of(21))
-    }
-}
-
 dependencies {
     implementation(project(":fsm-core"))
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")

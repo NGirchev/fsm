@@ -113,9 +113,20 @@ private fun <STATE> To<STATE>.toDto(): ToDto {
         actions = actionIds,
         postActions = postActionIds,
         timeout = timeout?.toDto(),
-        autoTransitionScheduler = (autoTransitionScheduler as? IdentifiableAutoTransitionScheduler<*>)?.id,
+        autoTransitionScheduler = autoTransitionScheduler.toSerializableSchedulerId(),
         autoTransitionEnabled = autoTransitionEnabled,
     )
+}
+
+private fun <STATE> AutoTransitionScheduler<STATE>?.toSerializableSchedulerId(): String? {
+    if (this == null) {
+        return null
+    }
+
+    return (this as? IdentifiableAutoTransitionScheduler<*>)?.id
+        ?: throw FsmException(
+            "Cannot serialize auto transition scheduler [$this] without IdentifiableAutoTransitionScheduler id"
+        )
 }
 
 /**

@@ -299,6 +299,28 @@ class FsmSerializationTest {
     }
 
     @Test
+    fun `should reject non-identifiable per-transition auto transition scheduler during serialization`() {
+        val scheduler = AutoTransitionScheduler<DocumentState> { _, _, runTransition -> runTransition() }
+        val table = ExTransitionTable.Builder<DocumentState, String>()
+            .autoTransitionEnabled(true)
+            .from(READY_FOR_SIGN)
+            .to(SIGNED)
+            .auto()
+            .deferWith(scheduler)
+            .end()
+            .build()
+
+        val exception = assertFailsWith<FsmException> {
+            table.toJson()
+        }
+
+        assertEquals(
+            "Cannot serialize auto transition scheduler [$scheduler] without IdentifiableAutoTransitionScheduler id",
+            exception.message,
+        )
+    }
+
+    @Test
     fun `should reject serialized auto transition scheduler when scheduler factory is missing`() {
         val scheduler = NamedAutoTransitionScheduler<DocumentState>(
             "afterCommit",
