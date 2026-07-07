@@ -151,6 +151,10 @@ open class BTransitionTable<STATE>(
 
     override fun getAutoTransition(
         context: StateContext<STATE>,
+    ): BTransition<STATE>? = getAutoTransition(context, autoTransitionEnabled)
+
+    override fun getAutoTransition(
+        context: StateContext<STATE>,
         autoTransitionEnabled: Boolean,
     ): BTransition<STATE>? {
         return transitions[context.state]

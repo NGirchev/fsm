@@ -125,12 +125,6 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
     }
 
     protected open fun performScheduledAutoTransitions() {
-        // Drives auto-transitions iteratively for synchronous schedulers (no stack growth),
-        // and defers to the scheduler for deferred ones.
-        // Completion is notified once no further auto-transition is available from the current
-        // state. For a deferred scheduler, completion is notified inside the scheduled callback
-        // (after the deferred transition and any follow-up chain have run), NOT immediately
-        // after scheduling.
         while (true) {
             val autoTransition = transitionTable.getAutoTransition(context, autoTransitionEnabled) ?: run {
                 notifyAutoTransitionCompleted()
@@ -139,7 +133,16 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
 
             val scheduler = autoTransition.to.autoTransitionScheduler ?: autoTransitionScheduler
             if (scheduler.runsSynchronously) {
-                executeSingleTransition(autoTransition)
+                var callbackInvoked = false
+                scheduler.schedule(context, autoTransition) {
+                    callbackInvoked = true
+                    executeSingleTransition(autoTransition)
+                }
+                if (!callbackInvoked) {
+                    throw FsmException(
+                        "Synchronous auto transition scheduler must invoke callback before schedule(...) returns",
+                    )
+                }
                 continue
             }
 

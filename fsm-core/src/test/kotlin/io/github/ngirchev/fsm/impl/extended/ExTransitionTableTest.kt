@@ -99,6 +99,21 @@ class ExTransitionTableTest {
     }
 
     @Test
+    @DisplayName("FromBuilder should throw exception when event is set twice")
+    fun fromBuilderOnEventWhenCalledTwiceThenThrowException() {
+        val fromBuilder = ExTransitionTable.Builder<String, String>()
+            .from("from")
+
+        fromBuilder.onEvent("event")
+
+        val exception = assertThrows(FsmException::class.java) {
+            fromBuilder.onEvent("another")
+        }
+
+        assertEquals("Already has event", exception.message)
+    }
+
+    @Test
     @DisplayName("ToBuilder should throw exception when timeout is called twice")
     fun toBuilderTimeoutWhenCalledTwiceThenThrowException() {
         val builder = ExTransitionTable.Builder<String, String>()
@@ -127,6 +142,69 @@ class ExTransitionTableTest {
             .end()
 
         assertEquals(builder, result)
+    }
+
+    @Test
+    @DisplayName("ToBuilder should create event transition through legacy event method")
+    fun toBuilderOnEventShouldCreateEventTransition() {
+        val table = ExTransitionTable.Builder<String, String>()
+            .from("from")
+            .to("to")
+            .onEvent("event")
+            .end()
+            .build()
+
+        val transition = table.transitions["from"]?.single() ?: error("Expected transition")
+
+        assertEquals("event", transition.event)
+    }
+
+    @Test
+    @DisplayName("ToBuilder should throw exception when event is set twice")
+    fun toBuilderOnEventWhenCalledTwiceThenThrowException() {
+        val toBuilder = ExTransitionTable.Builder<String, String>()
+            .from("from")
+            .to("to")
+
+        toBuilder.onEvent("event")
+
+        val exception = assertThrows(FsmException::class.java) {
+            toBuilder.onEvent("another")
+        }
+
+        assertEquals("Already has event", exception.message)
+    }
+
+    @Test
+    @DisplayName("ToBuilder should reject auto transition when event is configured")
+    fun toBuilderAutoWhenEventConfiguredThenThrowException() {
+        val toBuilder = ExTransitionTable.Builder<String, String>()
+            .from("from")
+            .to("to")
+            .onEvent("event")
+
+        val exception = assertThrows(FsmException::class.java) {
+            toBuilder.auto()
+        }
+
+        assertEquals("Only eventless auto transitions can be configured as auto", exception.message)
+    }
+
+    @Test
+    @DisplayName("ToMultipleTransitionBuilder should create event transition through legacy event method")
+    fun toMultipleTransitionBuilderOnEventShouldCreateEventTransition() {
+        val table = ExTransitionTable.Builder<String, String>()
+            .from("from")
+            .toMultiple()
+            .to("to")
+            .onEvent("event")
+            .end()
+            .endMultiple()
+            .build()
+
+        val transition = table.transitions["from"]?.single() ?: error("Expected transition")
+
+        assertEquals("event", transition.event)
     }
 
     @Test

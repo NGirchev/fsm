@@ -151,7 +151,9 @@ fun interface AutoTransitionSchedulerFactory<STATE> {
 
 /**
  * Converts DTO back to To
- * Requires state parser and factories to recreate actions and guards by ID
+ * Action and guard factories are optional and best-effort: missing factories or unknown IDs
+ * simply drop the corresponding conditions/actions. Scheduler restoration stays strict and uses
+ * the overload with [AutoTransitionSchedulerFactory] when scheduler IDs are present in JSON.
  */
 fun <STATE> ToDto.toTo(
     stateParser: (String) -> STATE,
@@ -163,7 +165,10 @@ fun <STATE> ToDto.toTo(
 
 /**
  * Converts DTO back to To
- * Requires state parser and factories to recreate actions, guards, and schedulers by ID
+ * Action and guard factories are optional and best-effort: missing factories or unknown IDs
+ * simply drop the corresponding conditions/actions. If [autoTransitionSchedulerFactory] is
+ * absent or cannot resolve a serialized scheduler ID, deserialization fails fast because that
+ * changes auto-transition scheduling semantics.
  */
 fun <STATE> ToDto.toTo(
     stateParser: (String) -> STATE,
@@ -172,19 +177,11 @@ fun <STATE> ToDto.toTo(
     autoTransitionSchedulerFactory: AutoTransitionSchedulerFactory<STATE>?,
 ): To<STATE> {
     val state = stateParser(this.state)
-    
-    val conditions = this.conditions.mapNotNull { id ->
-        guardFactory?.createGuard(id)
-    }
-    
-    val actions = this.actions.mapNotNull { id ->
-        actionFactory?.createAction(id)
-    }
-    
-    val postActions = this.postActions.mapNotNull { id ->
-        actionFactory?.createAction(id)
-    }
-    
+
+    val conditions = restoreGuards(this.conditions, guardFactory)
+    val actions = restoreActions(this.actions, actionFactory)
+    val postActions = restoreActions(this.postActions, actionFactory)
+
     val timeout = this.timeout?.toTimeout()
     val autoTransitionScheduler = this.autoTransitionScheduler?.let { id ->
         val factory = autoTransitionSchedulerFactory
@@ -204,6 +201,26 @@ fun <STATE> ToDto.toTo(
     )
 }
 
+private fun <STATE> restoreGuards(
+    guardIds: List<String>,
+    guardFactory: GuardFactory<STATE>?,
+): List<Guard<in StateContext<STATE>>> {
+    val factory = guardFactory ?: return emptyList()
+    return guardIds.mapNotNull { id ->
+        factory.createGuard(id)
+    }
+}
+
+private fun <STATE> restoreActions(
+    actionIds: List<String>,
+    actionFactory: ActionFactory<STATE>?,
+): List<Action<in StateContext<STATE>>> {
+    val factory = actionFactory ?: return emptyList()
+    return actionIds.mapNotNull { id ->
+        factory.createAction(id)
+    }
+}
+
 /**
  * Converts TimeoutDto back to Timeout
  */
@@ -218,7 +235,9 @@ private fun TimeoutDto.toTimeout(): Timeout {
 
 /**
  * Converts DTO back to ExTransitionTable
- * Requires state and event parsers and optional factories for actions/guards
+ * Action and guard factories are optional best-effort helpers. Scheduler restoration is strict:
+ * if a transition carries a scheduler ID, [AutoTransitionSchedulerFactory] must be provided and
+ * must resolve that ID.
  */
 fun <STATE, EVENT> FsmDto.toExTransitionTable(
     stateParser: (String) -> STATE,

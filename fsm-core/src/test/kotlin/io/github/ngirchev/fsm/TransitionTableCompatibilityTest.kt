@@ -35,13 +35,50 @@ class TransitionTableCompatibilityTest {
     }
 
     @Test
-    fun newTwoArgumentCallFallsBackToSafeDefaultForLegacyImplementations() {
+    fun newTwoArgumentCallDelegatesToLegacyOverrideWhenEnabled() {
         val table = LegacyTransitionTable()
         val context = TestStateContext("from")
 
         val transition = table.getAutoTransition(context, true)
 
+        requireNotNull(transition)
+        assertEquals("to", transition.to.state)
+    }
+
+    @Test
+    fun newTwoArgumentCallStillDisablesLegacyAutoTransitionsWhenFlagIsFalse() {
+        val table = LegacyTransitionTable()
+        val context = TestStateContext("from")
+
+        val transition = table.getAutoTransition(context, false)
+
         assertNull(transition)
+    }
+
+    @Test
+    fun newStyleImplementationsCanOverrideTwoArgumentMethodOnly() {
+        val table = NewStyleTransitionTable()
+        val context = TestStateContext("from")
+
+        val singleArgTransition = table.getAutoTransition(context)
+        val enabledTransition = table.getAutoTransition(context, true)
+        val disabledTransition = table.getAutoTransition(context, false)
+
+        requireNotNull(singleArgTransition)
+        requireNotNull(enabledTransition)
+        assertEquals("to", singleArgTransition.to.state)
+        assertEquals("to", enabledTransition.to.state)
+        assertNull(disabledTransition)
+    }
+
+    @Test
+    fun defaultImplementationsWithoutOverridesShouldReturnNullWithoutRecursion() {
+        val table = NoOverrideTransitionTable()
+        val context = TestStateContext("from")
+
+        assertNull(table.getAutoTransition(context))
+        assertNull(table.getAutoTransition(context, true))
+        assertNull(table.getAutoTransition(context, false))
     }
 
     private class LegacyTransitionTable : TransitionTable<String, BTransition<String>> {
@@ -55,6 +92,46 @@ class TransitionTableCompatibilityTest {
         override fun getAutoTransition(
             context: StateContext<String>,
         ): BTransition<String>? = BTransition("from", "to")
+
+        override fun createFsm(initialState: String): StateSupport<String> {
+            error("Not needed for compatibility test")
+        }
+
+        override fun <DOMAIN : StateContext<String>> createDomainFsm(): DomainSupport<DOMAIN, String> {
+            error("Not needed for compatibility test")
+        }
+    }
+
+    private class NewStyleTransitionTable : TransitionTable<String, BTransition<String>> {
+        override val transitions: Map<String, LinkedHashSet<out BTransition<String>>> = emptyMap()
+        override val autoTransitionEnabled: Boolean = true
+
+        override fun getTransitionByState(
+            context: StateContext<String>,
+            newState: String,
+        ): BTransition<String>? = null
+
+        override fun getAutoTransition(
+            context: StateContext<String>,
+            autoTransitionEnabled: Boolean,
+        ): BTransition<String>? = if (autoTransitionEnabled) BTransition("from", "to") else null
+
+        override fun createFsm(initialState: String): StateSupport<String> {
+            error("Not needed for compatibility test")
+        }
+
+        override fun <DOMAIN : StateContext<String>> createDomainFsm(): DomainSupport<DOMAIN, String> {
+            error("Not needed for compatibility test")
+        }
+    }
+
+    private class NoOverrideTransitionTable : TransitionTable<String, BTransition<String>> {
+        override val transitions: Map<String, LinkedHashSet<out BTransition<String>>> = emptyMap()
+
+        override fun getTransitionByState(
+            context: StateContext<String>,
+            newState: String,
+        ): BTransition<String>? = null
 
         override fun createFsm(initialState: String): StateSupport<String> {
             error("Not needed for compatibility test")

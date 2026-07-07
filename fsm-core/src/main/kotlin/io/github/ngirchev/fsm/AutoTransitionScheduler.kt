@@ -3,26 +3,29 @@ package io.github.ngirchev.fsm
 /**
  * Strategy for running an auto-transition.
  *
+ * The FSM always invokes [schedule] when an auto-transition needs to run.
+ *
  * Implementations come in two flavors:
  *  - **synchronous**: [schedule] invokes [runTransition] on the calling thread before returning
- *    ([runsSynchronously] == `true`). The FSM drives such schedulers iteratively, so a long
- *    chain of synchronous auto-transitions does not grow the call stack.
+ *    ([runsSynchronously] == `true`). The FSM still routes through [schedule], but continues the
+ *    auto-transition chain iteratively after [schedule] returns so a long synchronous chain does
+ *    not grow the call stack.
  *  - **deferred**: [schedule] arranges for [runTransition] to be invoked later, possibly on
  *    another thread ([runsSynchronously] == `false`). The FSM returns immediately after
  *    [schedule] and relies on the scheduler to eventually invoke [runTransition].
  *
- * Reentrancy contract: when [schedule] is called, the calling thread holds the FSM write lock
- * only for the synchronous case (and the lock is reentrant). Deferred schedulers must NOT
- * attempt to acquire any FSM lock from within [schedule] itself; locking is handled inside
- * [runTransition]. Deferred schedulers are responsible for thread-safety of any state they
- * capture between [schedule] and the eventual invocation of [runTransition].
+ * [schedule] is invoked while the FSM write lock is held. Synchronous schedulers must therefore
+ * execute [runTransition] inline before returning. Deferred schedulers must not invoke
+ * [runTransition] inline, and must not attempt to acquire FSM locks from within [schedule];
+ * locking for the deferred transition is handled inside [runTransition]. Deferred schedulers are
+ * responsible for thread-safety of any state they capture between [schedule] and the eventual
+ * invocation of [runTransition].
  */
 fun interface AutoTransitionScheduler<STATE> {
     /**
      * `true` when [schedule] invokes [runTransition] synchronously on the calling thread
      * before returning. The FSM uses this flag to drive immediate auto-transition chains
-     * iteratively instead of recursing through the scheduler, which avoids stack overflow
-     * on long chains.
+     * iteratively after [schedule] returns, which avoids stack overflow on long chains.
      *
      * Default is `false`: custom schedulers are assumed to be deferred. Synchronous custom
      * schedulers must override this to `true` (or extend [ImmediateAutoTransitionScheduler]).

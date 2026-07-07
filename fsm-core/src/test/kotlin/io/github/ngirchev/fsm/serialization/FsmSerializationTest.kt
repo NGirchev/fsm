@@ -599,12 +599,18 @@ class FsmSerializationTest {
 
     @Test
     fun `should handle factory returning null for unknown IDs`() {
-        // given - FSM with IdGuard
-        val guard = IdGuard<Any>("knownGuard") { true }
+        // given - FSM with both known and unknown IdGuard
+        val knownGuard = IdGuard<Any>("knownGuard") { true }
+        val missingGuard = IdGuard<Any>("missingGuard") { true }
         val originalTable = ExTransitionTable.Builder<DocumentState, String>()
             .add(
                 from = NEW, onEvent = "START",
-                To(READY_FOR_SIGN, condition = guard)
+                To(
+                    state = READY_FOR_SIGN,
+                    conditions = listOf(knownGuard, missingGuard),
+                    actions = emptyList(),
+                    postActions = emptyList(),
+                )
             )
             .build()
 
@@ -625,12 +631,11 @@ class FsmSerializationTest {
             guardFactory
         )
 
-        // then - verify that known guard is restored, unknown ones are skipped
         val newTransitions = restoredTable.transitions[NEW]
         assertNotNull(newTransitions)
         val transition = newTransitions.firstOrNull { it.event == "START" }
         assertNotNull(transition)
-        assertEquals(1, transition.to.conditions.size) // Only known guard should be restored
+        assertEquals(1, transition.to.conditions.size)
     }
 
     @Test
@@ -736,11 +741,10 @@ class FsmSerializationTest {
         val restoredTable = json.fromJson<DocumentState, String>(
             { DocumentState.valueOf(it) },
             { it },
-            null, // null actionFactory
-            null  // null guardFactory
+            null,
+            null
         )
 
-        // then - conditions and actions should be empty (not restored)
         val newTransitions = restoredTable.transitions[NEW]
         assertNotNull(newTransitions)
         val transition = newTransitions.firstOrNull { it.event == "START" }
@@ -782,12 +786,11 @@ class FsmSerializationTest {
             null
         )
 
-        // then - only action1 should be restored
         val newTransitions = restoredTable.transitions[NEW]
         assertNotNull(newTransitions)
         val transition1 = newTransitions.firstOrNull { it.event == "START" }
         assertNotNull(transition1)
-        assertEquals(1, transition1.to.actions.size) // action1 should be restored
+        assertEquals(1, transition1.to.actions.size)
 
         val readyTransitions = restoredTable.transitions[READY_FOR_SIGN]
         assertNotNull(readyTransitions)

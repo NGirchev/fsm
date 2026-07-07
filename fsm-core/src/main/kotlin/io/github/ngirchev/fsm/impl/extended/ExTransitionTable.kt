@@ -50,6 +50,10 @@ open class ExTransitionTable<STATE, EVENT>(
 
     override fun getAutoTransition(
         context: StateContext<STATE>,
+    ): ExTransition<STATE, EVENT>? = getAutoTransition(context, autoTransitionEnabled)
+
+    override fun getAutoTransition(
+        context: StateContext<STATE>,
         autoTransitionEnabled: Boolean,
     ): ExTransition<STATE, EVENT>? {
         return transitions[context.state]
@@ -204,16 +208,22 @@ class FromBuilder<STATE, EVENT>(
     private val from: STATE,
     private val rootBuilder: ExTransitionTable.Builder<STATE, EVENT>
 ) {
-    fun onEvent(event: EVENT): EventFromBuilder<STATE, EVENT> {
-        return EventFromBuilder(from, rootBuilder, event)
+    private var event: EVENT? = null
+
+    fun onEvent(event: EVENT): FromBuilder<STATE, EVENT> {
+        if (this.event != null) {
+            throw FsmException("Already has event")
+        }
+        this.event = event
+        return this
     }
 
     fun to(to: STATE): ToBuilder<STATE, EVENT> {
-        return ToBuilder(from, to, rootBuilder)
+        return ToBuilder(from, to, rootBuilder, event)
     }
 
     fun toMultiple(): ToMultipleBuilder<STATE, EVENT> {
-        return ToMultipleBuilder(from, rootBuilder)
+        return ToMultipleBuilder(from, rootBuilder, event)
     }
 }
 
@@ -239,6 +249,14 @@ class ToBuilder<STATE, EVENT>(
     private var timeout: Timeout? = null
     private var autoTransitionScheduler: AutoTransitionScheduler<STATE>? = null
     private var autoTransitionEnabled: Boolean = false
+
+    fun onEvent(event: EVENT): ToBuilder<STATE, EVENT> {
+        if (this.event != null) {
+            throw FsmException("Already has event")
+        }
+        this.event = event
+        return this
+    }
 
     fun onCondition(condition: Guard<in StateContext<STATE>>): ToBuilder<STATE, EVENT> {
         this.conditions.add(condition)
@@ -405,6 +423,14 @@ class ToMultipleTransitionBuilder<STATE, EVENT>(
     private var timeout: Timeout? = null
     private var autoTransitionScheduler: AutoTransitionScheduler<STATE>? = null
     private var autoTransitionEnabled: Boolean = false
+
+    fun onEvent(event: EVENT): ToMultipleTransitionBuilder<STATE, EVENT> {
+        if (this.event != null) {
+            throw FsmException("Already has event")
+        }
+        this.event = event
+        return this
+    }
 
     fun onCondition(condition: Guard<in StateContext<STATE>>): ToMultipleTransitionBuilder<STATE, EVENT> {
         this.conditions.add(condition)
