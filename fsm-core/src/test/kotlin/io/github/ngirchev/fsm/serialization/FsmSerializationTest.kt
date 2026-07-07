@@ -204,12 +204,12 @@ class FsmSerializationTest {
     fun `should serialize and deserialize FSM with multiple transitions from same state`() {
         // given - FSM with multiple transitions from same state (toMultiple pattern)
         val originalTable = ExTransitionTable.Builder<DocumentState, String>()
-            .from(NEW).onEvent("TO_READY").to(READY_FOR_SIGN).end()
+            .from(NEW).to(READY_FOR_SIGN).onEvent("TO_READY").end()
             .from(READY_FOR_SIGN).toMultiple()
-            .onEvent("USER_SIGN").to(SIGNED).end()
-            .onEvent("FAILED_EVENT").to(CANCELED).end()
+            .to(SIGNED).onEvent("USER_SIGN").end()
+            .to(CANCELED).onEvent("FAILED_EVENT").end()
             .endMultiple()
-            .from(SIGNED).onEvent("TO_END").to(DONE).end()
+            .from(SIGNED).to(DONE).onEvent("TO_END").end()
             .build()
 
         // when - serialize and deserialize

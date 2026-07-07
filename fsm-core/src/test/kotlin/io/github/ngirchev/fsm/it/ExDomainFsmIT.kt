@@ -58,16 +58,16 @@ internal class ExDomainFsmIT {
             .add(from = AUTO_SENT, onEvent = "TO_END", to = DONE)
             .build()
         val table2 = ExTransitionTable.Builder<DocumentState, String>()
-            .from(NEW).onEvent("TO_READY").to(READY_FOR_SIGN).end()
+            .from(NEW).to(READY_FOR_SIGN).onEvent("TO_READY").end()
             .from(READY_FOR_SIGN).toMultiple()
-            .onEvent("USER_SIGN").to(SIGNED).timeout(Timeout(1)).end()
-            .onEvent("FAILED_EVENT").to(CANCELED).end().endMultiple()
-            .from(SIGNED).onEvent("FAILED_EVENT").to(CANCELED).end()
-            .from(SIGNED).toMultiple()                  // switch case example
-            .onEvent("TO_END").to(AUTO_SENT).onCondition(signRequiredGuard).end()            // first
-            .onEvent("TO_END").to(DONE).onCondition(notSignRequiredGuard).end()             // second
-            .onEvent("TO_END").to(CANCELED).end().endMultiple()                           // else
-            .from(AUTO_SENT).onEvent("TO_END").to(DONE).end()
+            .to(SIGNED).onEvent("USER_SIGN").timeout(Timeout(1)).end()
+            .to(CANCELED).onEvent("FAILED_EVENT").end().endMultiple()
+            .from(SIGNED).to(CANCELED).onEvent("FAILED_EVENT").end()
+            .from(SIGNED).onEvent("TO_END").toMultiple()                  // switch case example
+            .to(AUTO_SENT).onCondition(signRequiredGuard).end()            // first
+            .to(DONE).onCondition(notSignRequiredGuard).end()             // second
+            .to(CANCELED).end().endMultiple()                           // else
+            .from(AUTO_SENT).to(DONE).onEvent("TO_END").end()
             .build()
         
         val guardFactory = GuardFactory<DocumentState> { id ->

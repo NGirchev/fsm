@@ -208,6 +208,33 @@ class ExTransitionTableTest {
     }
 
     @Test
+    @DisplayName("toMultiple should support distinct legacy events per transition")
+    fun toMultipleShouldSupportDistinctLegacyEventsPerTransition() {
+        val table = ExTransitionTable.Builder<String, String>()
+            .from("from")
+            .toMultiple()
+            .to("approved")
+            .onEvent("approve")
+            .end()
+            .to("rejected")
+            .onEvent("reject")
+            .end()
+            .to("manual-review")
+            .onEvent("review")
+            .end()
+            .endMultiple()
+            .build()
+
+        val context = SimpleStateContext("from")
+
+        assertEquals(3, table.transitions["from"]?.size)
+        assertEquals("approved", table.getTransitionByEvent(context, "approve")?.to?.state)
+        assertEquals("rejected", table.getTransitionByEvent(context, "reject")?.to?.state)
+        assertEquals("manual-review", table.getTransitionByEvent(context, "review")?.to?.state)
+        assertNull(table.getTransitionByEvent(context, "unknown"))
+    }
+
+    @Test
     @DisplayName("Should add multiple To transitions with vararg")
     fun addWithVarargToShouldAddMultipleTransitions() {
         val builder = ExTransitionTable.Builder<String, String>()
