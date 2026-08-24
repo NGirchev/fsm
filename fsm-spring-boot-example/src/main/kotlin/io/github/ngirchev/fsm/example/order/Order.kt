@@ -9,6 +9,7 @@ import java.time.OffsetDateTime
 data class Order(
     val id: Long,
     override var state: String,
+    val flowVersion: Int,
     val totalAmount: BigDecimal,
     var paymentCaptured: Boolean,
     var receiptSent: Boolean,
@@ -24,6 +25,7 @@ data class OrderEventRequest(val event: String)
 data class OrderResponse(
     val id: Long,
     val state: String,
+    val flowVersion: Int,
     val totalAmount: BigDecimal,
     val paymentCaptured: Boolean,
     val receiptSent: Boolean,
@@ -35,6 +37,7 @@ data class OrderResponse(
 fun Order.toResponse() = OrderResponse(
     id = id,
     state = state,
+    flowVersion = flowVersion,
     totalAmount = totalAmount,
     paymentCaptured = paymentCaptured,
     receiptSent = receiptSent,

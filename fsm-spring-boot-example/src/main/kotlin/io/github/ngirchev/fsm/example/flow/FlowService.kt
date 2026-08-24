@@ -3,7 +3,7 @@ package io.github.ngirchev.fsm.example.flow
 import io.github.ngirchev.fsm.impl.extended.ExTransitionTable
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import java.util.concurrent.ConcurrentHashMap
+import java.util.LinkedHashMap
 
 @Service
 class FlowService(
@@ -46,11 +46,28 @@ class ActiveFlowProvider(
     private val repository: FlowRepository,
     private val compiler: FlowCompiler,
 ) {
-    private val tables = ConcurrentHashMap<Pair<String, Int>, ExTransitionTable<String, String>>()
+    private val tables = object : LinkedHashMap<Pair<String, Int>, ExTransitionTable<String, String>>(16, 0.75f, true) {
+        override fun removeEldestEntry(
+            eldest: MutableMap.MutableEntry<Pair<String, Int>, ExTransitionTable<String, String>>?,
+        ): Boolean = size > MAX_CACHED_TABLES
+    }
 
     fun get(flowKey: String): ActiveFlow {
         val active = repository.active(flowKey)
-        val table = tables.computeIfAbsent(flowKey to active.version) { compiler.compile(active.definition) }
-        return ActiveFlow(active.version, active.definition.initialState, table)
+        return active.toActiveFlow()
+    }
+
+    fun get(flowKey: String, version: Int): ActiveFlow = repository.get(flowKey, version).toActiveFlow()
+
+    private fun FlowVersion.toActiveFlow(): ActiveFlow {
+        val key = flowKey to version
+        val table = synchronized(tables) {
+            tables.getOrPut(key) { compiler.compile(definition) }
+        }
+        return ActiveFlow(version, definition.initialState, table)
+    }
+
+    companion object {
+        private const val MAX_CACHED_TABLES = 128
     }
 }

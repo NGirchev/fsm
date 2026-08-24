@@ -55,6 +55,23 @@ class FlowCompilerTest {
         assertEquals(4, issues.size)
     }
 
+    @Test
+    fun `does not confuse separators in distinct transition fields`() {
+        val definition = FlowDefinition(
+            schemaVersion = 1,
+            initialState = "A|B",
+            states = listOf("A|B", "A", "B|C", "C"),
+            events = listOf("GO"),
+            transitions = listOf(
+                FlowTransitionDefinition("first", "A|B", "C", FlowTriggerDefinition("event", "GO")),
+                FlowTransitionDefinition("second", "A", "B|C", FlowTriggerDefinition("event", "GO")),
+            ),
+        )
+
+        assertTrue(compiler.validate(definition).isEmpty())
+        compiler.compile(definition)
+    }
+
     private fun validDefinition() = FlowDefinition(
         schemaVersion = 1,
         initialState = "NEW",

@@ -27,7 +27,7 @@ class FlowCompiler(private val behaviors: FlowBehaviorRegistry) {
         if (definition.initialState !in definition.states) issue("initialState", "Initial state is not declared")
 
         val transitionIds = mutableSetOf<String>()
-        val signatures = mutableSetOf<String>()
+        val signatures = mutableSetOf<TransitionSignature>()
         definition.transitions.forEachIndexed { index, transition ->
             val path = "transitions[$index]"
             if (transition.id.isBlank()) issue("$path.id", "Transition ID must not be blank")
@@ -49,10 +49,15 @@ class FlowCompiler(private val behaviors: FlowBehaviorRegistry) {
                 if (it.value <= 0) issue("$path.timeout.value", "Timeout must be positive")
                 if (runCatching { TimeUnit.valueOf(it.unit) }.isFailure) issue("$path.timeout.unit", "Unknown time unit")
             }
-            val signature = listOf(
-                transition.from, transition.to, transition.trigger.kind, transition.trigger.event,
-                transition.guards, transition.actions, transition.postActions, transition.timeout,
-            ).joinToString("|")
+            val signature = TransitionSignature(
+                from = transition.from,
+                to = transition.to,
+                trigger = transition.trigger,
+                guards = transition.guards,
+                actions = transition.actions,
+                postActions = transition.postActions,
+                timeout = transition.timeout,
+            )
             if (!signatures.add(signature)) issue(path, "Duplicate transition")
         }
 
@@ -89,4 +94,14 @@ class FlowCompiler(private val behaviors: FlowBehaviorRegistry) {
         }
         return builder.build()
     }
+
+    private data class TransitionSignature(
+        val from: String,
+        val to: String,
+        val trigger: FlowTriggerDefinition,
+        val guards: List<String>,
+        val actions: List<String>,
+        val postActions: List<String>,
+        val timeout: FlowTimeoutDefinition?,
+    )
 }

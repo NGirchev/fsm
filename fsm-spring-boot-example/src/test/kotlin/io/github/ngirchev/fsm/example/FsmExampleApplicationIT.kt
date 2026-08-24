@@ -9,6 +9,7 @@ import io.github.ngirchev.fsm.example.flow.FlowVersionStatus
 import io.github.ngirchev.fsm.example.order.CreateOrderRequest
 import io.github.ngirchev.fsm.example.order.OrderEventRequest
 import io.github.ngirchev.fsm.example.order.OrderResponse
+import org.flywaydb.core.Flyway
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
@@ -23,6 +24,7 @@ import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
 import java.math.BigDecimal
+import java.sql.DriverManager
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
@@ -49,12 +51,29 @@ class FsmExampleApplicationIT {
         assertTrue(paid.paymentCaptured)
         assertTrue(paid.receiptSent)
 
+        val inProgressOrder = post("/api/orders", CreateOrderRequest(BigDecimal("15.00")), OrderResponse::class.java)
+        val inProgressPending = post(
+            "/api/orders/${inProgressOrder.id}/events",
+            OrderEventRequest("SUBMIT"),
+            OrderResponse::class.java,
+        )
+        assertEquals("PAYMENT_PENDING", inProgressPending.state)
+
         val draft = post("/api/flows/order/versions", fastDefinition(), FlowVersion::class.java)
         assertEquals(FlowVersionStatus.DRAFT, draft.status)
         val published = post("/api/flows/order/versions/${draft.version}/publish", null, FlowVersion::class.java)
         assertEquals(FlowVersionStatus.ACTIVE, published.status)
 
+        val inProgressPaid = post(
+            "/api/orders/${inProgressOrder.id}/events",
+            OrderEventRequest("PAY"),
+            OrderResponse::class.java,
+        )
+        assertEquals("PAID", inProgressPaid.state)
+        assertEquals(inProgressOrder.flowVersion, inProgressPaid.flowVersion)
+
         val newOrder = post("/api/orders", CreateOrderRequest(BigDecimal("10.00")), OrderResponse::class.java)
+        assertEquals(published.version, newOrder.flowVersion)
         val completed = post("/api/orders/${newOrder.id}/events", OrderEventRequest("FAST_COMPLETE"), OrderResponse::class.java)
         assertEquals("COMPLETED", completed.state)
 
@@ -87,6 +106,39 @@ class FsmExampleApplicationIT {
             ApiError::class.java,
         )
         assertEquals(HttpStatus.CONFLICT, response.statusCode)
+    }
+
+    @Test
+    fun `migration pins existing orders to the active flow version`() {
+        val schema = "migration_upgrade_test"
+        Flyway.configure()
+            .dataSource(postgres.jdbcUrl, postgres.username, postgres.password)
+            .schemas(schema)
+            .locations("classpath:db/migration")
+            .target("2")
+            .load()
+            .migrate()
+        DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
+            connection.createStatement().use { statement ->
+                statement.executeUpdate("INSERT INTO $schema.orders(state, total_amount) VALUES ('NEW', 20.00)")
+            }
+        }
+
+        Flyway.configure()
+            .dataSource(postgres.jdbcUrl, postgres.username, postgres.password)
+            .schemas(schema)
+            .locations("classpath:db/migration")
+            .load()
+            .migrate()
+
+        DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
+            connection.createStatement().use { statement ->
+                statement.executeQuery("SELECT flow_version FROM $schema.orders").use { result ->
+                    assertTrue(result.next())
+                    assertEquals(1, result.getInt("flow_version"))
+                }
+            }
+        }
     }
 
     private fun fastDefinition() = FlowDefinition(

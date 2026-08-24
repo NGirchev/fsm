@@ -11,6 +11,7 @@ docker compose -f fsm-spring-boot-example/compose.yml up -d
 ```
 
 The Flyway seed creates active flow `order` version `1`.
+Each order records the flow version it was created with, so publishing a new version does not break in-progress orders.
 
 ```bash
 curl -X POST http://localhost:8080/api/orders \

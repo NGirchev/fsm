@@ -10,11 +10,12 @@ class ConcurrentOrderUpdateException(id: Long) : IllegalStateException("Order $i
 
 @Repository
 class OrderRepository(private val jdbc: JdbcClient) {
-    fun create(initialState: String, request: CreateOrderRequest): Order {
+    fun create(initialState: String, flowVersion: Int, request: CreateOrderRequest): Order {
         val id = jdbc.sql(
-            "INSERT INTO orders(state, total_amount) VALUES (:state, :amount) RETURNING id",
+            "INSERT INTO orders(state, flow_version, total_amount) VALUES (:state, :flowVersion, :amount) RETURNING id",
         )
             .param("state", initialState)
+            .param("flowVersion", flowVersion)
             .param("amount", request.totalAmount)
             .query(Long::class.java)
             .single()
@@ -55,6 +56,7 @@ class OrderRepository(private val jdbc: JdbcClient) {
     private fun mapOrder(rs: ResultSet, @Suppress("UNUSED_PARAMETER") rowNum: Int): Order = Order(
         id = rs.getLong("id"),
         state = rs.getString("state"),
+        flowVersion = rs.getInt("flow_version"),
         totalAmount = rs.getBigDecimal("total_amount"),
         paymentCaptured = rs.getBoolean("payment_captured"),
         receiptSent = rs.getBoolean("receipt_sent"),
@@ -65,7 +67,7 @@ class OrderRepository(private val jdbc: JdbcClient) {
 
     companion object {
         private const val SELECT = """
-            SELECT id, state, total_amount, payment_captured, receipt_sent,
+            SELECT id, state, flow_version, total_amount, payment_captured, receipt_sent,
                    lock_version, created_at, updated_at
             FROM orders
         """

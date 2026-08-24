@@ -13,7 +13,8 @@ class OrderService(
     @Transactional
     fun create(request: CreateOrderRequest): Order {
         require(request.totalAmount.signum() > 0) { "totalAmount must be positive" }
-        return orders.create(flows.get(ORDER_FLOW).initialState, request)
+        val activeFlow = flows.get(ORDER_FLOW)
+        return orders.create(activeFlow.initialState, activeFlow.version, request)
     }
 
     fun get(id: Long): Order = orders.get(id)
@@ -22,8 +23,8 @@ class OrderService(
     fun handle(id: Long, event: String): Order {
         require(event.isNotBlank()) { "event must not be blank" }
         val order = orders.getForUpdate(id)
-        val activeFlow = flows.get(ORDER_FLOW)
-        ExDomainFsm<Order, String, String>(activeFlow.transitionTable).handle(order, event)
+        val orderFlow = flows.get(ORDER_FLOW, order.flowVersion)
+        ExDomainFsm<Order, String, String>(orderFlow.transitionTable).handle(order, event)
         return orders.save(order)
     }
 
