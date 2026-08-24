@@ -1,4 +1,5 @@
 /build/
+**/build/
 /fsm-visual-editor/node_modules/
 /fsm-visual-editor/dist/
 /fsm-visual-editor/coverage/

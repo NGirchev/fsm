@@ -1,5 +1,8 @@
 # FSM — Kotlin Finite State Machine Library and Visual FSM Editor
 
+For a Spring Boot example that stores versioned, dynamic flow definitions in PostgreSQL `JSONB`,
+see [`fsm-spring-boot-example`](fsm-spring-boot-example/README.md).
+
 [![CI](https://github.com/NGirchev/fsm/actions/workflows/ci.yml/badge.svg)](https://github.com/NGirchev/fsm/actions/workflows/ci.yml)
 [![Maven Central](https://img.shields.io/maven-central/v/io.github.ngirchev/fsm.svg)](https://search.maven.org/artifact/io.github.ngirchev/fsm)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
