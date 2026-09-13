@@ -10,8 +10,14 @@ import java.util.concurrent.TimeUnit
  */
 data class FsmDto(
     val autoTransitionEnabled: Boolean,
-    val transitions: Map<String, List<TransitionDto>>
-)
+    val transitions: Map<String, List<TransitionDto>>,
+    val maxImmediateAutoTransitions: Int = 0,
+) {
+    constructor(
+        autoTransitionEnabled: Boolean,
+        transitions: Map<String, List<TransitionDto>>,
+    ) : this(autoTransitionEnabled, transitions, 0)
+}
 
 /**
  * Data Transfer Object for Transition serialization
@@ -60,6 +66,7 @@ fun <STATE, EVENT> ExTransitionTable<STATE, EVENT>.toDto(): FsmDto {
     
     return FsmDto(
         autoTransitionEnabled = autoTransitionEnabled,
+        maxImmediateAutoTransitions = maxImmediateAutoTransitions,
         transitions = transitionsMap
     )
 }
@@ -181,6 +188,7 @@ fun <STATE, EVENT> FsmDto.toExTransitionTable(
 ): ExTransitionTable<STATE, EVENT> {
     val builder = ExTransitionTable.Builder<STATE, EVENT>()
     builder.autoTransitionEnabled(autoTransitionEnabled)
+    builder.maxImmediateAutoTransitions(maxImmediateAutoTransitions)
     
     transitions.values.flatten().forEach { dto ->
         val fromState = stateParser(dto.from)

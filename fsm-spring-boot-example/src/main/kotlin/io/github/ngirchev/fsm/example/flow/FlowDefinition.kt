@@ -4,6 +4,8 @@ data class FlowDefinition(
     val schemaVersion: Int,
     val initialState: String,
     val autoTransitionEnabled: Boolean = false,
+    val allowCyclicAutoTransitions: Boolean = false,
+    val maxImmediateAutoTransitions: Int = 0,
     val states: List<String>,
     val events: List<String>,
     val transitions: List<FlowTransitionDefinition>,

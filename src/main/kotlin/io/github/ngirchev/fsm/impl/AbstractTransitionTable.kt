@@ -9,6 +9,8 @@ internal constructor(
     open var autoTransitionEnabled: Boolean
 ) : TransitionTable<STATE, TRANSITION> {
 
+    open var maxImmediateAutoTransitions: Int = 0
+
     override fun getTransitionByState(context: StateContext<STATE>, newState: STATE): TRANSITION? {
         return transitions[context.state]?.firstOrNull {
             it.to.state == newState && it.to.conditions.all { condition -> condition.invoke(context) }

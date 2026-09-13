@@ -1,6 +1,8 @@
 package io.github.ngirchev.fsm.example.flow
 
 import io.github.ngirchev.fsm.impl.extended.ExTransitionTable
+import org.springframework.boot.ApplicationArguments
+import org.springframework.boot.ApplicationRunner
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.LinkedHashMap
@@ -69,5 +71,15 @@ class ActiveFlowProvider(
 
     companion object {
         private const val MAX_CACHED_TABLES = 128
+    }
+}
+
+@Service
+class ActiveFlowStartupValidator(
+    private val repository: FlowRepository,
+    private val compiler: FlowCompiler,
+) : ApplicationRunner {
+    override fun run(args: ApplicationArguments) {
+        repository.activeVersions().forEach { compiler.compile(it.definition) }
     }
 }

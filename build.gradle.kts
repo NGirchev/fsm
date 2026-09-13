@@ -3,7 +3,7 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
     // Kotlin version bumped to be compatible with the Maven Publish plugin and Gradle 8.10
-    kotlin("jvm") version "2.4.20-RC"
+    kotlin("jvm") version "2.2.0"
     id("io.gitlab.arturbosch.detekt") version "1.23.8"
     id("maven-publish")
     id("signing")

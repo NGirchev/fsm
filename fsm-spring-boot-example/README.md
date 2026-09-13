@@ -25,3 +25,9 @@ curl -X POST http://localhost:8080/api/orders/1/events \
 
 Flow management endpoints are under `/api/flows/{flowKey}/versions`. A draft is editable until
 `POST /api/flows/{flowKey}/versions/{version}/publish` validates it and atomically makes it active.
+
+Auto-transition cycles are rejected by default. A deliberately cyclic definition, such as a traffic
+light, must set `allowCyclicAutoTransitions` to `true`. When automatic transitions are enabled, a cyclic
+definition must also set a positive `maxImmediateAutoTransitions` because this example executes them
+synchronously. Acyclic chains are unlimited by default (`maxImmediateAutoTransitions: 0`).
+Active definitions are validated during application startup.

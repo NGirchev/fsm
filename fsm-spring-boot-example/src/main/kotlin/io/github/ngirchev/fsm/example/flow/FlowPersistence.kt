@@ -92,6 +92,12 @@ class FlowRepository(
         .optional()
         .orElseThrow { FlowNotFoundException("Flow $flowKey has no active version") }
 
+    fun activeVersions(): List<FlowVersion> = jdbc.sql(
+        BASE_SELECT + " WHERE v.id = f.active_version_id ORDER BY f.flow_key",
+    )
+        .query(::mapVersion)
+        .list()
+
     @Transactional
     fun activate(flowKey: String, version: Int, validate: (FlowVersion) -> Unit): FlowVersion {
         val flowId = lockFlow(flowKey)

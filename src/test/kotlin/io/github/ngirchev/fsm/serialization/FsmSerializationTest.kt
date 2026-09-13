@@ -229,6 +229,7 @@ class FsmSerializationTest {
         // given - FSM with autoTransitionEnabled = true
         val originalTable = ExTransitionTable.Builder<DocumentState, String>()
             .autoTransitionEnabled(true)
+            .maxImmediateAutoTransitions(7)
             .add(from = NEW, onEvent = "TO_READY", to = READY_FOR_SIGN)
             .add(from = READY_FOR_SIGN, to = SIGNED)
             .build()
@@ -243,6 +244,7 @@ class FsmSerializationTest {
         // then - verify autoTransitionEnabled is preserved
         assertEquals(true, originalTable.autoTransitionEnabled)
         assertEquals(true, restoredTable.autoTransitionEnabled)
+        assertEquals(7, restoredTable.maxImmediateAutoTransitions)
     }
 
     @Test

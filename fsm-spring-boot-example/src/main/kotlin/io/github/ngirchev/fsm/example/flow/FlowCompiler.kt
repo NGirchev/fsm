@@ -25,6 +25,9 @@ class FlowCompiler(private val behaviors: FlowBehaviorRegistry) {
         if (definition.events.any(String::isBlank)) issue("events", "Event IDs must not be blank")
         if (definition.events.distinct().size != definition.events.size) issue("events", "Event IDs must be unique")
         if (definition.initialState !in definition.states) issue("initialState", "Initial state is not declared")
+        if (definition.maxImmediateAutoTransitions < 0) {
+            issue("maxImmediateAutoTransitions", "Runtime limit must not be negative")
+        }
 
         val transitionIds = mutableSetOf<String>()
         val signatures = mutableSetOf<TransitionSignature>()
@@ -68,6 +71,19 @@ class FlowCompiler(private val behaviors: FlowBehaviorRegistry) {
                 issue("transitions", "Unguarded transition ${group[catchAll].id} hides later transition $hiddenId")
             }
         }
+        findAutoTransitionCycle(definition)?.let { cycle ->
+            if (!definition.allowCyclicAutoTransitions) {
+                issue(
+                    "allowCyclicAutoTransitions",
+                    "Cyclic auto transitions require explicit opt-in: ${cycle.joinToString(" -> ")}",
+                )
+            } else if (definition.autoTransitionEnabled && definition.maxImmediateAutoTransitions == 0) {
+                issue(
+                    "maxImmediateAutoTransitions",
+                    "Cyclic auto transitions with synchronous execution require a positive runtime limit",
+                )
+            }
+        }
         return issues
     }
 
@@ -77,6 +93,7 @@ class FlowCompiler(private val behaviors: FlowBehaviorRegistry) {
 
         val builder = ExTransitionTable.Builder<String, String>()
             .autoTransitionEnabled(definition.autoTransitionEnabled)
+            .maxImmediateAutoTransitions(definition.maxImmediateAutoTransitions)
         definition.transitions.forEach { transition ->
             val guards: List<Guard<in StateContext<String>>> = transition.guards.map { name ->
                 IdGuard<StateContext<String>>(name) { context -> behaviors.guard(name).test(context) }
@@ -94,6 +111,52 @@ class FlowCompiler(private val behaviors: FlowBehaviorRegistry) {
         }
         return builder.build()
     }
+
+    private fun findAutoTransitionCycle(definition: FlowDefinition): List<String>? {
+        val edges = definition.transitions
+            .filter { it.trigger.kind == "auto" }
+            .groupBy({ it.from }, { it.to })
+        val visited = mutableSetOf<String>()
+        val path = mutableListOf<String>()
+        val pathIndexes = mutableMapOf<String, Int>()
+
+        definition.states.forEach { state ->
+            if (state in visited) return@forEach
+
+            val stack = ArrayDeque<TraversalFrame>()
+            stack.addLast(TraversalFrame(state))
+            pathIndexes[state] = path.size
+            path += state
+
+            while (stack.isNotEmpty()) {
+                val frame = stack.last()
+                val nextStates = edges[frame.state].orEmpty()
+                if (frame.nextIndex >= nextStates.size) {
+                    stack.removeLast()
+                    pathIndexes.remove(frame.state)
+                    path.removeAt(path.lastIndex)
+                    visited += frame.state
+                    continue
+                }
+
+                val next = nextStates[frame.nextIndex++]
+                pathIndexes[next]?.let { cycleStart ->
+                    return path.subList(cycleStart, path.size).toList() + next
+                }
+                if (next !in visited) {
+                    stack.addLast(TraversalFrame(next))
+                    pathIndexes[next] = path.size
+                    path += next
+                }
+            }
+        }
+        return null
+    }
+
+    private data class TraversalFrame(
+        val state: String,
+        var nextIndex: Int = 0,
+    )
 
     private data class TransitionSignature(
         val from: String,

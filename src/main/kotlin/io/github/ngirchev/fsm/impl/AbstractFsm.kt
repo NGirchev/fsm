@@ -1,6 +1,7 @@
 package io.github.ngirchev.fsm.impl
 
 import io.github.ngirchev.fsm.*
+import io.github.ngirchev.fsm.exception.AutoTransitionLimitExceededException
 import io.github.ngirchev.fsm.exception.FsmException
 import io.github.ngirchev.fsm.exception.FsmTransitionFailedException
 import org.slf4j.LoggerFactory
@@ -134,9 +135,15 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
     }
 
     protected open fun performImmediateAutoTransitions() {
+        var completedTransitions = 0
         while (true) {
             val autoTransition = transitionTable.getAutoTransition(context) ?: return
+            val limit = transitionTable.maxImmediateAutoTransitions
+            if (limit > 0 && completedTransitions >= limit) {
+                throw AutoTransitionLimitExceededException(limit)
+            }
             executeSingleTransition(autoTransition)
+            completedTransitions++
         }
     }
 
