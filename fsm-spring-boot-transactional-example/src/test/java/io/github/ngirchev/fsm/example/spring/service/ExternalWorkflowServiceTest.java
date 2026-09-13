@@ -3,6 +3,7 @@ package io.github.ngirchev.fsm.example.spring.service;
 import io.github.ngirchev.fsm.example.spring.domain.ExternalCallResult;
 import io.github.ngirchev.fsm.example.spring.domain.ExternalWorkflowRepository;
 import io.github.ngirchev.fsm.example.spring.integration.ExternalServiceClient;
+import io.github.ngirchev.fsm.exception.FsmEventSourcingTransitionFailedException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,6 +13,11 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.github.ngirchev.fsm.example.spring.domain.ExternalCallResult.DONE;
 import static io.github.ngirchev.fsm.example.spring.domain.ExternalCallResult.FAILED;
@@ -96,6 +102,40 @@ class ExternalWorkflowServiceTest {
         assertThat(service.statusRevisionNumbers(workflowId)).hasSize(1);
     }
 
+    @Test
+    void concurrentStartsSubmitExternalCallOnlyOnce() throws Exception {
+        Long workflowId = service.createWorkflow();
+        externalServiceClient.waitForCompetingSubmission();
+
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var startGate = new CountDownLatch(1);
+            var first = executor.submit(() -> {
+                startGate.await();
+                service.start(workflowId);
+                return null;
+            });
+            var second = executor.submit(() -> {
+                startGate.await();
+                service.start(workflowId);
+                return null;
+            });
+            startGate.countDown();
+
+            Throwable failure = null;
+            for (var start : java.util.List.of(first, second)) {
+                try {
+                    start.get();
+                } catch (ExecutionException exception) {
+                    assertThat(failure).isNull();
+                    failure = exception.getCause();
+                }
+            }
+
+            assertThat(failure).isInstanceOf(FsmEventSourcingTransitionFailedException.class);
+            assertThat(externalServiceClient.submissionCount()).isEqualTo(1);
+        }
+    }
+
     @TestConfiguration(proxyBeanMethods = false)
     static class ExternalServiceClientTestConfiguration {
 
@@ -110,10 +150,22 @@ class ExternalWorkflowServiceTest {
 
         private final AtomicReference<ExternalCallResult> result = new AtomicReference<>(DONE);
         private final AtomicReference<RuntimeException> failure = new AtomicReference<>();
+        private final AtomicInteger submissions = new AtomicInteger();
+        private volatile CountDownLatch competingSubmission;
 
         void reset() {
             result.set(DONE);
             failure.set(null);
+            submissions.set(0);
+            competingSubmission = null;
+        }
+
+        void waitForCompetingSubmission() {
+            competingSubmission = new CountDownLatch(1);
+        }
+
+        int submissionCount() {
+            return submissions.get();
         }
 
         void nextResult(ExternalCallResult result) {
@@ -126,6 +178,20 @@ class ExternalWorkflowServiceTest {
 
         @Override
         public ExternalCallResult submit(io.github.ngirchev.fsm.example.spring.domain.ExternalWorkflow workflow) {
+            int submission = submissions.incrementAndGet();
+            CountDownLatch latch = competingSubmission;
+            if (latch != null) {
+                if (submission == 1) {
+                    try {
+                        latch.await(500, TimeUnit.MILLISECONDS);
+                    } catch (InterruptedException exception) {
+                        Thread.currentThread().interrupt();
+                        throw new IllegalStateException("Interrupted while waiting for competing submission", exception);
+                    }
+                } else {
+                    latch.countDown();
+                }
+            }
             RuntimeException exception = failure.getAndSet(null);
             if (exception != null) {
                 throw exception;

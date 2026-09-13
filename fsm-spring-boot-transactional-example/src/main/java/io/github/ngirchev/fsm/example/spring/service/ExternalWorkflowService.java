@@ -39,7 +39,7 @@ public class ExternalWorkflowService {
 
     @Transactional
     public void start(Long workflowId) {
-        ExternalWorkflow workflow = repository.findById(workflowId).orElseThrow();
+        ExternalWorkflow workflow = repository.findByIdForUpdate(workflowId).orElseThrow();
         fsm.handle(workflow, START);
     }
 

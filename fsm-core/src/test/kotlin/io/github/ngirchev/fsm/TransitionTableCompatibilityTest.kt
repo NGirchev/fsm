@@ -4,6 +4,7 @@ import io.github.ngirchev.fsm.impl.basic.BTransition
 import io.github.ngirchev.fsm.impl.basic.BTransitionTable
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 
 class TransitionTableCompatibilityTest {
@@ -43,6 +44,18 @@ class TransitionTableCompatibilityTest {
 
         requireNotNull(transition)
         assertEquals("to", transition.to.state)
+    }
+
+    @Test
+    fun newTwoArgumentCallPreservesExceptionFromLegacyOverride() {
+        val table = ThrowingLegacyTransitionTable()
+        val context = TestStateContext("from")
+
+        val error = assertFailsWith<IllegalStateException> {
+            table.getAutoTransition(context, true)
+        }
+
+        assertEquals("guard failed", error.message)
     }
 
     @Test
@@ -123,6 +136,24 @@ class TransitionTableCompatibilityTest {
         override fun <DOMAIN : StateContext<String>> createDomainFsm(): DomainSupport<DOMAIN, String> {
             error("Not needed for compatibility test")
         }
+    }
+
+    private class ThrowingLegacyTransitionTable : TransitionTable<String, BTransition<String>> {
+        override val transitions: Map<String, LinkedHashSet<out BTransition<String>>> = emptyMap()
+
+        override fun getTransitionByState(
+            context: StateContext<String>,
+            newState: String,
+        ): BTransition<String>? = null
+
+        override fun getAutoTransition(context: StateContext<String>): BTransition<String>? {
+            throw IllegalStateException("guard failed")
+        }
+
+        override fun createFsm(initialState: String): StateSupport<String> = error("Not needed for compatibility test")
+
+        override fun <DOMAIN : StateContext<String>> createDomainFsm(): DomainSupport<DOMAIN, String> =
+            error("Not needed for compatibility test")
     }
 
     private class NoOverrideTransitionTable : TransitionTable<String, BTransition<String>> {

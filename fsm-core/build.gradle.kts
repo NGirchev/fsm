@@ -21,16 +21,16 @@ repositories {
 dependencies {
     // SLF4J API only — consumers choose their own logging implementation
     implementation("org.slf4j:slf4j-api:2.0.17")
-    compileOnly("ch.qos.logback:logback-classic:1.5.32")
-    testImplementation("ch.qos.logback:logback-classic:1.5.32")
+    compileOnly("ch.qos.logback:logback-classic:1.5.34")
+    testImplementation("ch.qos.logback:logback-classic:1.5.34")
     testImplementation("org.mockito.kotlin:mockito-kotlin:5.4.0")
     testImplementation("io.mockk:mockk:1.14.3")
     testImplementation("org.junit.jupiter", "junit-jupiter-params", "5.12.2")
     testImplementation(kotlin("test"))
     
     // Jackson for JSON serialization
-    api("com.fasterxml.jackson.core:jackson-databind:2.21.1")
-    api("com.fasterxml.jackson.module:jackson-module-kotlin:2.21.1")
+    api("com.fasterxml.jackson.core:jackson-databind:2.21.5")
+    api("com.fasterxml.jackson.module:jackson-module-kotlin:2.21.5")
 }
 
 java {

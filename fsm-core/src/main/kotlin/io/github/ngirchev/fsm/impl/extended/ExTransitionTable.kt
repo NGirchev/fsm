@@ -69,6 +69,7 @@ open class ExTransitionTable<STATE, EVENT>(
         internal val transitions: MutableMap<STATE, LinkedHashSet<ExTransition<STATE, EVENT>>> = hashMapOf()
         private var autoTransitionEnabled: Boolean = false
         private var autoTransitionScheduler: AutoTransitionScheduler<STATE> = ImmediateAutoTransitionScheduler()
+        private var maxImmediateAutoTransitions: Int = 0
 
         fun autoTransitionEnabled(enabled: Boolean): Builder<STATE, EVENT> {
             this.autoTransitionEnabled = enabled
@@ -77,6 +78,12 @@ open class ExTransitionTable<STATE, EVENT>(
 
         fun autoTransitionScheduler(scheduler: AutoTransitionScheduler<STATE>): Builder<STATE, EVENT> {
             this.autoTransitionScheduler = scheduler
+            return this
+        }
+
+        fun maxImmediateAutoTransitions(limit: Int): Builder<STATE, EVENT> {
+            require(limit >= 0) { "maxImmediateAutoTransitions must not be negative" }
+            maxImmediateAutoTransitions = limit
             return this
         }
 
@@ -160,7 +167,10 @@ open class ExTransitionTable<STATE, EVENT>(
         fun build(): ExTransitionTable<STATE, EVENT> {
             val snapshot = snapshotTransitions()
             return ExTransitionTable(snapshot, autoTransitionEnabled, autoTransitionScheduler)
-                .also { it.warnOnAmbiguousTransitions() }
+                .also {
+                    it.maxImmediateAutoTransitions = maxImmediateAutoTransitions
+                    it.warnOnAmbiguousTransitions()
+                }
         }
 
         fun <TABLE : ExTransitionTable<STATE, EVENT>> build(
@@ -168,7 +178,10 @@ open class ExTransitionTable<STATE, EVENT>(
         ): TABLE {
             val snapshot = snapshotTransitions()
             return factory.create(snapshot, autoTransitionEnabled, autoTransitionScheduler)
-                .also { it.warnOnAmbiguousTransitions() }
+                .also {
+                    it.maxImmediateAutoTransitions = maxImmediateAutoTransitions
+                    it.warnOnAmbiguousTransitions()
+                }
         }
 
         private fun snapshotTransitions(): Map<STATE, LinkedHashSet<ExTransition<STATE, EVENT>>> {

@@ -18,6 +18,10 @@ END
 
 Each transition uses `PersistWorkflowStatusAction` as a `postAction`, so the new state is saved after the FSM changes the state. Auto transitions use `auto().deferWith(AfterCommitAutoTransitionScheduler)`, so every deferred auto transition runs after the previous transaction commits and opens its own `REQUIRES_NEW` transaction. That is what lets Envers keep every intermediate status in the audit history.
 
+`ExternalWorkflow` uses optimistic versioning, while `start` locks the workflow row before invoking
+the external service. The lock prevents concurrent starts from submitting the same workflow twice;
+the version field also protects later detached-entity merges from lost updates.
+
 Run the example tests:
 
 ```bash

@@ -211,6 +211,10 @@ Summary:
 
 Auto transitions are synchronous by default. If a domain state must be saved before the auto transition action runs, provide an `AutoTransitionScheduler`.
 
+Immediate auto-transition chains are unlimited by default. Configure
+`.maxImmediateAutoTransitions(limit)` with a positive value to enable a per-run runtime guard;
+`0` keeps the guard disabled. Deferred schedulers are not subject to this limit.
+
 ```kotlin
 class SpringAfterCommitAutoTransitionScheduler<STATE>(
     transactionManager: PlatformTransactionManager
@@ -305,32 +309,55 @@ fun main() {
 }
 ```
 
-### Example with timers - traffic light.
-```
+### Example with timers — traffic light
+
+A traffic light is an intentionally cyclic FSM. Run its timed auto transitions through a deferred
+scheduler so `onEvent("RUN")` can return while the cycle continues on the executor thread.
+
+```kotlin
 fun main() {
-    val fsm = ExFsm("INITIAL", ExTransitionTable.Builder<String, String>()
+    val executor = Executors.newSingleThreadExecutor()
+    val scheduler = AutoTransitionScheduler<String> { _, _, runTransition ->
+        executor.execute(runTransition)
+    }
+    val transitionTable = ExTransitionTable.Builder<String, String>()
+        .autoTransitionEnabled(true)
+        .autoTransitionScheduler(scheduler)
         .add(ExTransition(from = "INITIAL", to = "GREEN", onEvent = "RUN"))
         .add(ExTransition(from = "RED", to = To("GREEN", timeout = Timeout(3), action = { println(it) })))
         .add(ExTransition(from = "GREEN", to = To("YELLOW", timeout = Timeout(3), action = { println(it) })))
         .add(ExTransition(from = "YELLOW", to = To("RED", timeout = Timeout(3), action = { println(it) })))
-        .build())
+        .build()
+    val fsm = transitionTable.createFsm("INITIAL")
 
     fsm.onEvent("RUN")
 }
 ```
+
 OR
-```
+
+```kotlin
 fun main() {
+    val executor = Executors.newSingleThreadExecutor()
+    val scheduler = AutoTransitionScheduler<String> { _, _, runTransition ->
+        executor.execute(runTransition)
+    }
     val fsm = FsmFactory.statesWithEvents<String, String>()
-            .from("INITIAL").to("GREEN").onEvent("RUN").end()
-            .from("RED").to("GREEN").timeout(Timeout(3)).action { println(it) }.end()
-            .from("GREEN").to("YELLOW").timeout(Timeout(3)).action { println(it) }.end()
-            .from("YELLOW").to("RED").timeout(Timeout(3)).action { println(it) }.end()
-            .build().createFsm("INITIAL")
+        .autoTransitionEnabled(true)
+        .autoTransitionScheduler(scheduler)
+        .from("INITIAL").to("GREEN").onEvent("RUN").end()
+        .from("RED").to("GREEN").timeout(Timeout(3)).action { println(it) }.end()
+        .from("GREEN").to("YELLOW").timeout(Timeout(3)).action { println(it) }.end()
+        .from("YELLOW").to("RED").timeout(Timeout(3)).action { println(it) }.end()
+        .build()
+        .createFsm("INITIAL")
 
     fsm.onEvent("RUN")
 }
 ```
+
+The immediate runtime limit does not apply to deferred schedulers: every callback performs one
+transition and schedules the next one.
 
 ## FSM Diagram Visualization
 

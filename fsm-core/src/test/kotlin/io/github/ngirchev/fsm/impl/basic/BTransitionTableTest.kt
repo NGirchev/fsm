@@ -96,6 +96,22 @@ class BTransitionTableTest {
     }
 
     @Test
+    fun maxImmediateAutoTransitionsShouldSetValue() {
+        val table = BTransitionTable.Builder<String>()
+            .maxImmediateAutoTransitions(3)
+            .build()
+
+        assertEquals(3, table.maxImmediateAutoTransitions)
+    }
+
+    @Test
+    fun negativeMaxImmediateAutoTransitionsShouldBeRejected() {
+        assertThrows(IllegalArgumentException::class.java) {
+            BTransitionTable.Builder<String>().maxImmediateAutoTransitions(-1)
+        }
+    }
+
+    @Test
     fun fromBuilderShouldCreateToBuilder() {
         val builder = BTransitionTable.Builder<String>()
         val fromBuilder = builder.from("from")

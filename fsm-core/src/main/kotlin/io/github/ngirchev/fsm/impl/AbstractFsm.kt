@@ -1,6 +1,7 @@
 package io.github.ngirchev.fsm.impl
 
 import io.github.ngirchev.fsm.*
+import io.github.ngirchev.fsm.exception.AutoTransitionLimitExceededException
 import io.github.ngirchev.fsm.exception.FsmException
 import io.github.ngirchev.fsm.exception.FsmTransitionFailedException
 import org.slf4j.LoggerFactory
@@ -125,6 +126,7 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
     }
 
     protected open fun performScheduledAutoTransitions() {
+        var completedImmediateTransitions = 0
         while (true) {
             val autoTransition = transitionTable.getAutoTransition(context, autoTransitionEnabled) ?: run {
                 notifyAutoTransitionCompleted()
@@ -133,6 +135,10 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
 
             val scheduler = autoTransition.to.autoTransitionScheduler ?: autoTransitionScheduler
             if (scheduler.runsSynchronously) {
+                val limit = transitionTable.maxImmediateAutoTransitions
+                if (limit > 0 && completedImmediateTransitions >= limit) {
+                    throw AutoTransitionLimitExceededException(limit)
+                }
                 var callbackInvoked = false
                 scheduler.schedule(context, autoTransition) {
                     callbackInvoked = true
@@ -143,6 +149,7 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
                         "Synchronous auto transition scheduler must invoke callback before schedule(...) returns",
                     )
                 }
+                completedImmediateTransitions++
                 continue
             }
 

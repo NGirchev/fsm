@@ -18,6 +18,8 @@ public class PersistWorkflowStatusAction implements Action<StateContext<External
 
     @Override
     public void invoke(StateContext<ExternalWorkflowStatus> context) {
-        repository.saveAndFlush((ExternalWorkflow) context);
+        ExternalWorkflow workflow = (ExternalWorkflow) context;
+        ExternalWorkflow persistedWorkflow = repository.saveAndFlush(workflow);
+        workflow.synchronizeVersionFrom(persistedWorkflow);
     }
 }

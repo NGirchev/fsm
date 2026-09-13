@@ -300,6 +300,42 @@ class ExFsmTest {
     }
 
     @Test
+    fun immediateAutoTransitionsShouldStopAtConfiguredRuntimeLimit() {
+        val table = ExTransitionTable.Builder<String, String>()
+            .autoTransitionEnabled(true)
+            .maxImmediateAutoTransitions(2)
+            .add("from", "START", "cycle-a")
+            .add("cycle-a", null, "cycle-b")
+            .add("cycle-b", null, "cycle-a")
+            .build()
+
+        val fsm = ExFsm("from", table)
+
+        val error = assertThrows(io.github.ngirchev.fsm.exception.AutoTransitionLimitExceededException::class.java) {
+            fsm.onEvent("START")
+        }
+
+        assertEquals(2, error.limit)
+    }
+
+    @Test
+    fun immediateAutoTransitionRuntimeLimitIsDisabledByZero() {
+        val table = ExTransitionTable.Builder<String, String>()
+            .autoTransitionEnabled(true)
+            .maxImmediateAutoTransitions(0)
+            .add("from", "START", "step-1")
+            .add("step-1", null, "step-2")
+            .add("step-2", null, "done")
+            .build()
+
+        val fsm = ExFsm("from", table)
+
+        fsm.onEvent("START")
+
+        assertEquals("done", fsm.getState())
+    }
+
+    @Test
     fun onEventShouldApplyAutoTransitionSchedulerOnlyForConfiguredTransitions() {
         val scheduledCallbacks = mutableListOf<() -> Unit>()
         val scheduler = AutoTransitionScheduler<String> { _, _, runTransition ->

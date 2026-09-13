@@ -10,6 +10,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Transient;
+import jakarta.persistence.Version;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -25,6 +26,9 @@ public class ExternalWorkflow implements StateContext<ExternalWorkflowStatus> {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Version
+    private long version;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -48,5 +52,12 @@ public class ExternalWorkflow implements StateContext<ExternalWorkflowStatus> {
 
     public void markNotificationSent() {
         this.notificationSent = true;
+    }
+
+    public void synchronizeVersionFrom(ExternalWorkflow persistedWorkflow) {
+        if (!id.equals(persistedWorkflow.id)) {
+            throw new IllegalArgumentException("Cannot synchronize versions of different workflows");
+        }
+        version = persistedWorkflow.version;
     }
 }

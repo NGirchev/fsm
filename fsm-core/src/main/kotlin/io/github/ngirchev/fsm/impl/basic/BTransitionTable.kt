@@ -38,6 +38,7 @@ open class BTransitionTable<STATE>(
         private val transitions: MutableMap<STATE, LinkedHashSet<BTransition<STATE>>> = hashMapOf()
         private var autoTransitionEnabled: Boolean = false
         private var autoTransitionScheduler: AutoTransitionScheduler<STATE> = ImmediateAutoTransitionScheduler()
+        private var maxImmediateAutoTransitions: Int = 0
 
         /**
          * Placeholder for symmetry with extended FSM DSL.
@@ -50,6 +51,12 @@ open class BTransitionTable<STATE>(
 
         fun autoTransitionScheduler(scheduler: AutoTransitionScheduler<STATE>): Builder<STATE> {
             this.autoTransitionScheduler = scheduler
+            return this
+        }
+
+        fun maxImmediateAutoTransitions(limit: Int): Builder<STATE> {
+            require(limit >= 0) { "maxImmediateAutoTransitions must not be negative" }
+            maxImmediateAutoTransitions = limit
             return this
         }
 
@@ -109,6 +116,7 @@ open class BTransitionTable<STATE>(
             val snapshot = snapshotTransitions()
             warnOnAmbiguousTransitions(snapshot)
             return BTransitionTable(snapshot, autoTransitionEnabled, autoTransitionScheduler)
+                .also { it.maxImmediateAutoTransitions = maxImmediateAutoTransitions }
         }
 
         fun <TABLE : BTransitionTable<STATE>> build(
@@ -117,6 +125,7 @@ open class BTransitionTable<STATE>(
             val snapshot = snapshotTransitions()
             warnOnAmbiguousTransitions(snapshot)
             return factory.create(snapshot, autoTransitionEnabled, autoTransitionScheduler)
+                .also { it.maxImmediateAutoTransitions = maxImmediateAutoTransitions }
         }
 
         private fun warnOnAmbiguousTransitions(

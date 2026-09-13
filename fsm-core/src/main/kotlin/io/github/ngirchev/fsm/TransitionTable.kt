@@ -1,5 +1,6 @@
 package io.github.ngirchev.fsm
 
+import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Method
 import java.util.concurrent.ConcurrentHashMap
 
@@ -24,7 +25,7 @@ interface TransitionTable<STATE, TRANSITION : Transition<STATE>> {
         val overrides = transitionTableAutoTransitionOverrides(javaClass)
         val twoArgOverride = overrides.twoArgOverride ?: return null
         @Suppress("UNCHECKED_CAST")
-        return twoArgOverride.invoke(this, context, autoTransitionEnabled) as TRANSITION?
+        return invokeAutoTransitionOverride(twoArgOverride, context, autoTransitionEnabled)
     }
 
     fun getAutoTransition(
@@ -38,11 +39,23 @@ interface TransitionTable<STATE, TRANSITION : Transition<STATE>> {
         val overrides = transitionTableAutoTransitionOverrides(javaClass)
         val oneArgOverride = overrides.oneArgOverride ?: return null
         @Suppress("UNCHECKED_CAST")
-        return oneArgOverride.invoke(this, context) as TRANSITION?
+        return invokeAutoTransitionOverride(oneArgOverride, context)
     }
 
     fun createFsm(initialState: STATE): StateSupport<STATE>
     fun <DOMAIN : StateContext<STATE>> createDomainFsm(): DomainSupport<DOMAIN, STATE>
+}
+
+@Suppress("UNCHECKED_CAST")
+private fun <TRANSITION> Any.invokeAutoTransitionOverride(
+    method: Method,
+    vararg arguments: Any?,
+): TRANSITION? {
+    return try {
+        method.invoke(this, *arguments) as TRANSITION?
+    } catch (exception: InvocationTargetException) {
+        throw exception.targetException
+    }
 }
 
 private data class TransitionTableAutoTransitionOverrides(
