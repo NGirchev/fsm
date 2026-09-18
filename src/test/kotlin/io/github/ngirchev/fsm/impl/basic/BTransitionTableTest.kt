@@ -20,6 +20,23 @@ import kotlin.test.assertTrue
 
 class BTransitionTableTest {
 
+    @Test
+    fun immediateAutoTransitionLimitShouldRejectNegativeValues() {
+        assertThrows(IllegalArgumentException::class.java) {
+            BTransitionTable.Builder<String>().maxImmediateAutoTransitions(-1)
+        }
+    }
+
+    @Test
+    fun immediateAutoTransitionLimitShouldBePreservedByBothBuildMethods() {
+        val builder = BTransitionTable.Builder<DocumentState>()
+            .maxImmediateAutoTransitions(3)
+
+        assertEquals(3, builder.build().maxImmediateAutoTransitions)
+        assertEquals(3, builder.build(::CustomBTransitionTable).maxImmediateAutoTransitions)
+        assertEquals(0, BTransitionTable.Builder<String>().maxImmediateAutoTransitions(0).build().maxImmediateAutoTransitions)
+    }
+
     private class SimpleStateContext(override var state: String, override var currentTransition: io.github.ngirchev.fsm.Transition<String>? = null) : StateContext<String>
 
     @Test

@@ -18,6 +18,26 @@ class FlowCompilerTest {
     private val compiler = FlowCompiler(FlowBehaviorRegistry(context))
 
     @Test
+    fun `rejects states exceeding PostgreSQL character limit`() {
+        listOf("A".repeat(121), "😀".repeat(121)).forEach { state ->
+            val definition = FlowDefinition(1, state, states = listOf(state), events = emptyList(), transitions = emptyList())
+
+            assertTrue(compiler.validate(definition).any { it.path == "states" })
+            assertFailsWith<InvalidFlowDefinitionException> { compiler.compile(definition) }
+        }
+    }
+
+    @Test
+    fun `accepts state limit in Unicode code points rather than UTF-16 units`() {
+        listOf("A".repeat(120), "😀".repeat(120)).forEach { state ->
+            val definition = FlowDefinition(1, state, states = listOf(state), events = emptyList(), transitions = emptyList())
+
+            assertTrue(compiler.validate(definition).isEmpty())
+            compiler.compile(definition)
+        }
+    }
+
+    @Test
     fun `compiles valid definition with named Spring behaviors`() {
         val table = compiler.compile(validDefinition())
         val fsm = ExFsm("NEW", table)

@@ -21,6 +21,9 @@ class FlowCompiler(private val behaviors: FlowBehaviorRegistry) {
         if (definition.schemaVersion != 1) issue("schemaVersion", "Only schema version 1 is supported")
         if (definition.states.isEmpty()) issue("states", "At least one state is required")
         if (definition.states.any(String::isBlank)) issue("states", "State IDs must not be blank")
+        if (definition.states.any { it.codePointCount(0, it.length) > 120 }) {
+            issue("states", "State IDs must not exceed 120 characters")
+        }
         if (definition.states.distinct().size != definition.states.size) issue("states", "State IDs must be unique")
         if (definition.events.any(String::isBlank)) issue("events", "Event IDs must not be blank")
         if (definition.events.distinct().size != definition.events.size) issue("events", "Event IDs must be unique")

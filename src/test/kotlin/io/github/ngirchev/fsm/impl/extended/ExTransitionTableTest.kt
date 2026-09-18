@@ -26,6 +26,13 @@ import kotlin.test.assertTrue
 
 class ExTransitionTableTest {
 
+    @Test
+    fun immediateAutoTransitionLimitShouldRejectNegativeValues() {
+        assertThrows(IllegalArgumentException::class.java) {
+            ExTransitionTable.Builder<String, String>().maxImmediateAutoTransitions(-1)
+        }
+    }
+
     private class SimpleStateContext(override var state: String, override var currentTransition: io.github.ngirchev.fsm.Transition<String>? = null) : StateContext<String>
 
     private enum class PaymentEventType {
