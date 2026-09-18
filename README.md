@@ -1,5 +1,8 @@
 # FSM — Kotlin Finite State Machine Library and Visual FSM Editor
 
+For a Spring Boot example that stores versioned, dynamic flow definitions in PostgreSQL `JSONB`,
+see [`fsm-spring-boot-example`](fsm-spring-boot-example/README.md).
+
 [![CI](https://github.com/NGirchev/fsm/actions/workflows/ci.yml/badge.svg)](https://github.com/NGirchev/fsm/actions/workflows/ci.yml)
 [![Maven Central](https://img.shields.io/maven-central/v/io.github.ngirchev/fsm.svg)](https://search.maven.org/artifact/io.github.ngirchev/fsm)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -29,6 +32,10 @@ You can also use the `io.github.ngirchev.fsm.impl` package with basic implementa
 
 ## Installation
 
+The root project aggregates the JVM modules. Library sources and tests live in
+`fsm/src`; the Gradle module is `:fsm`, while its Maven coordinates remain
+`io.github.ngirchev:fsm`. The Spring Boot starter depends on this module.
+
 Replace `VERSION` with the latest version from Maven Central.
 
 ### Gradle (Kotlin DSL)
@@ -56,6 +63,14 @@ dependencies {
     <version>VERSION</version>
 </dependency>
 ```
+
+### Spring Boot
+
+This checkout includes [fsm-spring-boot-starter](fsm-spring-boot-starter/README.md),
+which provides automatic registration of a bean registry and JSON serializer.
+It saves ordinary Spring `Action` / `Guard` handlers by bean name and restores them
+from the application context. The core library remains independent of Spring.
+See [the Spring Boot example](fsm-spring-boot-example/README.md) for versioned database persistence.
 
 ## Usage Examples
 ### We have these initial data:
@@ -205,6 +220,10 @@ Summary:
 
 Auto transitions are synchronous by default. If a domain state must be saved before the auto transition action runs, provide an `AutoTransitionScheduler`.
 
+Immediate auto-transition chains are unlimited by default. Configure
+`.maxImmediateAutoTransitions(limit)` with a positive value to enable a per-run runtime guard;
+`0` keeps the guard disabled. Deferred schedulers are not subject to this limit.
+
 ```kotlin
 class SpringAfterCommitAutoTransitionScheduler<STATE>(
     transactionManager: PlatformTransactionManager
@@ -301,32 +320,58 @@ fun main() {
 }
 ```
 
-### Example with timers - traffic light.
-```
+### Example with timers — traffic light
+
+A traffic light is an intentionally cyclic FSM. Run its timed auto transitions through a deferred
+scheduler so `onEvent("RUN")` can return while the cycle continues on the executor thread.
+
+```kotlin
 fun main() {
-    val fsm = ExFsm("INITIAL", ExTransitionTable.Builder<String, String>()
+    val executor = Executors.newSingleThreadExecutor()
+    val scheduler = AutoTransitionScheduler<String> { _, _, runTransition ->
+        executor.execute(runTransition)
+    }
+    val transitionTable = ExTransitionTable.Builder<String, String>()
+        .autoTransitionEnabled(true)
+        .autoTransitionScheduler(scheduler)
         .add(ExTransition(from = "INITIAL", to = "GREEN", onEvent = "RUN"))
         .add(ExTransition(from = "RED", to = To("GREEN", timeout = Timeout(3), action = { println(it) })))
         .add(ExTransition(from = "GREEN", to = To("YELLOW", timeout = Timeout(3), action = { println(it) })))
         .add(ExTransition(from = "YELLOW", to = To("RED", timeout = Timeout(3), action = { println(it) })))
-        .build())
+        .build()
+    val fsm = transitionTable.createFsm("INITIAL")
 
     fsm.onEvent("RUN")
 }
 ```
+
 OR
-```
+
+```kotlin
 fun main() {
+    val executor = Executors.newSingleThreadExecutor()
+    val scheduler = AutoTransitionScheduler<String> { _, _, runTransition ->
+        executor.execute(runTransition)
+    }
     val fsm = FsmFactory.statesWithEvents<String, String>()
-            .from("INITIAL").to("GREEN").onEvent("RUN").end()
-            .from("RED").to("GREEN").timeout(Timeout(3)).action { println(it) }.end()
-            .from("GREEN").to("YELLOW").timeout(Timeout(3)).action { println(it) }.end()
-            .from("YELLOW").to("RED").timeout(Timeout(3)).action { println(it) }.end()
-            .build().createFsm("INITIAL")
+        .autoTransitionEnabled(true)
+        .autoTransitionScheduler(scheduler)
+        .from("INITIAL").to("GREEN").onEvent("RUN").end()
+        .from("RED").to("GREEN").timeout(Timeout(3)).action { println(it) }.end()
+        .from("GREEN").to("YELLOW").timeout(Timeout(3)).action { println(it) }.end()
+        .from("YELLOW").to("RED").timeout(Timeout(3)).action { println(it) }.end()
+        .build()
+        .createFsm("INITIAL")
 
     fsm.onEvent("RUN")
 }
 ```
+
+The immediate runtime limit does not apply to deferred schedulers: every callback performs one
+transition and schedules the next one. The dynamic Spring Boot example uses the core JSON format.
+Because it executes auto transitions synchronously, enabling them requires a positive
+`maxImmediateAutoTransitions`; see
+[`fsm-spring-boot-example`](fsm-spring-boot-example/README.md).
 
 ## FSM Diagram Visualization
 
@@ -532,7 +577,7 @@ This is the **standard Gradle command** for running tests. The command will:
 ./gradlew test --info
 
 # Run a specific test class
-./gradlew test --tests "io.github.ngirchev.fsm.impl.basic.BFsmTest"
+./gradlew :fsm:test --tests "io.github.ngirchev.fsm.impl.basic.BFsmTest"
 
 # Run tests and generate coverage report
 ./gradlew test jacocoTestReport
@@ -554,7 +599,7 @@ JaCoCo is:
 * Minimum line coverage: 80%
 * Minimum branch coverage: 70%
 
-Coverage reports are generated automatically during the build and can be viewed at `build/reports/jacoco/test/html/index.html` after running `./gradlew test jacocoTestReport`.
+Coverage reports are generated automatically during the build and can be viewed at `fsm/build/reports/jacoco/test/html/index.html` after running `./gradlew test jacocoTestReport`.
 
 To check coverage thresholds:
 

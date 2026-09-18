@@ -212,7 +212,7 @@ For maintainers creating a release:
 
 3. Attach artifacts and their signatures (for OpenSSF Security Score):
    ```bash
-   gh release upload v1.0.0 build/libs/*.jar build/libs/*.jar.asc --clobber
+   gh release upload v1.0.0 fsm/build/libs/*.jar fsm/build/libs/*.jar.asc --clobber
    ```
 
 ## Questions?
@@ -224,4 +224,3 @@ If you have questions about contributing:
 * Review the README.md for project information
 
 Thank you for contributing to FSM! 🎉
-

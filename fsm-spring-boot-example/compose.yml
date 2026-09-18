@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: fsm
+      POSTGRES_USER: fsm
+      POSTGRES_PASSWORD: fsm
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fsm -d fsm"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
