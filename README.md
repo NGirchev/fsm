@@ -32,6 +32,10 @@ You can also use the `io.github.ngirchev.fsm.impl` package with basic implementa
 
 ## Installation
 
+The root project aggregates the JVM modules. Library sources and tests live in
+`fsm/src`; the Gradle module is `:fsm`, while its Maven coordinates remain
+`io.github.ngirchev:fsm`. The Spring Boot starter depends on this module.
+
 Replace `VERSION` with the latest version from Maven Central.
 
 ### Gradle (Kotlin DSL)
@@ -573,7 +577,7 @@ This is the **standard Gradle command** for running tests. The command will:
 ./gradlew test --info
 
 # Run a specific test class
-./gradlew test --tests "io.github.ngirchev.fsm.impl.basic.BFsmTest"
+./gradlew :fsm:test --tests "io.github.ngirchev.fsm.impl.basic.BFsmTest"
 
 # Run tests and generate coverage report
 ./gradlew test jacocoTestReport
@@ -595,7 +599,7 @@ JaCoCo is:
 * Minimum line coverage: 80%
 * Minimum branch coverage: 70%
 
-Coverage reports are generated automatically during the build and can be viewed at `build/reports/jacoco/test/html/index.html` after running `./gradlew test jacocoTestReport`.
+Coverage reports are generated automatically during the build and can be viewed at `fsm/build/reports/jacoco/test/html/index.html` after running `./gradlew test jacocoTestReport`.
 
 To check coverage thresholds:
 

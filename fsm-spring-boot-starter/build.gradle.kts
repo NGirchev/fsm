@@ -12,7 +12,7 @@ repositories { mavenCentral() }
 
 dependencies {
     api(platform("org.springframework.boot:spring-boot-dependencies:3.5.16"))
-    api(project(":"))
+    api(project(":fsm"))
     api("org.springframework.boot:spring-boot-starter-json")
     implementation("org.springframework.boot:spring-boot-autoconfigure")
     testImplementation("org.springframework.boot:spring-boot-starter-test")
