@@ -46,3 +46,20 @@ The Project panel can export code in two styles:
 
 - `Fluent chain` uses `FsmFactory.statesWithEvents().from(...).to(...).end()`.
 - `Builder add calls` uses `ExTransitionTable.Builder().add(ExTransition(...))`.
+
+## Future: Camunda BPMN Export
+
+The editor model can be extended with a Camunda BPMN export target. The preferred path is to generate BPMN from the `.fsm.json` editor document, not to reverse-engineer already generated Java/Kotlin code.
+
+A practical implementation should start as a generator-only feature:
+
+- states become BPMN flow nodes or state marker tasks;
+- event transitions become BPMN flows driven by message, signal, or user-triggered steps;
+- guards become exclusive gateway conditions;
+- actions become service tasks or worker/delegate calls;
+- auto transitions become immediate internal flows;
+- timeouts become timer events or timer-backed wait steps.
+
+The hard parts are runtime semantics, not XML generation. The current FSM executes actions before state change, postActions after state change, supports chained auto transitions, sleeps before timeout transitions, and relies on ordered first-match transition selection. A Camunda export must model those details explicitly with gateways, service tasks, timers, and generated worker/delegate contracts.
+
+Camunda 7 is the simpler first target for Java/Spring integration because service tasks can call Java delegates or Spring beans directly. Camunda 8 is a better modern orchestration target, but actions need job workers and more runtime infrastructure.

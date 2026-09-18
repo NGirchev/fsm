@@ -27,6 +27,12 @@ The library contains several implementations for common use cases:
 
 You can also use the `io.github.ngirchev.fsm.impl` package with basic implementations.
 
+## Repository Modules
+
+- `fsm-core` - the Kotlin/JVM library published as `io.github.ngirchev:fsm`.
+- `fsm-spring-boot-transactional-example` - an executable Spring Boot example that depends on `fsm-core`.
+- `fsm-visual-editor` - a Vite/React editor for designing FSM flows and generating Java/Kotlin factories.
+
 ## Installation
 
 Replace `VERSION` with the latest version from Maven Central.
@@ -205,6 +211,10 @@ Summary:
 
 Auto transitions are synchronous by default. If a domain state must be saved before the auto transition action runs, provide an `AutoTransitionScheduler`.
 
+Immediate auto-transition chains are unlimited by default. Configure
+`.maxImmediateAutoTransitions(limit)` with a positive value to enable a per-run runtime guard;
+`0` keeps the guard disabled. Deferred schedulers are not subject to this limit.
+
 ```kotlin
 class SpringAfterCommitAutoTransitionScheduler<STATE>(
     transactionManager: PlatformTransactionManager
@@ -233,17 +243,15 @@ class SpringAfterCommitAutoTransitionScheduler<STATE>(
 val scheduler = SpringAfterCommitAutoTransitionScheduler<DocumentState>(transactionManager)
 
 val fsm = ExTransitionTable.Builder<DocumentState, String>()
-    .autoTransitionEnabled(true)
-    .autoTransitionScheduler(scheduler)
     .add(from = NEW, onEvent = "APPROVE", to = READY_FOR_SIGN)
-    .add(
-        from = READY_FOR_SIGN,
-        to = SIGNED,
-        action = {
+    .from(READY_FOR_SIGN).to(SIGNED)
+        .auto()
+        .action {
             // External call or another action that may fail.
             signatureClient.sendForSignature((it as Document).id)
         }
-    )
+        .deferWith(scheduler)
+        .end()
     .build()
     .createDomainFsm<Document>()
 
@@ -274,12 +282,12 @@ fun main() {
             .endMultiple()
 
             .from(SIGNED).onEvent("TO_END").toMultiple()
-            .to(AUTO_SENT).condition { document.signRequired }.end()
-            .to(DONE).condition { !document.signRequired }.end()
+            .to(AUTO_SENT).onCondition { document.signRequired }.end()
+            .to(DONE).onCondition { !document.signRequired }.end()
             .to(CANCELED).end()
             .endMultiple()
 
-            .from(AUTO_SENT).onEvent("TO_END").to(DONE).end()
+            .from(AUTO_SENT).to(DONE).onEvent("TO_END").end()
             .build().createDomainFsm<Document>()
     try {
         fsm.handle(document, "FAILED_EVENT")
@@ -301,32 +309,55 @@ fun main() {
 }
 ```
 
-### Example with timers - traffic light.
-```
+### Example with timers — traffic light
+
+A traffic light is an intentionally cyclic FSM. Run its timed auto transitions through a deferred
+scheduler so `onEvent("RUN")` can return while the cycle continues on the executor thread.
+
+```kotlin
 fun main() {
-    val fsm = ExFsm("INITIAL", ExTransitionTable.Builder<String, String>()
+    val executor = Executors.newSingleThreadExecutor()
+    val scheduler = AutoTransitionScheduler<String> { _, _, runTransition ->
+        executor.execute(runTransition)
+    }
+    val transitionTable = ExTransitionTable.Builder<String, String>()
+        .autoTransitionEnabled(true)
+        .autoTransitionScheduler(scheduler)
         .add(ExTransition(from = "INITIAL", to = "GREEN", onEvent = "RUN"))
         .add(ExTransition(from = "RED", to = To("GREEN", timeout = Timeout(3), action = { println(it) })))
         .add(ExTransition(from = "GREEN", to = To("YELLOW", timeout = Timeout(3), action = { println(it) })))
         .add(ExTransition(from = "YELLOW", to = To("RED", timeout = Timeout(3), action = { println(it) })))
-        .build())
+        .build()
+    val fsm = transitionTable.createFsm("INITIAL")
 
     fsm.onEvent("RUN")
 }
 ```
+
 OR
-```
+
+```kotlin
 fun main() {
+    val executor = Executors.newSingleThreadExecutor()
+    val scheduler = AutoTransitionScheduler<String> { _, _, runTransition ->
+        executor.execute(runTransition)
+    }
     val fsm = FsmFactory.statesWithEvents<String, String>()
-            .from("INITIAL").to("GREEN").onEvent("RUN").end()
-            .from("RED").to("GREEN").timeout(Timeout(3)).action { println(it) }.end()
-            .from("GREEN").to("YELLOW").timeout(Timeout(3)).action { println(it) }.end()
-            .from("YELLOW").to("RED").timeout(Timeout(3)).action { println(it) }.end()
-            .build().createFsm("INITIAL")
+        .autoTransitionEnabled(true)
+        .autoTransitionScheduler(scheduler)
+        .from("INITIAL").to("GREEN").onEvent("RUN").end()
+        .from("RED").to("GREEN").timeout(Timeout(3)).action { println(it) }.end()
+        .from("GREEN").to("YELLOW").timeout(Timeout(3)).action { println(it) }.end()
+        .from("YELLOW").to("RED").timeout(Timeout(3)).action { println(it) }.end()
+        .build()
+        .createFsm("INITIAL")
 
     fsm.onEvent("RUN")
 }
 ```
+
+The immediate runtime limit does not apply to deferred schedulers: every callback performs one
+transition and schedules the next one.
 
 ## FSM Diagram Visualization
 
@@ -532,7 +563,7 @@ This is the **standard Gradle command** for running tests. The command will:
 ./gradlew test --info
 
 # Run a specific test class
-./gradlew test --tests "io.github.ngirchev.fsm.impl.basic.BFsmTest"
+./gradlew :fsm-core:test --tests "io.github.ngirchev.fsm.impl.basic.BFsmTest"
 
 # Run tests and generate coverage report
 ./gradlew test jacocoTestReport
@@ -554,7 +585,7 @@ JaCoCo is:
 * Minimum line coverage: 80%
 * Minimum branch coverage: 70%
 
-Coverage reports are generated automatically during the build and can be viewed at `build/reports/jacoco/test/html/index.html` after running `./gradlew test jacocoTestReport`.
+Coverage reports are generated automatically during the build and can be viewed at `fsm-core/build/reports/jacoco/test/html/index.html` after running `./gradlew test jacocoTestReport`.
 
 To check coverage thresholds:
 

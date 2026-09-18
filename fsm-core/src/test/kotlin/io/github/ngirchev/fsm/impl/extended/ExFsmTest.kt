@@ -1,0 +1,567 @@
+package io.github.ngirchev.fsm.impl.extended
+
+import org.junit.jupiter.api.Assertions.assertThrows
+import org.junit.jupiter.api.Test
+import io.github.ngirchev.fsm.AutoTransitionScheduler
+import io.github.ngirchev.fsm.exception.FsmEventSourcingTransitionFailedException
+import io.github.ngirchev.fsm.StateContext
+import io.github.ngirchev.fsm.TypedEvent
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+
+class ExFsmTest {
+
+    private class SimpleStateContext(override var state: String, override var currentTransition: io.github.ngirchev.fsm.Transition<String>? = null) : StateContext<String>
+
+    private enum class PaymentEventType {
+        SUBMIT
+    }
+
+    private data class PaymentEvent(
+        override val eventType: PaymentEventType,
+        val paymentId: String,
+        val source: String = "unknown"
+    ) : TypedEvent<PaymentEventType>
+
+    @Test
+    fun constructorWithStateShouldCreateFsm() {
+        val table = ExTransitionTable.Builder<String, String>()
+            .add("from", "event", "to")
+            .build()
+
+        val fsm = ExFsm("initial", table)
+
+        assertEquals("initial", fsm.getState())
+    }
+
+    @Test
+    fun constructorWithStateAndAutoTransitionEnabledShouldCreateFsm() {
+        val table = ExTransitionTable.Builder<String, String>()
+            .add("from", "event", "to")
+            .build()
+
+        val fsm = ExFsm("initial", table, autoTransitionEnabled = false)
+
+        assertEquals("initial", fsm.getState())
+    }
+
+    @Test
+    fun constructorWithContextShouldCreateFsm() {
+        val table = ExTransitionTable.Builder<String, String>()
+            .add("from", "event", "to")
+            .build()
+
+        val context = SimpleStateContext("initial")
+        val fsm = ExFsm(context, table)
+
+        assertEquals("initial", fsm.getState())
+    }
+
+    @Test
+    fun constructorWithContextAndAutoTransitionEnabledShouldCreateFsm() {
+        val table = ExTransitionTable.Builder<String, String>()
+            .add("from", "event", "to")
+            .build()
+
+        val context = SimpleStateContext("initial")
+        val fsm = ExFsm(context, table, autoTransitionEnabled = false)
+
+        assertEquals("initial", fsm.getState())
+    }
+
+    @Test
+    fun onEventWhenTransitionExistsShouldChangeState() {
+        val table = ExTransitionTable.Builder<String, String>()
+            .add("from", "event", "to")
+            .build()
+
+        val fsm = ExFsm("from", table)
+        fsm.onEvent("event")
+
+        assertEquals("to", fsm.getState())
+    }
+
+    @Test
+    fun onEventWhenTypedEventPayloadDiffersShouldChangeState() {
+        val table = ExTransitionTable.Builder<String, PaymentEvent>()
+            .add("from", PaymentEvent(PaymentEventType.SUBMIT, paymentId = "definition"), "to")
+            .build()
+
+        val fsm = ExFsm("from", table)
+        fsm.onEvent(PaymentEvent(PaymentEventType.SUBMIT, paymentId = "runtime"))
+
+        assertEquals("to", fsm.getState())
+    }
+
+    @Test
+    fun onEventWhenTypedEventPayloadDiffersShouldExposeRuntimeEventInCurrentTransition() {
+        var capturedEvent: PaymentEvent? = null
+        val table = ExTransitionTable.Builder<String, PaymentEvent>()
+            .add(
+                from = "from",
+                onEvent = PaymentEvent(PaymentEventType.SUBMIT, paymentId = "definition", source = "definition-source"),
+                to = "to",
+                action = { context ->
+                    val transition = context.currentTransition as ExTransition<*, *>
+                    capturedEvent = transition.event as PaymentEvent?
+                }
+            )
+            .build()
+
+        val fsm = ExFsm("from", table)
+        fsm.onEvent(PaymentEvent(PaymentEventType.SUBMIT, paymentId = "runtime", source = "runtime-source"))
+
+        assertEquals("runtime", capturedEvent?.paymentId)
+        assertEquals("runtime-source", capturedEvent?.source)
+    }
+
+    @Test
+    fun onEventWhenTransitionDoesNotExistShouldThrowException() {
+        val table = ExTransitionTable.Builder<String, String>()
+            .add("from", "event", "to")
+            .build()
+
+        val fsm = ExFsm("from", table)
+
+        assertThrows(FsmEventSourcingTransitionFailedException::class.java) {
+            fsm.onEvent("nonexistent")
+        }
+    }
+
+    @Test
+    fun onEventWithAutoTransitionEnabledShouldPerformAutoTransitions() {
+        val table = ExTransitionTable.Builder<String, String>()
+            .autoTransitionEnabled(true)
+            .add("from", "event", "intermediate")
+            .add("intermediate", null, "to")
+            .build()
+
+        val fsm = ExFsm("from", table, autoTransitionEnabled = true)
+        fsm.onEvent("event")
+
+        assertEquals("to", fsm.getState())
+    }
+
+    @Test
+    fun onEventWithAutoTransitionDisabledShouldNotPerformAutoTransitions() {
+        val table = ExTransitionTable.Builder<String, String>()
+            .autoTransitionEnabled(false)
+            .add("from", "event", "intermediate")
+            .add("intermediate", null, "to")
+            .build()
+
+        val fsm = ExFsm("from", table, autoTransitionEnabled = false)
+        fsm.onEvent("event")
+
+        assertEquals("intermediate", fsm.getState())
+    }
+
+    @Test
+    fun onEventWithLocalAutoTransitionShouldPerformAutoTransitionWhenGlobalAutoIsDisabled() {
+        val table = ExTransitionTable.Builder<String, String>()
+            .autoTransitionEnabled(false)
+            .add("from", "event", "intermediate")
+            .from("intermediate")
+            .to("to")
+            .auto()
+            .end()
+            .build()
+
+        val fsm = ExFsm("from", table, autoTransitionEnabled = false)
+        fsm.onEvent("event")
+
+        assertEquals("to", fsm.getState())
+    }
+
+    @Test
+    fun toStateWithAutoTransitionEnabledShouldPerformAutoTransitions() {
+        val table = ExTransitionTable.Builder<String, String>()
+            .autoTransitionEnabled(true)
+            .add("from", null, "intermediate")
+            .add("intermediate", null, "to")
+            .build()
+
+        val fsm = ExFsm("from", table, autoTransitionEnabled = true)
+        fsm.toState("intermediate")
+
+        assertEquals("to", fsm.getState())
+    }
+
+    @Test
+    fun toStateWithTimeoutShouldWait() {
+        val start = System.currentTimeMillis()
+        val table = ExTransitionTable.Builder<String, String>()
+            .add("from", null, "to", timeout = io.github.ngirchev.fsm.Timeout(1))
+            .build()
+
+        val fsm = ExFsm("from", table)
+        fsm.toState("to")
+        val end = System.currentTimeMillis()
+
+        assertEquals("to", fsm.getState())
+        assertTrue(end - start >= 1000)
+    }
+
+    @Test
+    fun toStateWithActionsShouldExecuteActions() {
+        var actionCalled = false
+        var postActionCalled = false
+
+        val table = ExTransitionTable.Builder<String, String>()
+            .add("from", null, "to",
+                action = { actionCalled = true },
+                postAction = { postActionCalled = true }
+            )
+            .build()
+
+        val fsm = ExFsm("from", table)
+        fsm.toState("to")
+
+        assertEquals("to", fsm.getState())
+        assertTrue(actionCalled)
+        assertTrue(postActionCalled)
+    }
+
+    @Test
+    fun onEventWhenActionFailsShouldReleaseWriteLockForNextEvent() {
+        val table = ExTransitionTable.Builder<String, String>()
+            .from("from")
+            .onEvent("fail")
+            .to("broken")
+            .action { throw IllegalStateException("boom") }
+            .end()
+            .from("from")
+            .onEvent("recover")
+            .to("recovered")
+            .end()
+            .build()
+        val fsm = ExFsm("from", table)
+        val executor = Executors.newSingleThreadExecutor()
+
+        try {
+            assertThrows(IllegalStateException::class.java) {
+                fsm.onEvent("fail")
+            }
+
+            val recovery = executor.submit<String> {
+                fsm.onEvent("recover")
+                fsm.getState()
+            }
+
+            assertEquals("recovered", recovery.get(1, TimeUnit.SECONDS))
+        } finally {
+            executor.shutdownNow()
+        }
+    }
+
+    @Test
+    fun toStateWhenTransitionDoesNotExistShouldThrowException() {
+        val table = ExTransitionTable.Builder<String, String>()
+            .add("from", null, "to")
+            .build()
+
+        val fsm = ExFsm("from", table)
+
+        assertThrows(io.github.ngirchev.fsm.exception.FsmTransitionFailedException::class.java) {
+            fsm.toState("nonexistent")
+        }
+    }
+
+    @Test
+    fun toStateWhenFromStateDoesNotMatchShouldThrowException() {
+        val table = ExTransitionTable.Builder<String, String>()
+            .add("from", null, "to")
+            .build()
+
+        val fsm = ExFsm("wrong", table)
+
+        assertThrows(io.github.ngirchev.fsm.exception.FsmException::class.java) {
+            fsm.toState("to")
+        }
+    }
+
+    @Test
+    fun toStateWithMultipleAutoTransitionsShouldPerformAll() {
+        val table = ExTransitionTable.Builder<String, String>()
+            .autoTransitionEnabled(true)
+            .add("from", null, "intermediate1")
+            .add("intermediate1", null, "intermediate2")
+            .add("intermediate2", null, "to")
+            .build()
+
+        val fsm = ExFsm("from", table, autoTransitionEnabled = true)
+        fsm.toState("intermediate1")
+
+        assertEquals("to", fsm.getState())
+    }
+
+    @Test
+    fun immediateAutoTransitionsShouldStopAtConfiguredRuntimeLimit() {
+        val table = ExTransitionTable.Builder<String, String>()
+            .autoTransitionEnabled(true)
+            .maxImmediateAutoTransitions(2)
+            .add("from", "START", "cycle-a")
+            .add("cycle-a", null, "cycle-b")
+            .add("cycle-b", null, "cycle-a")
+            .build()
+
+        val fsm = ExFsm("from", table)
+
+        val error = assertThrows(io.github.ngirchev.fsm.exception.AutoTransitionLimitExceededException::class.java) {
+            fsm.onEvent("START")
+        }
+
+        assertEquals(2, error.limit)
+    }
+
+    @Test
+    fun immediateAutoTransitionRuntimeLimitIsDisabledByZero() {
+        val table = ExTransitionTable.Builder<String, String>()
+            .autoTransitionEnabled(true)
+            .maxImmediateAutoTransitions(0)
+            .add("from", "START", "step-1")
+            .add("step-1", null, "step-2")
+            .add("step-2", null, "done")
+            .build()
+
+        val fsm = ExFsm("from", table)
+
+        fsm.onEvent("START")
+
+        assertEquals("done", fsm.getState())
+    }
+
+    @Test
+    fun onEventShouldApplyAutoTransitionSchedulerOnlyForConfiguredTransitions() {
+        val scheduledCallbacks = mutableListOf<() -> Unit>()
+        val scheduler = AutoTransitionScheduler<String> { _, _, runTransition ->
+            scheduledCallbacks.add(runTransition)
+        }
+
+        val table = ExTransitionTable.Builder<String, String>()
+            .autoTransitionEnabled(true)
+            .from("from")
+            .onEvent("event")
+            .to("intermediate")
+            .end()
+            .from("intermediate")
+            .to("to")
+            .auto()
+            .deferWith(scheduler)
+            .end()
+            .build()
+
+        val fsm = ExFsm("from", table, autoTransitionEnabled = true)
+
+        fsm.onEvent("event")
+
+        assertEquals("intermediate", fsm.getState())
+        assertEquals(1, scheduledCallbacks.size)
+
+        scheduledCallbacks.single().invoke()
+
+        assertEquals("to", fsm.getState())
+    }
+
+    @Test
+    fun onEventShouldContinueAutoTransitionsAfterConfiguredScheduledTransition() {
+        val scheduledCallbacks = mutableListOf<() -> Unit>()
+        val scheduler = AutoTransitionScheduler<String> { _, _, runTransition ->
+            scheduledCallbacks.add(runTransition)
+        }
+
+        val table = ExTransitionTable.Builder<String, String>()
+            .autoTransitionEnabled(true)
+            .from("from")
+            .onEvent("event")
+            .to("intermediate")
+            .end()
+            .from("intermediate")
+            .to("middle")
+            .auto()
+            .deferWith(scheduler)
+            .end()
+            .from("middle")
+            .to("to")
+            .end()
+            .build()
+
+        val fsm = ExFsm("from", table, autoTransitionEnabled = true)
+
+        fsm.onEvent("event")
+
+        assertEquals("intermediate", fsm.getState())
+        assertEquals(1, scheduledCallbacks.size)
+
+        scheduledCallbacks.single().invoke()
+
+        assertEquals("to", fsm.getState())
+    }
+
+    @Test
+    fun defaultAutoTransitionSchedulerShouldHandleLongAutoTransitionChainWithoutStackOverflow() {
+        val transitionCount = 10_000
+        val builder = ExTransitionTable.Builder<Int, String>()
+            .autoTransitionEnabled(true)
+            .add(0, null, 1)
+
+        for (state in 1 until transitionCount) {
+            builder.add(state, null, state + 1)
+        }
+
+        val fsm = ExFsm(0, builder.build(), autoTransitionEnabled = true)
+        fsm.toState(1)
+
+        assertEquals(transitionCount, fsm.getState())
+    }
+
+    @Test
+    fun toStateWithMultipleConditionsShouldCheckAll() {
+        var condition1Called = false
+        var condition2Called = false
+
+        val table = ExTransitionTable.Builder<String, String>()
+            .from("from")
+            .to("to")
+            .onCondition { condition1Called = true; true }
+            .onCondition { condition2Called = true; true }
+            .end()
+            .build()
+
+        val fsm = ExFsm("from", table)
+        fsm.toState("to")
+
+        assertEquals("to", fsm.getState())
+        assertTrue(condition1Called)
+        assertTrue(condition2Called)
+    }
+
+    @Test
+    fun toStateWithMultipleActionsShouldExecuteAll() {
+        var action1Called = false
+        var action2Called = false
+
+        val table = ExTransitionTable.Builder<String, String>()
+            .from("from")
+            .to("to")
+            .action { action1Called = true }
+            .action { action2Called = true }
+            .end()
+            .build()
+
+        val fsm = ExFsm("from", table)
+        fsm.toState("to")
+
+        assertEquals("to", fsm.getState())
+        assertTrue(action1Called)
+        assertTrue(action2Called)
+    }
+
+    @Test
+    fun toStateWithMultiplePostActionsShouldExecuteAll() {
+        var postAction1Called = false
+        var postAction2Called = false
+
+        val table = ExTransitionTable.Builder<String, String>()
+            .from("from")
+            .to("to")
+            .postAction { postAction1Called = true }
+            .postAction { postAction2Called = true }
+            .end()
+            .build()
+
+        val fsm = ExFsm("from", table)
+        fsm.toState("to")
+
+        assertEquals("to", fsm.getState())
+        assertTrue(postAction1Called)
+        assertTrue(postAction2Called)
+    }
+
+    @Test
+    fun onEventWithMultipleConditionsShouldCheckAll() {
+        var condition1Called = false
+        var condition2Called = false
+
+        val table = ExTransitionTable.Builder<String, String>()
+            .from("from")
+            .onEvent("event")
+            .to("to")
+            .onCondition { condition1Called = true; true }
+            .onCondition { condition2Called = true; true }
+            .end()
+            .build()
+
+        val fsm = ExFsm("from", table)
+        fsm.onEvent("event")
+
+        assertEquals("to", fsm.getState())
+        assertTrue(condition1Called)
+        assertTrue(condition2Called)
+    }
+
+    @Test
+    fun concurrentEventsShouldNotExecuteActionsInParallelForSameFsm() {
+        val activeActions = AtomicInteger()
+        val maxActiveActions = AtomicInteger()
+        val table = ExTransitionTable.Builder<String, String>()
+            .from("pending")
+            .onEvent("approve")
+            .to("approved")
+            .action { trackActionOverlap(activeActions, maxActiveActions) }
+            .end()
+            .from("pending")
+            .onEvent("reject")
+            .to("rejected")
+            .action { trackActionOverlap(activeActions, maxActiveActions) }
+            .end()
+            .build()
+        val fsm = ExFsm("pending", table)
+        val ready = CountDownLatch(2)
+        val start = CountDownLatch(1)
+        val succeeded = AtomicInteger()
+        val failed = AtomicInteger()
+        val executor = Executors.newFixedThreadPool(2)
+
+        try {
+            val futures = listOf("approve", "reject").map { event ->
+                executor.submit {
+                    ready.countDown()
+                    start.await()
+                    try {
+                        fsm.onEvent(event)
+                        succeeded.incrementAndGet()
+                    } catch (e: Exception) {
+                        failed.incrementAndGet()
+                    }
+                }
+            }
+
+            assertTrue(ready.await(1, TimeUnit.SECONDS))
+            start.countDown()
+            futures.forEach { it.get(1, TimeUnit.SECONDS) }
+
+            assertEquals(1, succeeded.get())
+            assertEquals(1, failed.get())
+            assertEquals(1, maxActiveActions.get())
+            assertTrue(fsm.getState() == "approved" || fsm.getState() == "rejected")
+        } finally {
+            start.countDown()
+            executor.shutdownNow()
+        }
+    }
+
+    private fun trackActionOverlap(activeActions: AtomicInteger, maxActiveActions: AtomicInteger) {
+        val active = activeActions.incrementAndGet()
+        maxActiveActions.updateAndGet { current -> maxOf(current, active) }
+        try {
+            Thread.sleep(50)
+        } finally {
+            activeActions.decrementAndGet()
+        }
+    }
+}
