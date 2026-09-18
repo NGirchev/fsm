@@ -28,6 +28,10 @@ java {
     targetCompatibility = JavaVersion.VERSION_17
 }
 
+tasks.withType<JavaCompile>().configureEach {
+    options.release.set(17)
+}
+
 tasks.test {
     useJUnitPlatform()
 }

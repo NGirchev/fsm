@@ -107,7 +107,8 @@ class ExternalWorkflowServiceTest {
         Long workflowId = service.createWorkflow();
         externalServiceClient.waitForCompetingSubmission();
 
-        try (var executor = Executors.newFixedThreadPool(2)) {
+        var executor = Executors.newFixedThreadPool(2);
+        try {
             var startGate = new CountDownLatch(1);
             var first = executor.submit(() -> {
                 startGate.await();
@@ -133,6 +134,8 @@ class ExternalWorkflowServiceTest {
 
             assertThat(failure).isInstanceOf(FsmEventSourcingTransitionFailedException.class);
             assertThat(externalServiceClient.submissionCount()).isEqualTo(1);
+        } finally {
+            executor.shutdownNow();
         }
     }
 
