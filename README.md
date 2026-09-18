@@ -1,5 +1,8 @@
 # FSM — Kotlin Finite State Machine Library and Visual FSM Editor
 
+For a Spring Boot example that stores versioned, dynamic flow definitions in PostgreSQL `JSONB`,
+see [`fsm-spring-boot-example`](fsm-spring-boot-example/README.md).
+
 [![CI](https://github.com/NGirchev/fsm/actions/workflows/ci.yml/badge.svg)](https://github.com/NGirchev/fsm/actions/workflows/ci.yml)
 [![Maven Central](https://img.shields.io/maven-central/v/io.github.ngirchev/fsm.svg)](https://search.maven.org/artifact/io.github.ngirchev/fsm)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -35,6 +38,10 @@ You can also use the `io.github.ngirchev.fsm.impl` package with basic implementa
 
 ## Installation
 
+The root project aggregates the JVM modules. Library sources and tests live in
+`fsm-core/src`; the Gradle module is `:fsm-core`, while its Maven coordinates remain
+`io.github.ngirchev:fsm`. The Spring Boot starter depends on this module.
+
 Replace `VERSION` with the latest version from Maven Central.
 
 ### Gradle (Kotlin DSL)
@@ -62,6 +69,14 @@ dependencies {
     <version>VERSION</version>
 </dependency>
 ```
+
+### Spring Boot
+
+This checkout includes [fsm-spring-boot-starter](fsm-spring-boot-starter/README.md),
+which provides automatic registration of a bean registry and JSON serializer.
+It saves ordinary Spring `Action` / `Guard` handlers by bean name and restores them
+from the application context. The core library remains independent of Spring.
+See [the Spring Boot example](fsm-spring-boot-example/README.md) for versioned database persistence.
 
 ## Usage Examples
 ### We have these initial data:
@@ -357,7 +372,10 @@ fun main() {
 ```
 
 The immediate runtime limit does not apply to deferred schedulers: every callback performs one
-transition and schedules the next one.
+transition and schedules the next one. The dynamic Spring Boot example uses the core JSON format.
+Because it executes auto transitions synchronously, enabling them requires a positive
+`maxImmediateAutoTransitions`; see
+[`fsm-spring-boot-example`](fsm-spring-boot-example/README.md).
 
 ## FSM Diagram Visualization
 
