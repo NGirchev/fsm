@@ -26,8 +26,42 @@ curl -X POST http://localhost:8080/api/orders/1/events \
 Flow management endpoints are under `/api/flows/{flowKey}/versions`. A draft is editable until
 `POST /api/flows/{flowKey}/versions/{version}/publish` validates it and atomically makes it active.
 
-Auto-transition cycles are rejected by default. A deliberately cyclic definition, such as a traffic
-light, must set `allowCyclicAutoTransitions` to `true`. When automatic transitions are enabled, a cyclic
-definition must also set a positive `maxImmediateAutoTransitions` because this example executes them
-synchronously. Acyclic chains are unlimited by default (`maxImmediateAutoTransitions: 0`).
-Active definitions are validated during application startup.
+## JSON format
+
+A definition contains `initialState` and `table`. The table is the standard core `FsmDto` JSON,
+produced by `toJson()` / `FsmJsonSerializer`; no separate transition schema is used:
+
+```json
+{
+  "initialState": "NEW",
+  "table": {
+    "autoTransitionEnabled": false,
+    "maxImmediateAutoTransitions": 0,
+    "transitions": {
+      "NEW": [{
+        "from": "NEW",
+        "event": "SUBMIT",
+        "to": {
+          "state": "PAYMENT_PENDING",
+          "conditions": [],
+          "actions": [],
+          "postActions": [],
+          "timeout": null
+        }
+      }]
+    }
+  }
+}
+```
+
+`FlowLoader` delegates restoration to the core `toExTransitionTable()` converter. Its two factories
+resolve ordinary `Action` and `Guard` Spring beans by name and retain those names for serialization.
+Unknown beans reject publication rather than silently removing behavior.
+
+Automatic execution requires a positive `table.maxImmediateAutoTransitions`, for both cyclic and
+acyclic flows. This simple bound replaces example-specific graph analysis; the core runtime enforces
+it. Active definitions are checked during startup. When upgrading an existing automatically executed
+flow with an unlimited chain, configure a positive limit before restarting with this version.
+
+Previously stored definitions (including the Flyway seed) remain readable through a small read-only
+adapter. New drafts use the core format; no migration rewrites existing definitions or published versions.

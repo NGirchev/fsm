@@ -10,7 +10,7 @@ import java.util.LinkedHashMap
 @Service
 class FlowService(
     private val repository: FlowRepository,
-    private val compiler: FlowCompiler,
+    private val loader: FlowLoader,
 ) {
     fun createDraft(flowKey: String, definition: FlowDefinition): FlowVersion =
         repository.createDraft(requireFlowKey(flowKey), definition)
@@ -22,11 +22,11 @@ class FlowService(
 
     fun get(flowKey: String, version: Int): FlowVersion = repository.get(flowKey, version)
 
-    fun validate(definition: FlowDefinition): List<FlowValidationIssue> = compiler.validate(definition)
+    fun validate(definition: FlowDefinition): List<FlowValidationIssue> = loader.validate(definition)
 
     @Transactional
     fun publish(flowKey: String, version: Int): FlowVersion {
-        return repository.activate(requireFlowKey(flowKey), version) { compiler.compile(it.definition) }
+        return repository.activate(requireFlowKey(flowKey), version) { loader.load(it.definition) }
     }
 
     private fun requireFlowKey(flowKey: String): String {
@@ -46,7 +46,7 @@ data class ActiveFlow(
 @Service
 class ActiveFlowProvider(
     private val repository: FlowRepository,
-    private val compiler: FlowCompiler,
+    private val loader: FlowLoader,
 ) {
     private val tables = object : LinkedHashMap<Pair<String, Int>, ExTransitionTable<String, String>>(16, 0.75f, true) {
         override fun removeEldestEntry(
@@ -64,7 +64,7 @@ class ActiveFlowProvider(
     private fun FlowVersion.toActiveFlow(): ActiveFlow {
         val key = flowKey to version
         val table = synchronized(tables) {
-            tables.getOrPut(key) { compiler.compile(definition) }
+            tables.getOrPut(key) { loader.load(definition) }
         }
         return ActiveFlow(version, definition.initialState, table)
     }
@@ -77,9 +77,9 @@ class ActiveFlowProvider(
 @Service
 class ActiveFlowStartupValidator(
     private val repository: FlowRepository,
-    private val compiler: FlowCompiler,
+    private val loader: FlowLoader,
 ) : ApplicationRunner {
     override fun run(args: ApplicationArguments) {
-        repository.activeVersions().forEach { compiler.compile(it.definition) }
+        repository.activeVersions().forEach { loader.load(it.definition) }
     }
 }

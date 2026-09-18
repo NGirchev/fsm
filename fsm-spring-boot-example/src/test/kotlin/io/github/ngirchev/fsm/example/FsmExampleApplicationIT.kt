@@ -2,8 +2,9 @@ package io.github.ngirchev.fsm.example
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.github.ngirchev.fsm.example.flow.FlowDefinition
-import io.github.ngirchev.fsm.example.flow.FlowTransitionDefinition
-import io.github.ngirchev.fsm.example.flow.FlowTriggerDefinition
+import io.github.ngirchev.fsm.serialization.FsmDto
+import io.github.ngirchev.fsm.serialization.TransitionDto
+import io.github.ngirchev.fsm.serialization.ToDto
 import io.github.ngirchev.fsm.example.flow.FlowVersion
 import io.github.ngirchev.fsm.example.flow.FlowVersionStatus
 import io.github.ngirchev.fsm.example.order.CreateOrderRequest
@@ -80,7 +81,11 @@ class FsmExampleApplicationIT {
         val invalidDraft = post(
             "/api/flows/order/versions",
             fastDefinition().copy(
-                transitions = fastDefinition().transitions.map { it.copy(guards = listOf("missingBean")) },
+                table = fastDefinition().table.copy(transitions = mapOf(
+                    "NEW" to fastDefinition().table.transitions.getValue("NEW").map {
+                        it.copy(to = it.to.copy(conditions = listOf("missingBean")))
+                    },
+                )),
             ),
             FlowVersion::class.java,
         )
@@ -142,18 +147,10 @@ class FsmExampleApplicationIT {
     }
 
     private fun fastDefinition() = FlowDefinition(
-        schemaVersion = 1,
-        initialState = "NEW",
-        states = listOf("NEW", "COMPLETED"),
-        events = listOf("FAST_COMPLETE"),
-        transitions = listOf(
-            FlowTransitionDefinition(
-                id = "fast-complete",
-                from = "NEW",
-                to = "COMPLETED",
-                trigger = FlowTriggerDefinition("event", "FAST_COMPLETE"),
-            ),
-        ),
+        "NEW",
+        FsmDto(false, mapOf("NEW" to listOf(
+            TransitionDto("NEW", ToDto("COMPLETED", emptyList(), emptyList(), emptyList(), null), "FAST_COMPLETE"),
+        ))),
     )
 
     private fun <T> post(path: String, body: Any?, responseType: Class<T>): T {

@@ -356,9 +356,9 @@ fun main() {
 ```
 
 The immediate runtime limit does not apply to deferred schedulers: every callback performs one
-transition and schedules the next one. For the dynamic Spring Boot JSON format, the same cycle must
-also opt in with `"allowCyclicAutoTransitions": true`. Because that example executes auto transitions
-synchronously, an enabled cycle must configure a positive `maxImmediateAutoTransitions`; see
+transition and schedules the next one. The dynamic Spring Boot example uses the core JSON format.
+Because it executes auto transitions synchronously, enabling them requires a positive
+`maxImmediateAutoTransitions`; see
 [`fsm-spring-boot-example`](fsm-spring-boot-example/README.md).
 
 ## FSM Diagram Visualization

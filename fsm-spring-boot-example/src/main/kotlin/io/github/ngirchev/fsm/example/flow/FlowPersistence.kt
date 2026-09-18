@@ -137,7 +137,7 @@ class FlowRepository(
         flowKey = rs.getString("flow_key"),
         version = rs.getInt("version"),
         status = FlowVersionStatus.valueOf(rs.getString("status")),
-        definition = objectMapper.readValue(rs.getString("definition"), FlowDefinition::class.java),
+        definition = objectMapper.readFlowDefinition(rs.getString("definition")),
         createdAt = rs.getObject("created_at", OffsetDateTime::class.java),
         updatedAt = rs.getObject("updated_at", OffsetDateTime::class.java),
         publishedAt = rs.getObject("published_at", OffsetDateTime::class.java),
