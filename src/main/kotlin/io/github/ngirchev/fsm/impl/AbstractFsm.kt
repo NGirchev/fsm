@@ -53,6 +53,17 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
 
     override fun getState(): STATE = readLocked { this.context.state }
 
+    /** Explicitly execute enabled auto transitions from the current state, without an event. */
+    fun startAutoTransitions() {
+        writeLocked {
+            if (autoTransitionEnabled) {
+                performAutoTransitions()
+            } else {
+                notifyAutoTransitionCompleted()
+            }
+        }
+    }
+
     private val stateChangeListeners = CopyOnWriteArrayList<StateChangeListener<STATE>>()
     private val autoTransitionCompletionListeners = CopyOnWriteArrayList<() -> Unit>()
 

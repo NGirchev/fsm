@@ -17,11 +17,36 @@ import java.math.BigDecimal
 import java.time.OffsetDateTime
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
 
 class OrderServiceTest {
     private val orders = mock(OrderRepository::class.java)
     private val flows = mock(ActiveFlowProvider::class.java)
     private val service = OrderService(orders, flows)
+
+    @Test
+    fun `creation executes initial automatic actions and saves the resulting order`() {
+        val table = ExTransitionTable.Builder<String, String>()
+            .autoTransitionEnabled(true)
+            .maxImmediateAutoTransitions(1)
+            .add("NEW", to = "PAID", action = { (it as Order).paymentCaptured = true },
+                postAction = { (it as Order).receiptSent = true })
+            .build()
+        val request = CreateOrderRequest(BigDecimal("42.00"))
+        val now = OffsetDateTime.parse("2026-09-18T00:00:00Z")
+        val order = Order(1, "NEW", 2, request.totalAmount, false, false, 0, now, now)
+        `when`(flows.get("order")).thenReturn(ActiveFlow(2, "NEW", table))
+        `when`(orders.create("NEW", 2, request)).thenReturn(order)
+        `when`(orders.save(order)).thenAnswer { order.copy(lockVersion = 1) }
+
+        val created = service.create(request)
+
+        assertEquals("PAID", created.state)
+        assertEquals(1L, created.lockVersion)
+        assertTrue(created.paymentCaptured)
+        assertTrue(created.receiptSent)
+        verify(orders).save(order)
+    }
 
     @Test
     fun `rejects amounts requiring rounding or exceeding numeric precision before persistence`() {

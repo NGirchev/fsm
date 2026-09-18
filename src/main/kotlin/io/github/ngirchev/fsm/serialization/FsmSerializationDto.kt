@@ -17,6 +17,26 @@ data class FsmDto(
         autoTransitionEnabled: Boolean,
         transitions: Map<String, List<TransitionDto>>,
     ) : this(autoTransitionEnabled, transitions, 0)
+
+    // Preserve the JVM entry points used by clients compiled before the runtime limit was added.
+    fun copy(autoTransitionEnabled: Boolean, transitions: Map<String, List<TransitionDto>>): FsmDto =
+        FsmDto(autoTransitionEnabled, transitions, maxImmediateAutoTransitions)
+
+    companion object {
+        @JvmStatic
+        @JvmName("copy\$default")
+        @Suppress("UNUSED_PARAMETER")
+        fun copyWithLegacyDefaults(
+            original: FsmDto,
+            autoTransitionEnabled: Boolean,
+            transitions: Map<String, List<TransitionDto>>?,
+            mask: Int,
+            marker: Any?,
+        ): FsmDto = original.copy(
+            if (mask and 1 != 0) original.autoTransitionEnabled else autoTransitionEnabled,
+            if (mask and 2 != 0) original.transitions else requireNotNull(transitions),
+        )
+    }
 }
 
 /**

@@ -19,7 +19,9 @@ class OrderService(
             "totalAmount must be exactly representable with at most 2 decimal places"
         }
         val activeFlow = flows.get(ORDER_FLOW)
-        return orders.create(activeFlow.initialState, activeFlow.version, request)
+        val order = orders.create(activeFlow.initialState, activeFlow.version, request)
+        activeFlow.transitionTable.createDomainFsm<Order>().getFsmForDomain(order).startAutoTransitions()
+        return if (order.currentTransition == null) order else orders.save(order)
     }
 
     fun get(id: Long): Order = orders.get(id)

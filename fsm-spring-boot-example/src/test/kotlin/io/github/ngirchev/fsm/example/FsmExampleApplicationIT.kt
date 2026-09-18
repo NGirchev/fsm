@@ -2,6 +2,7 @@ package io.github.ngirchev.fsm.example
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.github.ngirchev.fsm.example.flow.FlowDefinition
+import io.github.ngirchev.fsm.example.flow.FlowRepository
 import io.github.ngirchev.fsm.serialization.FsmDto
 import io.github.ngirchev.fsm.serialization.TransitionDto
 import io.github.ngirchev.fsm.serialization.ToDto
@@ -19,6 +20,7 @@ import org.springframework.boot.test.web.server.LocalServerPort
 import org.springframework.http.HttpEntity
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
+import org.springframework.jdbc.core.simple.JdbcClient
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.testcontainers.containers.PostgreSQLContainer
@@ -41,6 +43,57 @@ class FsmExampleApplicationIT {
 
     @Autowired
     private lateinit var objectMapper: ObjectMapper
+
+    @Autowired
+    private lateinit var flowRepository: FlowRepository
+
+    @Autowired
+    private lateinit var jdbc: JdbcClient
+
+    @Test
+    fun `creation persists initial automatic behavior and rolls back a chain exceeding its limit`() {
+        val original = flowRepository.active("order").definition
+        fun publish(definition: FlowDefinition): FlowVersion {
+            val draft = post("/api/flows/order/versions", definition, FlowVersion::class.java)
+            return post("/api/flows/order/versions/${draft.version}/publish", null, FlowVersion::class.java)
+        }
+        val automatic = FlowDefinition("NEW", FsmDto(true, mapOf(
+            "NEW" to listOf(TransitionDto("NEW", ToDto(
+                "PAID", listOf("paymentApproved"), listOf("capturePayment"), listOf("sendPaymentReceipt"), null,
+            ), null)),
+            "PAID" to listOf(TransitionDto("PAID", ToDto(
+                "COMPLETED", emptyList(), emptyList(), emptyList(), null,
+            ), "FINISH")),
+        ), 1))
+        try {
+            val published = publish(automatic)
+            val created = post("/api/orders", CreateOrderRequest(BigDecimal("42.00")), OrderResponse::class.java)
+            assertEquals("PAID", created.state)
+            assertEquals(published.version, created.flowVersion)
+            assertTrue(created.paymentCaptured)
+            assertTrue(created.receiptSent)
+            assertEquals(created, rest.getForObject(url("/api/orders/${created.id}"), OrderResponse::class.java))
+            val completed = post("/api/orders/${created.id}/events", OrderEventRequest("FINISH"), OrderResponse::class.java)
+            assertEquals("COMPLETED", completed.state)
+
+            publish(automatic.copy(table = automatic.table.copy(autoTransitionEnabled = false)))
+            val disabled = post("/api/orders", CreateOrderRequest(BigDecimal("10.00")), OrderResponse::class.java)
+            assertEquals("NEW", disabled.state)
+            assertFalse(disabled.paymentCaptured)
+            assertFalse(disabled.receiptSent)
+
+            val cyclic = automatic.copy(table = automatic.table.copy(transitions = mapOf(
+                "NEW" to automatic.table.transitions.getValue("NEW").map { it.copy(to = it.to.copy(state = "NEW")) },
+            )))
+            publish(cyclic)
+            val countBefore = jdbc.sql("SELECT count(*) FROM orders").query(Long::class.java).single()
+            val failed = rest.postForEntity(url("/api/orders"), CreateOrderRequest(BigDecimal("42.00")), ApiError::class.java)
+            assertEquals(HttpStatus.CONFLICT, failed.statusCode)
+            assertEquals(countBefore, jdbc.sql("SELECT count(*) FROM orders").query(Long::class.java).single())
+        } finally {
+            publish(original)
+        }
+    }
 
     @Test
     fun `runs seeded flow and applies a newly published version without restart`() {
