@@ -65,7 +65,7 @@ jobs:
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_TOKEN }}
           ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.GPG_PRIVATE_KEY }}
           ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.GPG_PASSPHRASE }}
-        run: ./gradlew clean publishAndReleaseToMavenCentral
+        run: ./gradlew clean :publishAndReleaseToMavenCentral :fsm-spring-boot-starter:publishAndReleaseToMavenCentral
 
       - name: Build release notes
         shell: bash
@@ -87,4 +87,6 @@ jobs:
             --title "$TAG" \
             --notes-file release-notes.md \
             build/libs/*.jar \
-            build/libs/*.jar.asc
+            build/libs/*.jar.asc \
+            fsm-spring-boot-starter/build/libs/*.jar \
+            fsm-spring-boot-starter/build/libs/*.jar.asc

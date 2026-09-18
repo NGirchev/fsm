@@ -57,8 +57,10 @@ produced by `toJson()` / `FsmJsonSerializer`; no separate transition schema is u
 }
 ```
 
-`FlowLoader` delegates restoration to the core `toExTransitionTable()` converter. Its two factories
-resolve ordinary `Action` and `Guard` Spring beans by name and retain those names for serialization.
+The example depends on [fsm-spring-boot-starter](../fsm-spring-boot-starter/README.md).
+`FlowLoader` delegates restoration to its `SpringFsmJsonSerializer`, which uses the core converter
+and resolves ordinary `Action` and `Guard` Spring beans by name. Use this serializer to export
+tables containing ordinary Spring beans; the core serializer handles identifiable handlers only.
 Unknown beans reject publication rather than silently removing behavior.
 
 Automatic execution requires a positive `table.maxImmediateAutoTransitions`, for both cyclic and

@@ -9,12 +9,16 @@ import io.github.ngirchev.fsm.serialization.ToDto
 import java.time.OffsetDateTime
 import kotlin.test.Test
 import kotlin.test.assertFailsWith
+import io.github.ngirchev.fsm.spring.FsmBeanRegistry
+import io.github.ngirchev.fsm.spring.SpringFsmJsonSerializer
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 
 class ActiveFlowStartupValidatorTest {
     @Test
     fun `fails startup when an active definition enables automatic execution without a limit`() {
         val repository = mock(FlowRepository::class.java)
-        val loader = FlowLoader(emptyMap(), emptyMap())
+        val registry = FsmBeanRegistry(emptyMap(), emptyMap())
+        val loader = FlowLoader(registry, SpringFsmJsonSerializer(jacksonObjectMapper(), registry))
         val definition = FlowDefinition("RED", FsmDto(true, mapOf(
             "RED" to listOf(TransitionDto("RED", ToDto("RED", emptyList(), emptyList(), emptyList(), null), null)),
         )))

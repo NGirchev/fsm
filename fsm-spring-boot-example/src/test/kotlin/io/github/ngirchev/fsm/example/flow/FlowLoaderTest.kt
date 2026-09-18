@@ -16,6 +16,11 @@ import io.github.ngirchev.fsm.serialization.FsmJsonSerializer
 import io.github.ngirchev.fsm.serialization.ToDto
 import io.github.ngirchev.fsm.serialization.TransitionDto
 import io.github.ngirchev.fsm.serialization.TimeoutDto
+import io.github.ngirchev.fsm.spring.FsmBeanRegistry
+import io.github.ngirchev.fsm.spring.SpringFsmJsonSerializer
+import io.github.ngirchev.fsm.spring.FsmAutoConfiguration
+import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.springframework.context.annotation.AnnotationConfigApplicationContext
 import java.math.BigDecimal
 import java.time.OffsetDateTime
@@ -26,14 +31,17 @@ import kotlin.test.assertTrue
 
 class FlowLoaderTest {
     private var calls = 0
-    private val loader = FlowLoader(
+    private val registry = FsmBeanRegistry(
         mapOf("mark" to Action<StateContext<String>> { calls++ }),
         mapOf("allowed" to Guard<StateContext<String>> { true }),
     )
+    private val serializer = SpringFsmJsonSerializer(jacksonObjectMapper(), registry)
+    private val loader = FlowLoader(registry, serializer)
 
     @Test
     fun `Spring injects ordinary core beans and restores guards actions and post actions`() {
-        AnnotationConfigApplicationContext(OrderBehaviors::class.java, FlowLoader::class.java).use { context ->
+        AnnotationConfigApplicationContext(OrderBehaviors::class.java, JacksonAutoConfiguration::class.java,
+            FsmAutoConfiguration::class.java, FlowLoader::class.java).use { context ->
             val to = ToDto("PAID", listOf("paymentApproved"), listOf("capturePayment"), listOf("sendPaymentReceipt"), null)
             val definition = FlowDefinition("PAYMENT_PENDING", FsmDto(false, mapOf(
                 "PAYMENT_PENDING" to listOf(TransitionDto("PAYMENT_PENDING", to, "PAY")),
@@ -59,7 +67,7 @@ class FlowLoaderTest {
         fsm.onEvent("GO")
         assertEquals("DONE", fsm.getState())
         assertEquals(1, calls)
-        assertEquals(dto, FsmJsonSerializer().deserializeDto(FsmJsonSerializer().serialize(restored)))
+        assertEquals(dto, serializer.toDto(restored))
     }
 
     @Test

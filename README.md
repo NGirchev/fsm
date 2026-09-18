@@ -60,6 +60,14 @@ dependencies {
 </dependency>
 ```
 
+### Spring Boot
+
+This checkout includes [fsm-spring-boot-starter](fsm-spring-boot-starter/README.md),
+which provides automatic registration of a bean registry and JSON serializer.
+It saves ordinary Spring `Action` / `Guard` handlers by bean name and restores them
+from the application context. The core library remains independent of Spring.
+See [the Spring Boot example](fsm-spring-boot-example/README.md) for versioned database persistence.
+
 ## Usage Examples
 ### We have these initial data:
 ```

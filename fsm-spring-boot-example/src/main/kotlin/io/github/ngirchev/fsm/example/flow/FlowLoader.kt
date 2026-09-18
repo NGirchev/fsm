@@ -1,31 +1,24 @@
 package io.github.ngirchev.fsm.example.flow
 
-import io.github.ngirchev.fsm.Action
-import io.github.ngirchev.fsm.Guard
-import io.github.ngirchev.fsm.IdAction
-import io.github.ngirchev.fsm.IdGuard
-import io.github.ngirchev.fsm.StateContext
 import io.github.ngirchev.fsm.impl.extended.ExTransitionTable
-import io.github.ngirchev.fsm.serialization.ActionFactory
-import io.github.ngirchev.fsm.serialization.GuardFactory
-import io.github.ngirchev.fsm.serialization.toExTransitionTable
+import io.github.ngirchev.fsm.spring.FsmBeanRegistry
+import io.github.ngirchev.fsm.spring.SpringFsmJsonSerializer
 import org.springframework.stereotype.Component
 import java.util.concurrent.TimeUnit
 
 /** Application boundaries only; the core converter restores the transition table. */
 @Component
 class FlowLoader(
-    private val actions: Map<String, Action<StateContext<String>>>,
-    private val guards: Map<String, Guard<StateContext<String>>>,
+    private val registry: FsmBeanRegistry,
+    private val serializer: SpringFsmJsonSerializer,
 ) {
     fun load(definition: FlowDefinition): ExTransitionTable<String, String> {
         val issues = validate(definition)
         if (issues.isNotEmpty()) throw InvalidFlowDefinitionException(issues)
-        return definition.table.toExTransitionTable(
+        return serializer.fromDto(
+            definition.table,
             stateParser = { it },
             eventParser = { it },
-            actionFactory = ActionFactory { id -> IdAction(id, actions.getValue(id)::invoke) },
-            guardFactory = GuardFactory { id -> IdGuard(id, guards.getValue(id)::invoke) },
         )
     }
 
@@ -49,8 +42,8 @@ class FlowLoader(
             group.forEach { transition ->
                 check(transition.from == source, "table.transitions", "Source state must match its table key")
                 check(transition.event?.isNotBlank() != false, "table.transitions", "Event IDs must not be blank")
-                transition.to.conditions.forEach { check(it in guards, "conditions", "Unknown guard bean: $it") }
-                (transition.to.actions + transition.to.postActions).forEach { check(it in actions, "actions", "Unknown action bean: $it") }
+                transition.to.conditions.forEach { check(registry.hasGuard(it), "conditions", "Unknown guard bean: $it") }
+                (transition.to.actions + transition.to.postActions).forEach { check(registry.hasAction(it), "actions", "Unknown action bean: $it") }
                 transition.to.timeout?.let {
                     check(it.value > 0 && runCatching { TimeUnit.valueOf(it.unit) }.isSuccess, "timeout", "Timeout must be positive with a known time unit")
                 }
