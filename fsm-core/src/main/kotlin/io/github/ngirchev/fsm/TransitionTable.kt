@@ -52,6 +52,9 @@ private fun <TRANSITION> Any.invokeAutoTransitionOverride(
     vararg arguments: Any?,
 ): TRANSITION? {
     return try {
+        if (!method.canAccess(this) && !method.trySetAccessible()) {
+            throw IllegalAccessException("Cannot access auto transition override [$method]")
+        }
         method.invoke(this, *arguments) as TRANSITION?
     } catch (exception: InvocationTargetException) {
         throw exception.targetException

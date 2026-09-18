@@ -95,6 +95,16 @@ open class ExTransitionTable<STATE, EVENT>(
             action: Action<in StateContext<STATE>>? = null,
             postAction: Action<in StateContext<STATE>>? = null,
             timeout: Timeout? = null,
+        ): Builder<STATE, EVENT> = add(from, onEvent, to, condition, action, postAction, timeout, null, false)
+
+        fun add(
+            from: STATE,
+            onEvent: EVENT? = null,
+            to: STATE,
+            condition: Guard<in StateContext<STATE>>? = null,
+            action: Action<in StateContext<STATE>>? = null,
+            postAction: Action<in StateContext<STATE>>? = null,
+            timeout: Timeout? = null,
             autoTransitionScheduler: AutoTransitionScheduler<STATE>? = null,
             autoTransitionEnabled: Boolean = false,
         ): Builder<STATE, EVENT> {

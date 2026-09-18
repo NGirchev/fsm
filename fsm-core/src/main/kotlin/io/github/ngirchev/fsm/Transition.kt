@@ -106,7 +106,7 @@ class IdGuard<T>(
  *     [io.github.ngirchev.fsm.exception.DuplicateTransitionException]). Use the DSL
  *     `auto().deferWith(...)` on a single transition to attach a scheduler.
  */
-data class To<STATE>(
+class To<STATE>(
     val state: STATE,
     val conditions: List<Guard<in StateContext<STATE>>>,
     val actions: List<Action<in StateContext<STATE>>>,
@@ -131,6 +131,36 @@ data class To<STATE>(
         this.autoTransitionScheduler = autoTransitionScheduler
         this.autoTransitionEnabled = autoTransitionEnabled || autoTransitionScheduler != null
     }
+
+    // Keep the original five-argument copy JVM API while retaining scheduling metadata.
+    fun copy(
+        state: STATE = this.state,
+        conditions: List<Guard<in StateContext<STATE>>> = this.conditions,
+        actions: List<Action<in StateContext<STATE>>> = this.actions,
+        postActions: List<Action<in StateContext<STATE>>> = this.postActions,
+        timeout: Timeout? = this.timeout,
+    ): To<STATE> = To(state, conditions, actions, postActions, timeout, autoTransitionScheduler, autoTransitionEnabled)
+
+    operator fun component1(): STATE = state
+    operator fun component2(): List<Guard<in StateContext<STATE>>> = conditions
+    operator fun component3(): List<Action<in StateContext<STATE>>> = actions
+    operator fun component4(): List<Action<in StateContext<STATE>>> = postActions
+    operator fun component5(): Timeout? = timeout
+
+    override fun equals(other: Any?): Boolean =
+        this === other || other is To<*> && state == other.state && conditions == other.conditions &&
+            actions == other.actions && postActions == other.postActions && timeout == other.timeout
+
+    override fun hashCode(): Int {
+        var result = state?.hashCode() ?: 0
+        result = 31 * result + conditions.hashCode()
+        result = 31 * result + actions.hashCode()
+        result = 31 * result + postActions.hashCode()
+        return 31 * result + (timeout?.hashCode() ?: 0)
+    }
+
+    override fun toString(): String =
+        "To(state=$state, conditions=$conditions, actions=$actions, postActions=$postActions, timeout=$timeout)"
 }
 
 // Top-level factory function for backwards compatibility - accepts single nullable values

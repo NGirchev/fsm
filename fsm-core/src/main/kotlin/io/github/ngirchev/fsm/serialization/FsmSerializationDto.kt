@@ -34,7 +34,7 @@ data class TransitionDto(
  * Data Transfer Object for To serialization
  * STATE is stored as string for JSON compatibility
  */
-data class ToDto(
+class ToDto(
     val state: String,
     val conditions: List<String>,
     val actions: List<String>,
@@ -56,6 +56,38 @@ data class ToDto(
         this.autoTransitionScheduler = autoTransitionScheduler
         this.autoTransitionEnabled = autoTransitionEnabled || autoTransitionScheduler != null
     }
+
+    fun copy(
+        state: String = this.state,
+        conditions: List<String> = this.conditions,
+        actions: List<String> = this.actions,
+        postActions: List<String> = this.postActions,
+        timeout: TimeoutDto? = this.timeout,
+    ): ToDto = ToDto(state, conditions, actions, postActions, timeout).also {
+        it.autoTransitionScheduler = autoTransitionScheduler
+        it.autoTransitionEnabled = autoTransitionEnabled
+    }
+
+    operator fun component1(): String = state
+    operator fun component2(): List<String> = conditions
+    operator fun component3(): List<String> = actions
+    operator fun component4(): List<String> = postActions
+    operator fun component5(): TimeoutDto? = timeout
+
+    override fun equals(other: Any?): Boolean =
+        this === other || other is ToDto && state == other.state && conditions == other.conditions &&
+            actions == other.actions && postActions == other.postActions && timeout == other.timeout
+
+    override fun hashCode(): Int {
+        var result = state.hashCode()
+        result = 31 * result + conditions.hashCode()
+        result = 31 * result + actions.hashCode()
+        result = 31 * result + postActions.hashCode()
+        return 31 * result + (timeout?.hashCode() ?: 0)
+    }
+
+    override fun toString(): String =
+        "ToDto(state=$state, conditions=$conditions, actions=$actions, postActions=$postActions, timeout=$timeout)"
 }
 
 /**
