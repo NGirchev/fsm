@@ -56,11 +56,7 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
     /** Explicitly execute enabled auto transitions from the current state, without an event. */
     fun startAutoTransitions() {
         writeLocked {
-            if (autoTransitionEnabled) {
-                performAutoTransitions()
-            } else {
-                notifyAutoTransitionCompleted()
-            }
+            performAutoTransitions()
         }
     }
 

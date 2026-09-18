@@ -14,6 +14,10 @@ plugins {
 group = rootProject.group
 version = rootProject.version
 
+jacoco {
+    toolVersion = "0.8.15"
+}
+
 repositories {
     mavenCentral()
 }
@@ -111,23 +115,13 @@ tasks.jacocoTestCoverageVerification {
     violationRules {
         rule {
             element = "BUNDLE"
-            excludes = listOf(
-                "io.github.ngirchev.fsm.diagram.*",
-                "io.github.ngirchev.fsm.exception.*"
-            )
             limit {
-                minimum = "0.69".toBigDecimal()
+                counter = "LINE"
+                minimum = "1.0".toBigDecimal()
             }
-        }
-        rule {
-            element = "CLASS"
-            excludes = listOf(
-                "*.diagram.*",
-                "*.exception.*"
-            )
             limit {
                 counter = "BRANCH"
-                minimum = "0.69".toBigDecimal()
+                minimum = "1.0".toBigDecimal()
             }
         }
     }

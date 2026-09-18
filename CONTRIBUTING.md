@@ -93,7 +93,7 @@ Use descriptive branch names:
 
 * Write tests for all new features
 * Write tests for bug fixes
-* Maintain or improve code coverage (minimum 80% line coverage, 70% branch coverage)
+* Maintain 100% line and branch coverage in `fsm` and `fsm-spring-boot-starter`
 * Use descriptive test names that explain what is being tested
 
 Example:
@@ -212,7 +212,7 @@ For maintainers creating a release:
 
 3. Attach artifacts and their signatures (for OpenSSF Security Score):
    ```bash
-   gh release upload v1.0.0 fsm-core/build/libs/*.jar fsm-core/build/libs/*.jar.asc --clobber
+   gh release upload v1.0.0 fsm/build/libs/*.jar fsm/build/libs/*.jar.asc --clobber
    ```
 
 ## Questions?

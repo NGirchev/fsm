@@ -26,13 +26,15 @@ val restored = serializer.deserialize(json, { it }, { it })
 val restoredFromDto = serializer.fromDto(dto, { it }, { it })
 ```
 
-The JSON uses the existing core `FsmDto` format. Guards, actions and post-actions
+The JSON uses the existing core `FsmDto` format and preserves local `.auto()` settings.
+Guards, actions, post-actions and per-transition `AutoTransitionScheduler` instances
 are stored as Spring bean names. Deserialization reuses the actual registered beans,
 including Spring proxies and injected dependencies. It does not serialize bean internals.
 Unknown names fail restoration. Serialization requires each handler to be the actual
 registered bean instance with exactly one registered name; unregistered lambdas and
 ambiguous instances fail instead of losing behavior. Core `NamedAction` IDs do not
-override Spring bean names. Changing a bean name requires migrating stored definitions.
+override Spring bean names; the same applies to `NamedAutoTransitionScheduler` IDs.
+Changing a bean name requires migrating stored definitions.
 
 States and events use `toString()` when saved; provide matching parsers when loading.
 Handler context types must match the state and domain context of the table; JSON does

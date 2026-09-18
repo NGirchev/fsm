@@ -32,14 +32,14 @@ You can also use the `io.github.ngirchev.fsm.impl` package with basic implementa
 
 ## Repository Modules
 
-- `fsm-core` - the Kotlin/JVM library published as `io.github.ngirchev:fsm`.
-- `fsm-spring-boot-transactional-example` - an executable Spring Boot example that depends on `fsm-core`.
+- `fsm` - the Kotlin/JVM library published as `io.github.ngirchev:fsm`.
+- `fsm-spring-boot-transactional-example` - an executable Spring Boot example that depends on `fsm`.
 - `fsm-visual-editor` - a Vite/React editor for designing FSM flows and generating Java/Kotlin factories.
 
 ## Installation
 
 The root project aggregates the JVM modules. Library sources and tests live in
-`fsm-core/src`; the Gradle module is `:fsm-core`, while its Maven coordinates remain
+`fsm/src`; the Gradle module is `:fsm`, while its Maven coordinates remain
 `io.github.ngirchev:fsm`. The Spring Boot starter depends on this module.
 
 Replace `VERSION` with the latest version from Maven Central.
@@ -581,7 +581,7 @@ This is the **standard Gradle command** for running tests. The command will:
 ./gradlew test --info
 
 # Run a specific test class
-./gradlew :fsm-core:test --tests "io.github.ngirchev.fsm.impl.basic.BFsmTest"
+./gradlew :fsm:test --tests "io.github.ngirchev.fsm.impl.basic.BFsmTest"
 
 # Run tests and generate coverage report
 ./gradlew test jacocoTestReport
@@ -600,10 +600,12 @@ JaCoCo is:
 
 **Coverage requirements:**
 
-* Minimum line coverage: 80%
-* Minimum branch coverage: 70%
+* Required line coverage: 100% for `fsm` and `fsm-spring-boot-starter`
+* Required branch coverage: 100% for both library modules
 
-Coverage reports are generated automatically during the build and can be viewed at `fsm-core/build/reports/jacoco/test/html/index.html` after running `./gradlew test jacocoTestReport`.
+Coverage reports are generated automatically during the build and can be viewed at `fsm/build/reports/jacoco/test/html/index.html` after running `./gradlew test jacocoTestReport`.
+The starter report is at `fsm-spring-boot-starter/build/reports/jacoco/test/html/index.html`.
+The executable Spring Boot examples are tested but do not have a coverage gate.
 
 To check coverage thresholds:
 

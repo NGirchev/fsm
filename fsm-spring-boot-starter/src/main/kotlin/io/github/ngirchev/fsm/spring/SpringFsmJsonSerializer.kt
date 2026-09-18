@@ -3,6 +3,7 @@ package io.github.ngirchev.fsm.spring
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.github.ngirchev.fsm.impl.extended.ExTransitionTable
 import io.github.ngirchev.fsm.serialization.ActionFactory
+import io.github.ngirchev.fsm.serialization.AutoTransitionSchedulerFactory
 import io.github.ngirchev.fsm.serialization.FsmDto
 import io.github.ngirchev.fsm.serialization.GuardFactory
 import io.github.ngirchev.fsm.serialization.TimeoutDto
@@ -26,6 +27,8 @@ class SpringFsmJsonSerializer(
                     to.actions.map(registry::actionName),
                     to.postActions.map(registry::actionName),
                     to.timeout?.let { TimeoutDto(it.value, it.unit.name) },
+                    to.autoTransitionScheduler?.let(registry::schedulerName),
+                    to.autoTransitionEnabled,
                 ), transition.event?.toString())
             }
         },
@@ -43,6 +46,7 @@ class SpringFsmJsonSerializer(
         stateParser, eventParser,
         ActionFactory { registry.action<STATE>(it) },
         GuardFactory { registry.guard<STATE>(it) },
+        AutoTransitionSchedulerFactory { registry.scheduler<STATE>(it) },
     )
 
     fun <STATE, EVENT> deserialize(

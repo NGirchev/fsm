@@ -3,16 +3,19 @@ plugins {
     `java-library`
     `maven-publish`
     id("com.vanniktech.maven.publish") version "0.34.0"
+    jacoco
 }
 
 group = rootProject.group
 version = rootProject.version
 
+jacoco { toolVersion = "0.8.15" }
+
 repositories { mavenCentral() }
 
 dependencies {
     api(platform("org.springframework.boot:spring-boot-dependencies:3.5.16"))
-    api(project(":fsm-core"))
+    api(project(":fsm"))
     api("org.springframework.boot:spring-boot-starter-json")
     implementation("org.springframework.boot:spring-boot-autoconfigure")
     testImplementation("org.springframework.boot:spring-boot-starter-test")
@@ -25,7 +28,33 @@ java {
     targetCompatibility = JavaVersion.VERSION_17
     withSourcesJar()
 }
-tasks.test { useJUnitPlatform() }
+tasks.test {
+    useJUnitPlatform()
+    finalizedBy(tasks.jacocoTestReport)
+}
+tasks.jacocoTestReport {
+    dependsOn(tasks.test)
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+    }
+}
+tasks.jacocoTestCoverageVerification {
+    dependsOn(tasks.jacocoTestReport)
+    violationRules {
+        rule {
+            limit {
+                counter = "LINE"
+                minimum = "1.0".toBigDecimal()
+            }
+            limit {
+                counter = "BRANCH"
+                minimum = "1.0".toBigDecimal()
+            }
+        }
+    }
+}
+tasks.check { dependsOn(tasks.jacocoTestCoverageVerification) }
 
 publishing {
     publications.withType<MavenPublication>().configureEach {

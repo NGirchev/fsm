@@ -39,6 +39,6 @@ tasks.register<Exec>("githubRelease") {
     commandLine("sh", "-c",
         "RELEASE_TAG=\$(git describe --tags --abbrev=0) && " +
         "gh release create \$RELEASE_TAG -F CHANGELOG.md && " +
-        "gh release upload \$RELEASE_TAG fsm-core/build/libs/*.jar fsm-core/build/libs/*.jar.asc --clobber"
+        "gh release upload \$RELEASE_TAG fsm/build/libs/*.jar fsm/build/libs/*.jar.asc --clobber"
     )
 }

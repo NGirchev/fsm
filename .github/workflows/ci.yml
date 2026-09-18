@@ -48,22 +48,24 @@ jobs:
       with:
         name: coverage-reports
         path: |
-          fsm-core/build/reports/jacoco/test/html/**
-          fsm-core/build/reports/jacoco/test/jacocoTestReport.xml
+          fsm/build/reports/jacoco/test/html/**
+          fsm/build/reports/jacoco/test/jacocoTestReport.xml
+          fsm-spring-boot-starter/build/reports/jacoco/test/html/**
+          fsm-spring-boot-starter/build/reports/jacoco/test/jacocoTestReport.xml
 
     - name: Upload detekt reports
       uses: actions/upload-artifact@v4
       if: always()
       with:
         name: detekt-reports
-        path: fsm-core/build/reports/detekt/**
+        path: fsm/build/reports/detekt/**
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       if: success()
       with:
         name: build-artifacts
-        path: fsm-core/build/libs/*.jar
+        path: fsm/build/libs/*.jar
 
   dependency-submission:
     runs-on: ubuntu-latest
