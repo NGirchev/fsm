@@ -8,7 +8,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 @Component
-@ConditionalOnProperty(prefix = "fsm.example.runner", name = "enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(prefix = "fsm.example.runner", name = "enabled", havingValue = "true")
 public class ExternalWorkflowDemoRunner implements CommandLineRunner {
 
     private static final Logger log = LoggerFactory.getLogger(ExternalWorkflowDemoRunner.class);

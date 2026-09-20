@@ -33,7 +33,8 @@ You can also use the `io.github.ngirchev.fsm.impl` package with basic implementa
 ## Repository Modules
 
 - `fsm` - the Kotlin/JVM library published as `io.github.ngirchev:fsm`.
-- `fsm-spring-boot-transactional-example` - an executable Spring Boot example that depends on `fsm`.
+- `fsm-spring-boot-starter` - Spring Boot integration for resolving named FSM handlers.
+- `fsm-spring-boot-example` - one executable example covering versioned dynamic flows and transactional workflows.
 - `fsm-visual-editor` - a Vite/React editor for designing FSM flows and generating Java/Kotlin factories.
 
 ## Installation

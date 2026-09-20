@@ -1,7 +1,8 @@
-# Dynamic FSM Spring Boot Example
+# Spring Boot FSM Example
 
-This module demonstrates a runtime FSM loaded from versioned PostgreSQL `JSONB` configuration.
-States and events are strings, while guards and actions are resolved by their Spring bean names.
+This is the repository's single executable Spring Boot example. It demonstrates both a runtime FSM
+loaded from versioned PostgreSQL `JSONB` configuration and a transactional JPA workflow whose
+automatic transitions run after commit.
 
 ## Run
 
@@ -28,6 +29,41 @@ curl -X POST http://localhost:8080/api/orders/1/events \
 
 Flow management endpoints are under `/api/flows/{flowKey}/versions`. A draft is editable until
 `POST /api/flows/{flowKey}/versions/{version}/publish` validates it and atomically makes it active.
+
+## Transactional workflow
+
+The transactional scenario demonstrates this flow:
+
+```text
+NEW
+  -- START action calls ExternalServiceClient successfully -->
+AWAITING_EXTERNAL_SERVICE_RESULT
+  -- auto branch -->
+EXTERNAL_SERVICE_DONE or EXTERNAL_SERVICE_FAILED
+  -- auto notify action -->
+NOTIFY
+  -- auto -->
+END
+```
+
+Each transition uses `PersistWorkflowStatusAction` as a `postAction`, so the new state is saved after
+the FSM changes the state. Automatic transitions use
+`auto().deferWith(AfterCommitAutoTransitionScheduler)`: each deferred transition starts after the
+previous transaction commits and runs in its own `REQUIRES_NEW` transaction. Hibernate Envers
+therefore records every intermediate status.
+
+`ExternalWorkflow` uses optimistic versioning, while `start` locks the workflow row before invoking
+the external service. The lock prevents concurrent starts from submitting the same workflow twice;
+the version field protects later detached-entity merges from lost updates.
+
+The normal application startup does not create demo data. To run the transactional scenario once at
+startup, set `FSM_DEMO_RUNNER_ENABLED=true` before `bootRun`.
+
+Run its focused integration test with:
+
+```bash
+./gradlew :fsm-spring-boot-example:test --tests '*ExternalWorkflowServiceTest'
+```
 
 ## JSON format
 
