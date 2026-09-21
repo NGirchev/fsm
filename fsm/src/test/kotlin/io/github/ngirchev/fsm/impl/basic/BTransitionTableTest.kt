@@ -5,7 +5,6 @@ import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
-import io.github.ngirchev.fsm.AutoTransitionScheduler
 import io.github.ngirchev.fsm.exception.DuplicateTransitionException
 import io.github.ngirchev.fsm.To
 import io.github.ngirchev.fsm.StateContext
@@ -323,48 +322,22 @@ class BTransitionTableTest {
     }
 
     @Test
-    fun createDomainFsmShouldUseAutoTransitionScheduler() {
-        var scheduledTransitions = 0
-        val scheduler = AutoTransitionScheduler<DocumentState> { _, _, runTransition ->
-            scheduledTransitions++
-            runTransition()
-        }
-        val table = BTransitionTable.Builder<DocumentState>()
-            .autoTransitionEnabled(true)
-            .autoTransitionScheduler(scheduler)
-            .add(DocumentState.NEW, DocumentState.READY_FOR_SIGN)
-            .add(DocumentState.READY_FOR_SIGN, DocumentState.SIGNED)
-            .build()
-        val domain = Document(state = DocumentState.NEW)
-
-        val domainFsm = table.createDomainFsm<Document>()
-        domainFsm.changeState(domain, DocumentState.READY_FOR_SIGN)
-
-        assertEquals(DocumentState.SIGNED, domain.state)
-        assertEquals(1, scheduledTransitions)
-    }
-
-    @Test
-    fun toBuilderShouldAllowPerTransitionAutoTransitionScheduler() {
-        val scheduler = AutoTransitionScheduler<DocumentState> { _, _, runTransition -> runTransition() }
-
+    fun toBuilderShouldAllowLocalAutoTransition() {
         val table = BTransitionTable.Builder<DocumentState>()
             .from(DocumentState.NEW)
             .to(DocumentState.READY_FOR_SIGN)
             .auto()
-            .deferWith(scheduler)
             .end()
             .build()
 
         val transition = table.transitions[DocumentState.NEW]?.single() ?: error("Expected transition")
 
-        assertEquals(scheduler, transition.to.autoTransitionScheduler)
+        assertTrue(transition.to.autoTransitionEnabled)
     }
 
     @Test
-    fun addWithToObjectShouldCopyAutoTransitionScheduler() {
-        val scheduler = AutoTransitionScheduler<DocumentState> { _, _, runTransition -> runTransition() }
-        val transitionTo = To(DocumentState.READY_FOR_SIGN, autoTransitionScheduler = scheduler)
+    fun addWithToObjectShouldCopyLocalAutoTransitionFlag() {
+        val transitionTo = To(DocumentState.READY_FOR_SIGN, autoTransitionEnabled = true)
 
         val table = BTransitionTable.Builder<DocumentState>()
             .add(DocumentState.NEW, transitionTo)
@@ -372,7 +345,7 @@ class BTransitionTableTest {
 
         val transition = table.transitions[DocumentState.NEW]?.single() ?: error("Expected transition")
 
-        assertEquals(scheduler, transition.to.autoTransitionScheduler)
+        assertTrue(transition.to.autoTransitionEnabled)
     }
 
     private fun collectDiagnosticMessages(block: () -> Unit): List<String> {
@@ -391,12 +364,10 @@ class BTransitionTableTest {
     private class CustomBTransitionTable(
         transitions: Map<DocumentState, LinkedHashSet<BTransition<DocumentState>>>,
         autoTransitionEnabled: Boolean,
-        autoTransitionScheduler: AutoTransitionScheduler<DocumentState>,
-    ) : BTransitionTable<DocumentState>(transitions, autoTransitionEnabled, autoTransitionScheduler)
+    ) : BTransitionTable<DocumentState>(transitions, autoTransitionEnabled)
 
     private class FactoryBDomainFsm(
         transitionTable: BTransitionTable<DocumentState>,
         autoTransitionEnabled: Boolean,
-        autoTransitionScheduler: AutoTransitionScheduler<DocumentState>,
-    ) : BDomainFsm<Document, DocumentState>(transitionTable, autoTransitionEnabled, autoTransitionScheduler)
+    ) : BDomainFsm<Document, DocumentState>(transitionTable, autoTransitionEnabled)
 }

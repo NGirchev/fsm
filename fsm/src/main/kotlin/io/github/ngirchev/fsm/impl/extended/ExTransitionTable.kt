@@ -11,7 +11,6 @@ fun interface ExTransitionTableFactory<STATE, EVENT, TABLE : ExTransitionTable<S
     fun create(
         transitions: Map<STATE, @JvmSuppressWildcards LinkedHashSet<ExTransition<STATE, EVENT>>>,
         autoTransitionEnabled: Boolean,
-        autoTransitionScheduler: AutoTransitionScheduler<STATE>,
     ): TABLE
 }
 
@@ -24,14 +23,12 @@ fun interface ExDomainFsmFactory<
     fun create(
         transitionTable: ExTransitionTable<STATE, EVENT>,
         autoTransitionEnabled: Boolean,
-        autoTransitionScheduler: AutoTransitionScheduler<STATE>,
     ): FSM
 }
 
 open class ExTransitionTable<STATE, EVENT>(
     transitions: Map<STATE, LinkedHashSet<ExTransition<STATE, EVENT>>>,
     override var autoTransitionEnabled: Boolean = false,
-    protected val autoTransitionScheduler: AutoTransitionScheduler<STATE>,
 ) : AbstractTransitionTable<STATE, ExTransition<STATE, EVENT>>(transitions, autoTransitionEnabled) {
 
     internal fun getTransitionByEvent(context: StateContext<STATE>, event: EVENT): ExTransition<STATE, EVENT>? {
@@ -68,16 +65,10 @@ open class ExTransitionTable<STATE, EVENT>(
 
         internal val transitions: MutableMap<STATE, LinkedHashSet<ExTransition<STATE, EVENT>>> = hashMapOf()
         private var autoTransitionEnabled: Boolean = false
-        private var autoTransitionScheduler: AutoTransitionScheduler<STATE> = ImmediateAutoTransitionScheduler()
         private var maxImmediateAutoTransitions: Int = 0
 
         fun autoTransitionEnabled(enabled: Boolean): Builder<STATE, EVENT> {
             this.autoTransitionEnabled = enabled
-            return this
-        }
-
-        fun autoTransitionScheduler(scheduler: AutoTransitionScheduler<STATE>): Builder<STATE, EVENT> {
-            this.autoTransitionScheduler = scheduler
             return this
         }
 
@@ -95,7 +86,16 @@ open class ExTransitionTable<STATE, EVENT>(
             action: Action<in StateContext<STATE>>? = null,
             postAction: Action<in StateContext<STATE>>? = null,
             timeout: Timeout? = null,
-        ): Builder<STATE, EVENT> = add(from, onEvent, to, condition, action, postAction, timeout, null, false)
+        ): Builder<STATE, EVENT> = add(
+            from,
+            onEvent,
+            to,
+            condition,
+            action,
+            postAction,
+            timeout,
+            false,
+        )
 
         fun add(
             from: STATE,
@@ -105,15 +105,14 @@ open class ExTransitionTable<STATE, EVENT>(
             action: Action<in StateContext<STATE>>? = null,
             postAction: Action<in StateContext<STATE>>? = null,
             timeout: Timeout? = null,
-            autoTransitionScheduler: AutoTransitionScheduler<STATE>? = null,
-            autoTransitionEnabled: Boolean = false,
+            autoTransitionEnabled: Boolean,
         ): Builder<STATE, EVENT> {
-            requireAutoTransitionSettingsCanBeUsed(onEvent, autoTransitionScheduler, autoTransitionEnabled)
+            requireAutoTransitionSettingsCanBeUsed(onEvent, autoTransitionEnabled)
             transitions.getOrPut(from) { LinkedHashSet() }
                 .also { transitionSet ->
                     val transition = ExTransition(
                         from,
-                        To(to, condition, action, postAction, timeout, autoTransitionScheduler, autoTransitionEnabled),
+                        To(to, condition, action, postAction, timeout, autoTransitionEnabled),
                         onEvent,
                     )
                     if (!transitionSet.add(transition)) {
@@ -125,7 +124,7 @@ open class ExTransitionTable<STATE, EVENT>(
 
         fun add(vararg transition: ExTransition<STATE, EVENT>): Builder<STATE, EVENT> {
             for (t in transition) {
-                requireAutoTransitionSettingsCanBeUsed(t.event, t.to.autoTransitionScheduler, t.to.autoTransitionEnabled)
+                requireAutoTransitionSettingsCanBeUsed(t.event, t.to.autoTransitionEnabled)
                 transitions.putIfAbsent(t.from, LinkedHashSet())
                 if (!transitions[t.from]!!.add(t)) {
                     throw DuplicateTransitionException(t)
@@ -136,7 +135,7 @@ open class ExTransitionTable<STATE, EVENT>(
 
         fun add(from: STATE, onEvent: EVENT? = null, vararg to: To<STATE>): Builder<STATE, EVENT> {
             for (t in to) {
-                requireAutoTransitionSettingsCanBeUsed(onEvent, t.autoTransitionScheduler, t.autoTransitionEnabled)
+                requireAutoTransitionSettingsCanBeUsed(onEvent, t.autoTransitionEnabled)
                 transitions.getOrPut(from) { LinkedHashSet() }
                     .also { transitionSet ->
                         val transition = ExTransition(
@@ -147,7 +146,6 @@ open class ExTransitionTable<STATE, EVENT>(
                                 actions = t.actions.toList(),
                                 postActions = t.postActions.toList(),
                                 timeout = t.timeout,
-                                autoTransitionScheduler = t.autoTransitionScheduler,
                                 autoTransitionEnabled = t.autoTransitionEnabled,
                             ),
                             onEvent,
@@ -166,17 +164,16 @@ open class ExTransitionTable<STATE, EVENT>(
 
         private fun requireAutoTransitionSettingsCanBeUsed(
             event: EVENT?,
-            scheduler: AutoTransitionScheduler<STATE>?,
             localAutoTransitionEnabled: Boolean,
         ) {
-            if (event != null && (scheduler != null || localAutoTransitionEnabled)) {
+            if (event != null && localAutoTransitionEnabled) {
                 throw FsmException("Auto transition settings can only be configured for eventless transitions")
             }
         }
 
         fun build(): ExTransitionTable<STATE, EVENT> {
             val snapshot = snapshotTransitions()
-            return ExTransitionTable(snapshot, autoTransitionEnabled, autoTransitionScheduler)
+            return ExTransitionTable(snapshot, autoTransitionEnabled)
                 .also {
                     it.maxImmediateAutoTransitions = maxImmediateAutoTransitions
                     it.warnOnAmbiguousTransitions()
@@ -187,7 +184,7 @@ open class ExTransitionTable<STATE, EVENT>(
             factory: ExTransitionTableFactory<STATE, EVENT, TABLE>,
         ): TABLE {
             val snapshot = snapshotTransitions()
-            return factory.create(snapshot, autoTransitionEnabled, autoTransitionScheduler)
+            return factory.create(snapshot, autoTransitionEnabled)
                 .also {
                     it.maxImmediateAutoTransitions = maxImmediateAutoTransitions
                     it.warnOnAmbiguousTransitions()
@@ -213,17 +210,17 @@ open class ExTransitionTable<STATE, EVENT>(
     }
 
     override fun createFsm(initialState: STATE): ExFsm<STATE, EVENT> {
-        return ExFsm(initialState, this, autoTransitionEnabled, autoTransitionScheduler)
+        return ExFsm(initialState, this, autoTransitionEnabled)
     }
 
     override fun <DOMAIN : StateContext<STATE>> createDomainFsm(): ExDomainFsm<DOMAIN, STATE, EVENT> {
-        return ExDomainFsm(this, autoTransitionEnabled, autoTransitionScheduler)
+        return ExDomainFsm(this, autoTransitionEnabled)
     }
 
     fun <DOMAIN : StateContext<STATE>, FSM : ExDomainFsm<DOMAIN, STATE, EVENT>> createDomainFsm(
         factory: ExDomainFsmFactory<DOMAIN, STATE, EVENT, FSM>,
     ): FSM {
-        return factory.create(this, autoTransitionEnabled, autoTransitionScheduler)
+        return factory.create(this, autoTransitionEnabled)
     }
 }
 
@@ -270,7 +267,6 @@ class ToBuilder<STATE, EVENT>(
     private val actions: MutableList<Action<in StateContext<STATE>>> = mutableListOf()
     private val postActions: MutableList<Action<in StateContext<STATE>>> = mutableListOf()
     private var timeout: Timeout? = null
-    private var autoTransitionScheduler: AutoTransitionScheduler<STATE>? = null
     private var autoTransitionEnabled: Boolean = false
 
     fun onEvent(event: EVENT): ToBuilder<STATE, EVENT> {
@@ -302,12 +298,6 @@ class ToBuilder<STATE, EVENT>(
         return AutoToBuilder(this)
     }
 
-    internal fun deferWithForAuto(scheduler: AutoTransitionScheduler<STATE>): ToBuilder<STATE, EVENT> {
-        requireAutoTransition()
-        this.autoTransitionScheduler = scheduler
-        return this
-    }
-
     fun timeout(timeout: Timeout): ToBuilder<STATE, EVENT> {
         if (this.timeout != null) {
             throw FsmException("Already has timeout")
@@ -326,7 +316,6 @@ class ToBuilder<STATE, EVENT>(
                     actions.toList(),
                     postActions.toList(),
                     timeout,
-                    autoTransitionScheduler,
                     autoTransitionEnabled,
                 ),
                 event,
@@ -387,11 +376,6 @@ class AutoToBuilder<STATE, EVENT> internal constructor(
         return this
     }
 
-    fun deferWith(scheduler: AutoTransitionScheduler<STATE>): AutoToBuilder<STATE, EVENT> {
-        delegate.deferWithForAuto(scheduler)
-        return this
-    }
-
     fun timeout(timeout: Timeout): AutoToBuilder<STATE, EVENT> {
         delegate.timeout(timeout)
         return this
@@ -444,7 +428,6 @@ class ToMultipleTransitionBuilder<STATE, EVENT>(
     private val actions: MutableList<Action<in StateContext<STATE>>> = mutableListOf()
     private val postActions: MutableList<Action<in StateContext<STATE>>> = mutableListOf()
     private var timeout: Timeout? = null
-    private var autoTransitionScheduler: AutoTransitionScheduler<STATE>? = null
     private var autoTransitionEnabled: Boolean = false
 
     fun onEvent(event: EVENT): ToMultipleTransitionBuilder<STATE, EVENT> {
@@ -476,12 +459,6 @@ class ToMultipleTransitionBuilder<STATE, EVENT>(
         return AutoToMultipleTransitionBuilder(this)
     }
 
-    internal fun deferWithForAuto(scheduler: AutoTransitionScheduler<STATE>): ToMultipleTransitionBuilder<STATE, EVENT> {
-        requireAutoTransition()
-        this.autoTransitionScheduler = scheduler
-        return this
-    }
-
     fun timeout(timeout: Timeout): ToMultipleTransitionBuilder<STATE, EVENT> {
         if (this.timeout != null) {
             throw FsmException("Already has timeout")
@@ -500,7 +477,6 @@ class ToMultipleTransitionBuilder<STATE, EVENT>(
                     actions.toList(),
                     postActions.toList(),
                     timeout,
-                    autoTransitionScheduler,
                     autoTransitionEnabled,
                 ),
                 event,
@@ -571,11 +547,6 @@ class AutoToMultipleTransitionBuilder<STATE, EVENT> internal constructor(
 
     fun postAction(postAction: Action<in StateContext<STATE>>): AutoToMultipleTransitionBuilder<STATE, EVENT> {
         delegate.postAction(postAction)
-        return this
-    }
-
-    fun deferWith(scheduler: AutoTransitionScheduler<STATE>): AutoToMultipleTransitionBuilder<STATE, EVENT> {
-        delegate.deferWithForAuto(scheduler)
         return this
     }
 

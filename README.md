@@ -223,65 +223,20 @@ Summary:
 - `TypedEvent<T>` implemented -> compare by `eventType`
 - `TypedEvent<T>` not implemented -> compare by ordinary `equals`
 
-### Deferred auto transitions after transaction commit
+### Auto transitions and durable continuations
 
-Auto transitions are synchronous by default. If a domain state must be saved before the auto transition action runs, provide an `AutoTransitionScheduler`.
+Auto transitions run synchronously. Use them for immediate, in-memory state progression where all
+steps belong to the same call.
 
 Immediate auto-transition chains are unlimited by default. Configure
 `.maxImmediateAutoTransitions(limit)` with a positive value to enable a per-run runtime guard;
-`0` keeps the guard disabled. Deferred schedulers are not subject to this limit.
+`0` keeps the guard disabled.
 
-```kotlin
-class SpringAfterCommitAutoTransitionScheduler<STATE>(
-    transactionManager: PlatformTransactionManager
-) : AutoTransitionScheduler<STATE> {
-    private val transactionTemplate = TransactionTemplate(transactionManager).apply {
-        propagationBehavior = TransactionDefinition.PROPAGATION_REQUIRES_NEW
-    }
-
-    override fun schedule(
-        context: StateContext<STATE>,
-        transition: Transition<STATE>,
-        runTransition: () -> Unit
-    ) {
-        TransactionSynchronizationManager.registerSynchronization(
-            object : TransactionSynchronization {
-                override fun afterCommit() {
-                    transactionTemplate.executeWithoutResult {
-                        runTransition()
-                    }
-                }
-            }
-        )
-    }
-}
-
-val scheduler = SpringAfterCommitAutoTransitionScheduler<DocumentState>(transactionManager)
-
-val fsm = ExTransitionTable.Builder<DocumentState, String>()
-    .add(from = NEW, onEvent = "APPROVE", to = READY_FOR_SIGN)
-    .from(READY_FOR_SIGN).to(SIGNED)
-        .auto()
-        .action {
-            // External call or another action that may fail.
-            signatureClient.sendForSignature((it as Document).id)
-        }
-        .deferWith(scheduler)
-        .end()
-    .build()
-    .createDomainFsm<Document>()
-
-fsm.addStateChangeListener { context, _, _ ->
-    documentRepository.save(context as Document)
-}
-
-@Transactional
-fun approve(document: Document) {
-    fsm.handle(document, "APPROVE")
-}
-```
-
-With this setup, `approve` commits `NEW -> READY_FOR_SIGN` first. After commit, the scheduler opens a new `PROPAGATION_REQUIRES_NEW` transaction and runs the auto transition `READY_FOR_SIGN -> SIGNED`. If that action fails, the document remains in `READY_FOR_SIGN` and the auto transition can be retried.
+For work that must happen after a transaction commits, survive process restarts, or be retried,
+persist a durable task in the same transaction as the state change. A worker claims that task and
+sends an ordinary event to the FSM. The Spring Boot starter provides `FsmTaskProcessor`,
+`FsmTaskStore`, and `FsmTaskHandler` for this pattern. The PostgreSQL example uses
+`FOR UPDATE SKIP LOCKED`; see [`fsm-spring-boot-example`](fsm-spring-boot-example/README.md).
 
 ### Example with fluent builder
 
@@ -325,58 +280,12 @@ fun main() {
 }
 ```
 
-### Example with timers — traffic light
+### Timers and cyclic workflows
 
-A traffic light is an intentionally cyclic FSM. Run its timed auto transitions through a deferred
-scheduler so `onEvent("RUN")` can return while the cycle continues on the executor thread.
-
-```kotlin
-fun main() {
-    val executor = Executors.newSingleThreadExecutor()
-    val scheduler = AutoTransitionScheduler<String> { _, _, runTransition ->
-        executor.execute(runTransition)
-    }
-    val transitionTable = ExTransitionTable.Builder<String, String>()
-        .autoTransitionEnabled(true)
-        .autoTransitionScheduler(scheduler)
-        .add(ExTransition(from = "INITIAL", to = "GREEN", onEvent = "RUN"))
-        .add(ExTransition(from = "RED", to = To("GREEN", timeout = Timeout(3), action = { println(it) })))
-        .add(ExTransition(from = "GREEN", to = To("YELLOW", timeout = Timeout(3), action = { println(it) })))
-        .add(ExTransition(from = "YELLOW", to = To("RED", timeout = Timeout(3), action = { println(it) })))
-        .build()
-    val fsm = transitionTable.createFsm("INITIAL")
-
-    fsm.onEvent("RUN")
-}
-```
-
-OR
-
-```kotlin
-fun main() {
-    val executor = Executors.newSingleThreadExecutor()
-    val scheduler = AutoTransitionScheduler<String> { _, _, runTransition ->
-        executor.execute(runTransition)
-    }
-    val fsm = FsmFactory.statesWithEvents<String, String>()
-        .autoTransitionEnabled(true)
-        .autoTransitionScheduler(scheduler)
-        .from("INITIAL").to("GREEN").onEvent("RUN").end()
-        .from("RED").to("GREEN").timeout(Timeout(3)).action { println(it) }.end()
-        .from("GREEN").to("YELLOW").timeout(Timeout(3)).action { println(it) }.end()
-        .from("YELLOW").to("RED").timeout(Timeout(3)).action { println(it) }.end()
-        .build()
-        .createFsm("INITIAL")
-
-    fsm.onEvent("RUN")
-}
-```
-
-The immediate runtime limit does not apply to deferred schedulers: every callback performs one
-transition and schedules the next one. The dynamic Spring Boot example uses the core JSON format.
-Because it executes auto transitions synchronously, enabling them requires a positive
-`maxImmediateAutoTransitions`; see
-[`fsm-spring-boot-example`](fsm-spring-boot-example/README.md).
+Do not model an endless timed cycle as synchronous auto transitions. Let an application timer,
+job runner, or durable task send an explicit event for each step. This keeps the FSM deterministic
+and puts persistence, retries and cancellation at the application boundary. The Spring Boot starter
+can automatically execute durable task processors declared by the application.
 
 ## FSM Diagram Visualization
 

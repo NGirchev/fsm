@@ -42,28 +42,6 @@ fun <STATE, EVENT> String.fromJson(
 }
 
 /**
- * Deserializes JSON string to ExTransitionTable.
- * Action and guard factories are optional best-effort helpers. Scheduler restoration is strict:
- * if JSON contains a scheduler ID, [autoTransitionSchedulerFactory] must resolve it.
- */
-fun <STATE, EVENT> String.fromJson(
-    stateParser: (String) -> STATE,
-    eventParser: (String) -> EVENT,
-    actionFactory: ActionFactory<STATE>?,
-    guardFactory: GuardFactory<STATE>?,
-    autoTransitionSchedulerFactory: AutoTransitionSchedulerFactory<STATE>?,
-): ExTransitionTable<STATE, EVENT> {
-    return FsmJsonSerializer().deserialize(
-        this,
-        stateParser,
-        eventParser,
-        actionFactory,
-        guardFactory,
-        autoTransitionSchedulerFactory,
-    )
-}
-
-/**
  * Deserializes JSON file to ExTransitionTable with the same best-effort action/guard restore as
  * [String.fromJson].
  */
@@ -78,27 +56,6 @@ fun <STATE, EVENT> Path.fromJson(
 }
 
 /**
- * Deserializes JSON file to ExTransitionTable with strict scheduler restore when scheduler IDs
- * are present.
- */
-fun <STATE, EVENT> Path.fromJson(
-    stateParser: (String) -> STATE,
-    eventParser: (String) -> EVENT,
-    actionFactory: ActionFactory<STATE>?,
-    guardFactory: GuardFactory<STATE>?,
-    autoTransitionSchedulerFactory: AutoTransitionSchedulerFactory<STATE>?,
-): ExTransitionTable<STATE, EVENT> {
-    val json = Files.readString(this)
-    return json.fromJson(
-        stateParser,
-        eventParser,
-        actionFactory,
-        guardFactory,
-        autoTransitionSchedulerFactory,
-    )
-}
-
-/**
  * Deserializes JSON from InputStream to ExTransitionTable with the same best-effort
  * action/guard restore as [String.fromJson].
  */
@@ -109,27 +66,6 @@ fun <STATE, EVENT> InputStream.fromJson(
     guardFactory: GuardFactory<STATE>? = null
 ): ExTransitionTable<STATE, EVENT> {
     return FsmJsonSerializer().deserialize(this, stateParser, eventParser, actionFactory, guardFactory)
-}
-
-/**
- * Deserializes JSON from InputStream to ExTransitionTable with strict scheduler restore when
- * scheduler IDs are present.
- */
-fun <STATE, EVENT> InputStream.fromJson(
-    stateParser: (String) -> STATE,
-    eventParser: (String) -> EVENT,
-    actionFactory: ActionFactory<STATE>?,
-    guardFactory: GuardFactory<STATE>?,
-    autoTransitionSchedulerFactory: AutoTransitionSchedulerFactory<STATE>?,
-): ExTransitionTable<STATE, EVENT> {
-    return FsmJsonSerializer().deserialize(
-        this,
-        stateParser,
-        eventParser,
-        actionFactory,
-        guardFactory,
-        autoTransitionSchedulerFactory,
-    )
 }
 
 /**

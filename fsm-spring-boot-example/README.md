@@ -38,26 +38,39 @@ The transactional scenario demonstrates this flow:
 NEW
   -- START action calls ExternalServiceClient successfully -->
 AWAITING_EXTERNAL_SERVICE_RESULT
-  -- auto branch -->
+  -- queued ADVANCE task -->
 EXTERNAL_SERVICE_DONE or EXTERNAL_SERVICE_FAILED
-  -- auto notify action -->
+  -- queued ADVANCE task calls notification client -->
 NOTIFY
-  -- auto -->
+  -- queued ADVANCE task -->
 END
 ```
 
 Each transition uses `PersistWorkflowStatusAction` as a `postAction`, so the new state is saved after
-the FSM changes the state. Automatic transitions use
-`auto().deferWith(AfterCommitAutoTransitionScheduler)`: each deferred transition starts after the
-previous transaction commits and runs in its own `REQUIRES_NEW` transaction. Hibernate Envers
-therefore records every intermediate status.
+the FSM changes the state. The same transaction also inserts an `ADVANCE` task for the new status.
+The starter's `FsmTaskProcessor` owns the transactional claim/handle/complete lifecycle. This
+example supplies `ExternalWorkflowTaskRepository` as its PostgreSQL store: it claims one pending
+task with `FOR UPDATE SKIP LOCKED`. The domain handler then locks the workflow and sends one FSM
+event. The transition creates the next task when another step is required. Hibernate Envers
+therefore records every intermediate status in a separate revision.
+
+This is a database-backed transactional task queue: committed tasks survive process restarts, and a
+failed action rolls back both the state change and task completion so another worker invocation can
+retry it. The database constraint prevents duplicate transition tasks, while the expected source
+state and aggregate version let the handler complete stale work without applying its transition.
+Including the version in the key also supports workflows that revisit the same state. External side
+effects are still at-least-once; the notification client receives a stable idempotency key and must
+deduplicate successful retries.
 
 `ExternalWorkflow` uses optimistic versioning, while `start` locks the workflow row before invoking
 the external service. The lock prevents concurrent starts from submitting the same workflow twice;
 the version field protects later detached-entity merges from lost updates.
 
-The normal application startup does not create demo data. To run the transactional scenario once at
-startup, set `FSM_DEMO_RUNNER_ENABLED=true` before `bootRun`.
+The starter detects `ExternalWorkflowTaskProcessor` and runs its durable queue worker automatically.
+The default poll interval is five seconds, and each transition enqueues the task that drives the next
+step. Set `FSM_TASKS_ENABLED=false` to hand processing to an external job runner instead. To create
+and start one demo workflow at application startup, set `FSM_DEMO_RUNNER_ENABLED=true` before
+`bootRun`; the background worker will then continue it.
 
 Run its focused integration test with:
 

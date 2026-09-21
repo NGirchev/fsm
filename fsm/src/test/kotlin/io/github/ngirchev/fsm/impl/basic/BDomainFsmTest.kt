@@ -1,7 +1,6 @@
 package io.github.ngirchev.fsm.impl.basic
 
 import org.junit.jupiter.api.Test
-import io.github.ngirchev.fsm.AutoTransitionScheduler
 import io.github.ngirchev.fsm.StateContext
 import io.github.ngirchev.fsm.it.document.Document
 import io.github.ngirchev.fsm.it.document.DocumentState
@@ -58,8 +57,7 @@ class BDomainFsmTest {
             .add(DocumentState.NEW, DocumentState.READY_FOR_SIGN)
             .autoTransitionEnabled(false)
             .build()
-        val scheduler = AutoTransitionScheduler<DocumentState> { _, _, runTransition -> runTransition() }
-        val fsm = CustomBDomainFsm(transitionTable, scheduler)
+        val fsm = CustomBDomainFsm(transitionTable)
 
         val document = Document()
         fsm.changeState(document, DocumentState.READY_FOR_SIGN)
@@ -71,11 +69,9 @@ class BDomainFsmTest {
 
     private class CustomBDomainFsm(
         transitionTable: BTransitionTable<DocumentState>,
-        scheduler: AutoTransitionScheduler<DocumentState>,
     ) : BDomainFsm<Document, DocumentState>(
         transitionTable,
         autoTransitionEnabled = true,
-        autoTransitionScheduler = scheduler,
     ) {
         var createdFsm: CustomBFsm? = null
             private set
@@ -87,7 +83,7 @@ class BDomainFsmTest {
             autoTransitionEnabled: Boolean,
         ): BFsm<DocumentState> {
             createdAutoTransitionEnabled = autoTransitionEnabled
-            return CustomBFsm(domain, transitionTable, autoTransitionEnabled, autoTransitionScheduler)
+            return CustomBFsm(domain, transitionTable, autoTransitionEnabled)
                 .also { createdFsm = it }
         }
     }
@@ -96,6 +92,5 @@ class BDomainFsmTest {
         context: StateContext<DocumentState>,
         transitionTable: BTransitionTable<DocumentState>,
         autoTransitionEnabled: Boolean,
-        autoTransitionScheduler: AutoTransitionScheduler<DocumentState>,
-    ) : BFsm<DocumentState>(context, transitionTable, autoTransitionEnabled, autoTransitionScheduler)
+    ) : BFsm<DocumentState>(context, transitionTable, autoTransitionEnabled)
 }

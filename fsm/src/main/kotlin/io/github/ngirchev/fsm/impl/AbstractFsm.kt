@@ -15,7 +15,6 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
     context: StateContext<STATE>,
     open val transitionTable: TRANSITION_TABLE,
     autoTransitionEnabled: Boolean? = null,
-    protected val autoTransitionScheduler: AutoTransitionScheduler<STATE> = ImmediateAutoTransitionScheduler(),
 ) : StateSupport<STATE>,
     TransitionSupport<STATE, TRANSITION>,
     Notifiable<STATE> {
@@ -40,12 +39,10 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
         state: STATE,
         transitionTable: TRANSITION_TABLE,
         autoTransitionEnabled: Boolean? = null,
-        autoTransitionScheduler: AutoTransitionScheduler<STATE> = ImmediateAutoTransitionScheduler(),
     ) : this(
         DefaultStateContext(state),
         transitionTable,
         autoTransitionEnabled,
-        autoTransitionScheduler,
     )
 
     protected val context: StateContext<STATE> = context
@@ -129,10 +126,6 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
     }
 
     protected open fun performAutoTransitions() {
-        performScheduledAutoTransitions()
-    }
-
-    protected open fun performScheduledAutoTransitions() {
         var completedImmediateTransitions = 0
         while (true) {
             val autoTransition = transitionTable.getAutoTransition(context, autoTransitionEnabled) ?: run {
@@ -140,33 +133,12 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
                 return
             }
 
-            val scheduler = autoTransition.to.autoTransitionScheduler ?: autoTransitionScheduler
-            if (scheduler.runsSynchronously) {
-                val limit = transitionTable.maxImmediateAutoTransitions
-                if (limit > 0 && completedImmediateTransitions >= limit) {
-                    throw AutoTransitionLimitExceededException(limit)
-                }
-                var callbackInvoked = false
-                scheduler.schedule(context, autoTransition) {
-                    callbackInvoked = true
-                    executeSingleTransition(autoTransition)
-                }
-                if (!callbackInvoked) {
-                    throw FsmException(
-                        "Synchronous auto transition scheduler must invoke callback before schedule(...) returns",
-                    )
-                }
-                completedImmediateTransitions++
-                continue
+            val limit = transitionTable.maxImmediateAutoTransitions
+            if (limit > 0 && completedImmediateTransitions >= limit) {
+                throw AutoTransitionLimitExceededException(limit)
             }
-
-            scheduler.schedule(context, autoTransition) {
-                writeLocked {
-                    executeSingleTransition(autoTransition)
-                    performScheduledAutoTransitions()
-                }
-            }
-            return
+            executeSingleTransition(autoTransition)
+            completedImmediateTransitions++
         }
     }
 

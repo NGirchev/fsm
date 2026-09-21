@@ -1,7 +1,6 @@
 package io.github.ngirchev.fsm.serialization
 
 import io.github.ngirchev.fsm.NamedAction
-import io.github.ngirchev.fsm.NamedAutoTransitionScheduler
 import io.github.ngirchev.fsm.NamedGuard
 import io.github.ngirchev.fsm.IdAction
 import io.github.ngirchev.fsm.IdGuard
@@ -9,7 +8,6 @@ import io.github.ngirchev.fsm.IdentifiableAction
 import io.github.ngirchev.fsm.IdentifiableGuard
 import io.github.ngirchev.fsm.Guard
 import io.github.ngirchev.fsm.Action
-import io.github.ngirchev.fsm.AutoTransitionScheduler
 import io.github.ngirchev.fsm.Timeout
 import io.github.ngirchev.fsm.To
 import io.github.ngirchev.fsm.StateChangeListener
@@ -253,12 +251,7 @@ class FsmSerializationTest {
     }
 
     @Test
-    fun `should serialize and deserialize per-transition auto transition scheduler`() {
-        val scheduledCallbacks = mutableListOf<() -> Unit>()
-        val scheduler = NamedAutoTransitionScheduler<DocumentState>(
-            "afterCommit",
-            AutoTransitionScheduler { _, _, runTransition -> scheduledCallbacks.add(runTransition) },
-        )
+    fun `should serialize and deserialize local auto transition`() {
         val originalTable = ExTransitionTable.Builder<DocumentState, String>()
             .autoTransitionEnabled(true)
             .from(NEW)
@@ -268,116 +261,24 @@ class FsmSerializationTest {
             .from(READY_FOR_SIGN)
             .to(SIGNED)
             .auto()
-            .deferWith(scheduler)
             .end()
             .build()
 
         val json = originalTable.toJson()
         val dto = FsmJsonSerializer().deserializeDto(json)
 
-        assertEquals("afterCommit", dto.transitions[READY_FOR_SIGN.toString()]?.single()?.to?.autoTransitionScheduler)
         assertTrue(dto.transitions[READY_FOR_SIGN.toString()]?.single()?.to?.autoTransitionEnabled == true)
 
         val restoredTable = json.fromJson<DocumentState, String>(
             { DocumentState.valueOf(it) },
             { it },
-            null,
-            null,
-            AutoTransitionSchedulerFactory { id -> if (id == "afterCommit") scheduler else null },
         )
-        val restoredScheduler = restoredTable.transitions[READY_FOR_SIGN]?.single()?.to?.autoTransitionScheduler
-        assertSame(scheduler, restoredScheduler)
         assertTrue(restoredTable.transitions[READY_FOR_SIGN]?.single()?.to?.autoTransitionEnabled == true)
 
         val restoredFsm = ExFsm(NEW, restoredTable, autoTransitionEnabled = true)
         restoredFsm.onEvent("START")
 
-        assertEquals(READY_FOR_SIGN, restoredFsm.getState())
-        assertEquals(1, scheduledCallbacks.size)
-
-        scheduledCallbacks.single().invoke()
-
         assertEquals(SIGNED, restoredFsm.getState())
-    }
-
-    @Test
-    fun `should reject non-identifiable per-transition auto transition scheduler during serialization`() {
-        val scheduler = AutoTransitionScheduler<DocumentState> { _, _, runTransition -> runTransition() }
-        val table = ExTransitionTable.Builder<DocumentState, String>()
-            .autoTransitionEnabled(true)
-            .from(READY_FOR_SIGN)
-            .to(SIGNED)
-            .auto()
-            .deferWith(scheduler)
-            .end()
-            .build()
-
-        val exception = assertFailsWith<FsmException> {
-            table.toJson()
-        }
-
-        assertEquals(
-            "Cannot serialize auto transition scheduler [$scheduler] without IdentifiableAutoTransitionScheduler id",
-            exception.message,
-        )
-    }
-
-    @Test
-    fun `should reject serialized auto transition scheduler when scheduler factory is missing`() {
-        val scheduler = NamedAutoTransitionScheduler<DocumentState>(
-            "afterCommit",
-            AutoTransitionScheduler { _, _, runTransition -> runTransition() },
-        )
-        val json = ExTransitionTable.Builder<DocumentState, String>()
-            .autoTransitionEnabled(true)
-            .from(READY_FOR_SIGN)
-            .to(SIGNED)
-            .auto()
-            .deferWith(scheduler)
-            .end()
-            .build()
-            .toJson()
-
-        val exception = assertFailsWith<FsmException> {
-            json.fromJson<DocumentState, String>(
-                { DocumentState.valueOf(it) },
-                { it },
-            )
-        }
-
-        assertEquals(
-            "Cannot restore auto transition scheduler [afterCommit] without AutoTransitionSchedulerFactory",
-            exception.message,
-        )
-    }
-
-    @Test
-    fun `should reject serialized auto transition scheduler when scheduler factory returns null`() {
-        val scheduler = NamedAutoTransitionScheduler<DocumentState>(
-            "afterCommit",
-            AutoTransitionScheduler { _, _, runTransition -> runTransition() },
-        )
-        val json = ExTransitionTable.Builder<DocumentState, String>()
-            .autoTransitionEnabled(true)
-            .from(READY_FOR_SIGN)
-            .to(SIGNED)
-            .auto()
-            .deferWith(scheduler)
-            .end()
-            .build()
-            .toJson()
-
-        val exception = assertFailsWith<FsmException> {
-            json.fromJson<DocumentState, String>(
-                { DocumentState.valueOf(it) },
-                { it },
-                null,
-                null,
-                AutoTransitionSchedulerFactory { null },
-            )
-        }
-
-        assertEquals("Cannot restore auto transition scheduler [afterCommit]", exception.message)
     }
 
     @Test

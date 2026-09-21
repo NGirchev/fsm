@@ -3,7 +3,6 @@ package io.github.ngirchev.fsm
 import io.github.ngirchev.fsm.diagram.DiagramLabelFormatter
 import io.github.ngirchev.fsm.exception.FsmEventSourcingTransitionFailedException
 import io.github.ngirchev.fsm.exception.FsmTransitionFailedException
-import io.github.ngirchev.fsm.exception.FsmException
 import io.github.ngirchev.fsm.impl.AbstractDomainFsm
 import io.github.ngirchev.fsm.impl.AbstractFsm
 import io.github.ngirchev.fsm.impl.AbstractTransitionTable
@@ -18,7 +17,6 @@ import io.github.ngirchev.fsm.impl.extended.ToBuilder
 import io.github.ngirchev.fsm.impl.extended.ToMultipleBuilder
 import io.github.ngirchev.fsm.serialization.FsmDto
 import io.github.ngirchev.fsm.serialization.ToDto
-import io.github.ngirchev.fsm.serialization.toDto
 import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Proxy
 import kotlin.test.*
@@ -26,6 +24,10 @@ import kotlin.test.*
 class CompatibilityCoverageTest {
     private class Context(override var state: String) : StateContext<String> {
         override var currentTransition: Transition<String>? = null
+    }
+    private class BlankAction : IdentifiableAction<Any> {
+        override val id = " "
+        override fun invoke(context: Any) = Unit
     }
     private class LegacyTable : TransitionTable<String, BTransition<String>> {
         override val transitions = emptyMap<String, LinkedHashSet<BTransition<String>>>()
@@ -45,13 +47,6 @@ class CompatibilityCoverageTest {
     private class RawFsm : AbstractFsm<String, BTransition<String>, RawTable> {
         constructor(state: String, table: RawTable) : super(state, table)
         constructor(context: StateContext<String>, table: RawTable) : super(context, table)
-        fun scheduler() = autoTransitionScheduler
-    }
-    private class ExposedBasicTable : BTransitionTable<String>(emptyMap(), false, ImmediateAutoTransitionScheduler()) {
-        fun scheduler() = autoTransitionScheduler
-    }
-    private class ExposedExtendedTable : ExTransitionTable<String, String>(emptyMap(), autoTransitionScheduler = ImmediateAutoTransitionScheduler()) {
-        fun scheduler() = autoTransitionScheduler
     }
     private class ExposedBasicDomain(table: BTransitionTable<String>) : BDomainFsm<Context, String>(table) {
         fun auto() = autoTransitionEnabled
@@ -60,7 +55,7 @@ class CompatibilityCoverageTest {
         fun auto() = autoTransitionEnabled
     }
 
-    @Test fun `abstract extension constructors preserve default state and scheduler`() {
+    @Test fun `abstract extension constructors preserve default state`() {
         val table = RawTable()
         assertNull(table.getAutoTransition(Context("NEW")))
         assertNull(table.getAutoTransition(Context("NEW"), false))
@@ -68,18 +63,15 @@ class CompatibilityCoverageTest {
         assertTrue(table.autoTransitionEnabled)
         for (fsm in listOf(RawFsm("NEW", table), RawFsm(Context("NEW"), table))) {
             assertEquals("NEW", fsm.getState())
-            assertTrue(fsm.scheduler().runsSynchronously)
         }
         assertSame(table, table.createDomainFsm<Context>().let {
             (it as AbstractDomainFsm<*, *, *, *>).transitionTable
         })
-        assertTrue(ExposedBasicTable().scheduler().runsSynchronously)
-        assertTrue(ExposedExtendedTable().scheduler().runsSynchronously)
         assertNull(ExposedBasicDomain(BTransitionTable.Builder<String>().build()).auto())
         assertNull(ExposedExtendedDomain(ExTransitionTable.Builder<String, String>().build()).auto())
-        val scheduler = ImmediateAutoTransitionScheduler<String>()
+        assertFalse(ExTransitionTable<String, String>(emptyMap()).autoTransitionEnabled)
+        assertTrue(ExTransitionTable<String, String>(emptyMap(), true).autoTransitionEnabled)
         assertTrue(To("DONE", emptyList(), emptyList(), emptyList(), autoTransitionEnabled = true).autoTransitionEnabled)
-        assertTrue(To("DONE", emptyList(), emptyList(), emptyList(), autoTransitionScheduler = scheduler).autoTransitionEnabled)
         val builder = ExTransitionTable.Builder<String, String>()
         builder.add("NEW", to = arrayOf(To("DONE")))
         assertEquals("DONE", builder.build().transitions.getValue("NEW").single().to.state)
@@ -99,15 +91,6 @@ class CompatibilityCoverageTest {
         assertNull(defaults.getMethod("getAutoTransition", TransitionTable::class.java, StateContext::class.java, Boolean::class.javaPrimitiveType).invoke(null, table, context, true))
         assertNull(defaults.getMethod("getAutoTransition\$default", TransitionTable::class.java, StateContext::class.java,
             Boolean::class.javaPrimitiveType, Int::class.javaPrimitiveType, Any::class.java).invoke(null, table, context, true, 2, null))
-        val named = object : IdentifiableAutoTransitionScheduler<String> {
-            override val id = "external"
-            override fun schedule(context: StateContext<String>, transition: Transition<String>, runTransition: () -> Unit) { }
-        }
-        assertFalse(named.runsSynchronously)
-        val baseDefaults = Class.forName("io.github.ngirchev.fsm.AutoTransitionScheduler\$DefaultImpls")
-        assertEquals(false, baseDefaults.getMethod("getRunsSynchronously", AutoTransitionScheduler::class.java).invoke(null, named))
-        val namedDefaults = Class.forName("io.github.ngirchev.fsm.IdentifiableAutoTransitionScheduler\$DefaultImpls")
-        assertEquals(false, namedDefaults.getMethod("getRunsSynchronously", IdentifiableAutoTransitionScheduler::class.java).invoke(null, named))
     }
 
     @Test fun `legacy copy rejects a missing required map and default constructors retain defaults`() {
@@ -119,17 +102,13 @@ class CompatibilityCoverageTest {
         val constructor = FsmDto::class.java.declaredConstructors.single { it.parameterCount == 5 }
         val defaultDto = constructor.newInstance(false, emptyMap<String, Any>(), 99, 4, null) as FsmDto
         assertEquals(0, defaultDto.maxImmediateAutoTransitions)
-        assertTrue(ToDto("DONE", emptyList(), emptyList(), emptyList(), null, "queued").autoTransitionEnabled)
-        val scheduler = object : IdentifiableAutoTransitionScheduler<String> {
-            override val id: String? = null
-            override fun schedule(context: StateContext<String>, transition: Transition<String>, runTransition: () -> Unit) { }
-        }
-        val table = ExTransitionTable.Builder<String, String>()
-            .add("NEW", to = arrayOf(To("DONE", autoTransitionScheduler = scheduler))).build()
-        assertFailsWith<FsmException> { table.toDto() }
+        assertTrue(ToDto("DONE", emptyList(), emptyList(), emptyList(), null, true).autoTransitionEnabled)
     }
 
     @Test fun `diagram labels retain custom text and fingerprint resource-less behaviors`() {
+        val blankAction = BlankAction()
+        blankAction(Any())
+        assertTrue(DiagramLabelFormatter.actionLabel(blankAction).startsWith("action-"))
         val human = object : Action<Any> {
             override fun invoke(context: Any) { }
             override fun toString() = "human label"

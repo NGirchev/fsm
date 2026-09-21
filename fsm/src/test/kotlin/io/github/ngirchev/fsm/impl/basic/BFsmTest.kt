@@ -4,7 +4,6 @@ import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 import io.github.ngirchev.fsm.StateContext
 import io.github.ngirchev.fsm.StateChangeListener
-import io.github.ngirchev.fsm.AutoTransitionScheduler
 import io.github.ngirchev.fsm.Timeout
 import io.github.ngirchev.fsm.Transition
 import io.github.ngirchev.fsm.exception.FsmTransitionFailedException
@@ -294,7 +293,7 @@ class BFsmTest {
     }
 
     @Test
-    fun defaultAutoTransitionSchedulerShouldHandleLongAutoTransitionChainWithoutStackOverflow() {
+    fun autoTransitionsShouldHandleLongChainWithoutStackOverflow() {
         val transitionCount = 10_000
         val builder = BTransitionTable.Builder<Int>()
             .autoTransitionEnabled(true)
@@ -308,112 +307,6 @@ class BFsmTest {
         fsm.toState(1)
 
         assertEquals(transitionCount, fsm.getState())
-    }
-
-    @Test
-    fun customSynchronousSchedulerShouldHandleLongAutoTransitionChainWithoutStackOverflow() {
-        // A scheduler that runs synchronously but does NOT extend ImmediateAutoTransitionScheduler.
-        // Before introducing runsSynchronously, this would recurse and overflow the stack.
-        class SynchronousLambdaScheduler<STATE> : AutoTransitionScheduler<STATE> {
-            override val runsSynchronously: Boolean = true
-            override fun schedule(
-                context: StateContext<STATE>,
-                transition: Transition<STATE>,
-                runTransition: () -> Unit,
-            ) = runTransition()
-        }
-
-        val transitionCount = 10_000
-        val builder = BTransitionTable.Builder<Int>()
-            .autoTransitionEnabled(true)
-            .autoTransitionScheduler(SynchronousLambdaScheduler())
-            .add(0, 1)
-
-        for (state in 1 until transitionCount) {
-            builder.add(state, state + 1)
-        }
-
-        val fsm = BFsm(0, builder.build(), autoTransitionEnabled = true, autoTransitionScheduler = SynchronousLambdaScheduler())
-        fsm.toState(1)
-
-        assertEquals(transitionCount, fsm.getState())
-    }
-
-    @Test
-    fun customSynchronousSchedulerShouldStillBeInvokedThroughSchedule() {
-        class TrackingSynchronousScheduler<STATE> : AutoTransitionScheduler<STATE> {
-            override val runsSynchronously: Boolean = true
-            var invocations: Int = 0
-            val statesSeenBeforeCallback = mutableListOf<STATE>()
-
-            override fun schedule(
-                context: StateContext<STATE>,
-                transition: Transition<STATE>,
-                runTransition: () -> Unit,
-            ) {
-                invocations++
-                statesSeenBeforeCallback += context.state
-                runTransition()
-            }
-        }
-
-        val scheduler = TrackingSynchronousScheduler<String>()
-        val table = BTransitionTable.Builder<String>()
-            .autoTransitionEnabled(true)
-            .from("from")
-            .to("intermediate")
-            .end()
-            .from("intermediate")
-            .to("to")
-            .auto()
-            .deferWith(scheduler)
-            .end()
-            .build()
-
-        val fsm = BFsm("from", table, autoTransitionEnabled = true)
-
-        fsm.toState("intermediate")
-
-        assertEquals(1, scheduler.invocations)
-        assertEquals(listOf("intermediate"), scheduler.statesSeenBeforeCallback)
-        assertEquals("to", fsm.getState())
-    }
-
-    @Test
-    fun synchronousSchedulerShouldInvokeCallbackInline() {
-        val scheduler = object : AutoTransitionScheduler<String> {
-            override val runsSynchronously: Boolean = true
-
-            override fun schedule(
-                context: StateContext<String>,
-                transition: Transition<String>,
-                runTransition: () -> Unit,
-            ) {
-            }
-        }
-
-        val table = BTransitionTable.Builder<String>()
-            .autoTransitionEnabled(true)
-            .from("from")
-            .to("intermediate")
-            .end()
-            .from("intermediate")
-            .to("to")
-            .auto()
-            .deferWith(scheduler)
-            .end()
-            .build()
-
-        val fsm = BFsm("from", table, autoTransitionEnabled = true)
-
-        val exception = assertThrows(FsmException::class.java) {
-            fsm.toState("intermediate")
-        }
-
-        assertEquals(
-            "Synchronous auto transition scheduler must invoke callback before schedule(...) returns",
-            exception.message,
-        )
     }
 
     @Test
@@ -600,145 +493,27 @@ class BFsmTest {
     }
 
     @Test
-    fun scheduledAutoTransitionCallbackShouldNotDeadlockAndShouldBlockReads() {
-        val actionStarted = CountDownLatch(1)
-        val releaseAction = CountDownLatch(1)
-        val scheduledCallbacks = mutableListOf<() -> Unit>()
-        val scheduler = AutoTransitionScheduler<String> { _, _, runTransition ->
-            scheduledCallbacks.add(runTransition)
-        }
-        val table = BTransitionTable.Builder<String>()
-            .autoTransitionEnabled(true)
-            .add("from", "intermediate")
-            .from("intermediate")
-            .to("to")
-            .action {
-                actionStarted.countDown()
-                releaseAction.await(1, TimeUnit.SECONDS)
-            }
-            .end()
-            .build()
-        val fsm = BFsm("from", table, autoTransitionEnabled = true, autoTransitionScheduler = scheduler)
-        val executor = Executors.newFixedThreadPool(2)
-
-        fsm.toState("intermediate")
-
-        try {
-            assertEquals("intermediate", fsm.getState())
-            assertEquals(1, scheduledCallbacks.size)
-
-            val autoTransitionFuture = executor.submit {
-                scheduledCallbacks.single().invoke()
-            }
-            assertTrue(actionStarted.await(1, TimeUnit.SECONDS))
-
-            val readFuture = executor.submit<String> {
-                fsm.getState()
-            }
-            Thread.sleep(50)
-            assertTrue(!readFuture.isDone)
-
-            releaseAction.countDown()
-            autoTransitionFuture.get(1, TimeUnit.SECONDS)
-            assertEquals("to", readFuture.get(1, TimeUnit.SECONDS))
-        } finally {
-            releaseAction.countDown()
-            executor.shutdownNow()
-        }
-    }
-
-    @Test
-    fun toStateShouldApplyAutoTransitionSchedulerOnlyForConfiguredTransitions() {
-        val scheduledCallbacks = mutableListOf<() -> Unit>()
-        val scheduler = AutoTransitionScheduler<String> { _, _, runTransition ->
-            scheduledCallbacks.add(runTransition)
-        }
-
-        val table = BTransitionTable.Builder<String>()
-            .autoTransitionEnabled(true)
-            .from("from")
-            .to("intermediate")
-            .end()
-            .from("intermediate")
-            .to("to")
-            .auto()
-            .deferWith(scheduler)
-            .end()
-            .build()
-
-        val fsm = BFsm("from", table, autoTransitionEnabled = true)
-
-        fsm.toState("intermediate")
-
-        assertEquals("intermediate", fsm.getState())
-        assertEquals(1, scheduledCallbacks.size)
-
-        scheduledCallbacks.single().invoke()
-
-        assertEquals("to", fsm.getState())
-    }
-
-    @Test
-    fun toStateShouldContinueAutoTransitionsAfterConfiguredScheduledTransition() {
-        val scheduledCallbacks = mutableListOf<() -> Unit>()
-        val scheduler = AutoTransitionScheduler<String> { _, _, runTransition ->
-            scheduledCallbacks.add(runTransition)
-        }
-
-        val table = BTransitionTable.Builder<String>()
-            .autoTransitionEnabled(true)
-            .from("from")
-            .to("intermediate")
-            .end()
-            .from("intermediate")
-            .to("middle")
-            .end()
-            .from("middle")
-            .to("to")
-            .auto()
-            .deferWith(scheduler)
-            .end()
-            .build()
-
-        val fsm = BFsm("from", table, autoTransitionEnabled = true)
-
-        fsm.toState("intermediate")
-
-        assertEquals("middle", fsm.getState())
-        assertEquals(1, scheduledCallbacks.size)
-
-        scheduledCallbacks.single().invoke()
-
-        assertEquals("to", fsm.getState())
-    }
-
-    @Test
     fun subclassShouldCustomizeTransitionExecutionAndAccessRuntimeState() {
-        val scheduler = AutoTransitionScheduler<String> { _, _, runTransition -> runTransition() }
         val table = BTransitionTable.Builder<String>()
             .add("from", "to")
             .build()
-        val fsm = CustomBFsm("from", table, scheduler)
+        val fsm = CustomBFsm("from", table)
 
         fsm.toState("to")
 
         assertEquals("to", fsm.getState())
         assertEquals("from", fsm.stateBeforeExecution)
         assertEquals("to", fsm.executedTransition?.to?.state)
-        assertTrue(fsm.usesScheduler(scheduler))
     }
 
     private class CustomBFsm(
         state: String,
         transitionTable: BTransitionTable<String>,
-        autoTransitionScheduler: AutoTransitionScheduler<String>,
-    ) : BFsm<String>(state, transitionTable, autoTransitionScheduler = autoTransitionScheduler) {
+    ) : BFsm<String>(state, transitionTable) {
         var stateBeforeExecution: String? = null
             private set
         var executedTransition: BTransition<String>? = null
             private set
-
-        fun usesScheduler(scheduler: AutoTransitionScheduler<String>): Boolean = autoTransitionScheduler === scheduler
 
         override fun transitionExecution(transition: BTransition<String>) {
             stateBeforeExecution = context.state

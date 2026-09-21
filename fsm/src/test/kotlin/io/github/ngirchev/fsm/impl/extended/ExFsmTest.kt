@@ -2,7 +2,6 @@ package io.github.ngirchev.fsm.impl.extended
 
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
-import io.github.ngirchev.fsm.AutoTransitionScheduler
 import io.github.ngirchev.fsm.exception.FsmEventSourcingTransitionFailedException
 import io.github.ngirchev.fsm.StateContext
 import io.github.ngirchev.fsm.TypedEvent
@@ -336,74 +335,7 @@ class ExFsmTest {
     }
 
     @Test
-    fun onEventShouldApplyAutoTransitionSchedulerOnlyForConfiguredTransitions() {
-        val scheduledCallbacks = mutableListOf<() -> Unit>()
-        val scheduler = AutoTransitionScheduler<String> { _, _, runTransition ->
-            scheduledCallbacks.add(runTransition)
-        }
-
-        val table = ExTransitionTable.Builder<String, String>()
-            .autoTransitionEnabled(true)
-            .from("from")
-            .onEvent("event")
-            .to("intermediate")
-            .end()
-            .from("intermediate")
-            .to("to")
-            .auto()
-            .deferWith(scheduler)
-            .end()
-            .build()
-
-        val fsm = ExFsm("from", table, autoTransitionEnabled = true)
-
-        fsm.onEvent("event")
-
-        assertEquals("intermediate", fsm.getState())
-        assertEquals(1, scheduledCallbacks.size)
-
-        scheduledCallbacks.single().invoke()
-
-        assertEquals("to", fsm.getState())
-    }
-
-    @Test
-    fun onEventShouldContinueAutoTransitionsAfterConfiguredScheduledTransition() {
-        val scheduledCallbacks = mutableListOf<() -> Unit>()
-        val scheduler = AutoTransitionScheduler<String> { _, _, runTransition ->
-            scheduledCallbacks.add(runTransition)
-        }
-
-        val table = ExTransitionTable.Builder<String, String>()
-            .autoTransitionEnabled(true)
-            .from("from")
-            .onEvent("event")
-            .to("intermediate")
-            .end()
-            .from("intermediate")
-            .to("middle")
-            .auto()
-            .deferWith(scheduler)
-            .end()
-            .from("middle")
-            .to("to")
-            .end()
-            .build()
-
-        val fsm = ExFsm("from", table, autoTransitionEnabled = true)
-
-        fsm.onEvent("event")
-
-        assertEquals("intermediate", fsm.getState())
-        assertEquals(1, scheduledCallbacks.size)
-
-        scheduledCallbacks.single().invoke()
-
-        assertEquals("to", fsm.getState())
-    }
-
-    @Test
-    fun defaultAutoTransitionSchedulerShouldHandleLongAutoTransitionChainWithoutStackOverflow() {
+    fun autoTransitionsShouldHandleLongChainWithoutStackOverflow() {
         val transitionCount = 10_000
         val builder = ExTransitionTable.Builder<Int, String>()
             .autoTransitionEnabled(true)

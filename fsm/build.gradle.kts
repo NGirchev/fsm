@@ -31,7 +31,7 @@ dependencies {
     testImplementation("io.mockk:mockk:1.14.3")
     testImplementation("org.junit.jupiter", "junit-jupiter-params", "5.12.2")
     testImplementation(kotlin("test"))
-    
+
     // Jackson for JSON serialization
     api("com.fasterxml.jackson.core:jackson-databind:2.21.5")
     api("com.fasterxml.jackson.module:jackson-module-kotlin:2.21.5")

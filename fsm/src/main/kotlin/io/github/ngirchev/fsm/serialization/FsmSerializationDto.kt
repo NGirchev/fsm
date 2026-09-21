@@ -1,7 +1,6 @@
 package io.github.ngirchev.fsm.serialization
 
 import io.github.ngirchev.fsm.*
-import io.github.ngirchev.fsm.exception.FsmException
 import io.github.ngirchev.fsm.impl.extended.ExTransition
 import io.github.ngirchev.fsm.impl.extended.ExTransitionTable
 import java.util.concurrent.TimeUnit
@@ -61,7 +60,6 @@ class ToDto(
     val postActions: List<String>,
     val timeout: TimeoutDto?,
 ) {
-    var autoTransitionScheduler: String? = null
     var autoTransitionEnabled: Boolean = false
 
     constructor(
@@ -70,11 +68,9 @@ class ToDto(
         actions: List<String>,
         postActions: List<String>,
         timeout: TimeoutDto?,
-        autoTransitionScheduler: String?,
-        autoTransitionEnabled: Boolean = false,
+        autoTransitionEnabled: Boolean,
     ) : this(state, conditions, actions, postActions, timeout) {
-        this.autoTransitionScheduler = autoTransitionScheduler
-        this.autoTransitionEnabled = autoTransitionEnabled || autoTransitionScheduler != null
+        this.autoTransitionEnabled = autoTransitionEnabled
     }
 
     fun copy(
@@ -84,7 +80,6 @@ class ToDto(
         postActions: List<String> = this.postActions,
         timeout: TimeoutDto? = this.timeout,
     ): ToDto = ToDto(state, conditions, actions, postActions, timeout).also {
-        it.autoTransitionScheduler = autoTransitionScheduler
         it.autoTransitionEnabled = autoTransitionEnabled
     }
 
@@ -172,20 +167,8 @@ private fun <STATE> To<STATE>.toDto(): ToDto {
         actions = actionIds,
         postActions = postActionIds,
         timeout = timeout?.toDto(),
-        autoTransitionScheduler = autoTransitionScheduler.toSerializableSchedulerId(),
         autoTransitionEnabled = autoTransitionEnabled,
     )
-}
-
-private fun <STATE> AutoTransitionScheduler<STATE>?.toSerializableSchedulerId(): String? {
-    if (this == null) {
-        return null
-    }
-
-    return (this as? IdentifiableAutoTransitionScheduler<*>)?.id
-        ?: throw FsmException(
-            "Cannot serialize auto transition scheduler [$this] without IdentifiableAutoTransitionScheduler id"
-        )
 }
 
 /**
@@ -213,38 +196,14 @@ fun interface GuardFactory<STATE> {
 }
 
 /**
- * Factory interface for creating auto-transition schedulers by ID.
- */
-fun interface AutoTransitionSchedulerFactory<STATE> {
-    fun createScheduler(id: String): AutoTransitionScheduler<STATE>?
-}
-
-/**
  * Converts DTO back to To
  * Action and guard factories are optional and best-effort: missing factories or unknown IDs
- * simply drop the corresponding conditions/actions. Scheduler restoration stays strict and uses
- * the overload with [AutoTransitionSchedulerFactory] when scheduler IDs are present in JSON.
+ * simply drop the corresponding conditions/actions.
  */
 fun <STATE> ToDto.toTo(
     stateParser: (String) -> STATE,
     actionFactory: ActionFactory<STATE>? = null,
     guardFactory: GuardFactory<STATE>? = null
-): To<STATE> {
-    return toTo(stateParser, actionFactory, guardFactory, null)
-}
-
-/**
- * Converts DTO back to To
- * Action and guard factories are optional and best-effort: missing factories or unknown IDs
- * simply drop the corresponding conditions/actions. If [autoTransitionSchedulerFactory] is
- * absent or cannot resolve a serialized scheduler ID, deserialization fails fast because that
- * changes auto-transition scheduling semantics.
- */
-fun <STATE> ToDto.toTo(
-    stateParser: (String) -> STATE,
-    actionFactory: ActionFactory<STATE>?,
-    guardFactory: GuardFactory<STATE>?,
-    autoTransitionSchedulerFactory: AutoTransitionSchedulerFactory<STATE>?,
 ): To<STATE> {
     val state = stateParser(this.state)
 
@@ -253,20 +212,13 @@ fun <STATE> ToDto.toTo(
     val postActions = restoreActions(this.postActions, actionFactory)
 
     val timeout = this.timeout?.toTimeout()
-    val autoTransitionScheduler = this.autoTransitionScheduler?.let { id ->
-        val factory = autoTransitionSchedulerFactory
-            ?: throw FsmException("Cannot restore auto transition scheduler [$id] without AutoTransitionSchedulerFactory")
-        factory.createScheduler(id)
-            ?: throw FsmException("Cannot restore auto transition scheduler [$id]")
-    }
-    
+
     return To(
         state = state,
         conditions = conditions,
         actions = actions,
         postActions = postActions,
         timeout = timeout,
-        autoTransitionScheduler = autoTransitionScheduler,
         autoTransitionEnabled = autoTransitionEnabled,
     )
 }
@@ -305,29 +257,13 @@ private fun TimeoutDto.toTimeout(): Timeout {
 
 /**
  * Converts DTO back to ExTransitionTable
- * Action and guard factories are optional best-effort helpers. Scheduler restoration is strict:
- * if a transition carries a scheduler ID, [AutoTransitionSchedulerFactory] must be provided and
- * must resolve that ID.
+ * Action and guard factories are optional best-effort helpers.
  */
 fun <STATE, EVENT> FsmDto.toExTransitionTable(
     stateParser: (String) -> STATE,
     eventParser: (String) -> EVENT,
     actionFactory: ActionFactory<STATE>? = null,
     guardFactory: GuardFactory<STATE>? = null
-): ExTransitionTable<STATE, EVENT> {
-    return toExTransitionTable(stateParser, eventParser, actionFactory, guardFactory, null)
-}
-
-/**
- * Converts DTO back to ExTransitionTable
- * Requires state and event parsers and optional factories for actions/guards/schedulers
- */
-fun <STATE, EVENT> FsmDto.toExTransitionTable(
-    stateParser: (String) -> STATE,
-    eventParser: (String) -> EVENT,
-    actionFactory: ActionFactory<STATE>?,
-    guardFactory: GuardFactory<STATE>?,
-    autoTransitionSchedulerFactory: AutoTransitionSchedulerFactory<STATE>?,
 ): ExTransitionTable<STATE, EVENT> {
     val builder = ExTransitionTable.Builder<STATE, EVENT>()
     builder.autoTransitionEnabled(autoTransitionEnabled)
@@ -337,7 +273,7 @@ fun <STATE, EVENT> FsmDto.toExTransitionTable(
         val fromState = stateParser(dto.from)
         val event = dto.event?.let { eventParser(it) }
         val toDto = dto.to
-        val to = toDto.toTo(stateParser, actionFactory, guardFactory, autoTransitionSchedulerFactory)
+        val to = toDto.toTo(stateParser, actionFactory, guardFactory)
         val transition = ExTransition(fromState, to, event)
         builder.add(transition)
     }

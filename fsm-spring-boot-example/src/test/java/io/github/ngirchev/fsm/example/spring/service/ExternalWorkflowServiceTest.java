@@ -3,6 +3,9 @@ package io.github.ngirchev.fsm.example.spring.service;
 import io.github.ngirchev.fsm.example.spring.domain.ExternalCallResult;
 import io.github.ngirchev.fsm.example.spring.domain.ExternalWorkflowRepository;
 import io.github.ngirchev.fsm.example.spring.integration.ExternalServiceClient;
+import io.github.ngirchev.fsm.example.spring.integration.WorkflowNotificationClient;
+import io.github.ngirchev.fsm.example.spring.task.ExternalWorkflowTaskProcessor;
+import io.github.ngirchev.fsm.example.spring.task.ExternalWorkflowTaskRepository;
 import io.github.ngirchev.fsm.exception.FsmEventSourcingTransitionFailedException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -13,16 +16,20 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.github.ngirchev.fsm.example.spring.domain.ExternalCallResult.DONE;
 import static io.github.ngirchev.fsm.example.spring.domain.ExternalCallResult.FAILED;
@@ -32,11 +39,15 @@ import static io.github.ngirchev.fsm.example.spring.domain.ExternalWorkflowStatu
 import static io.github.ngirchev.fsm.example.spring.domain.ExternalWorkflowStatus.EXTERNAL_SERVICE_FAILED;
 import static io.github.ngirchev.fsm.example.spring.domain.ExternalWorkflowStatus.NEW;
 import static io.github.ngirchev.fsm.example.spring.domain.ExternalWorkflowStatus.NOTIFY;
+import static io.github.ngirchev.fsm.example.spring.task.ExternalWorkflowTaskStatus.PENDING;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @Testcontainers
-@SpringBootTest(properties = "fsm.example.runner.enabled=false")
+@SpringBootTest(properties = {
+        "fsm.example.runner.enabled=false",
+        "fsm.tasks.enabled=false"
+})
 class ExternalWorkflowServiceTest {
 
     @Container
@@ -58,10 +69,24 @@ class ExternalWorkflowServiceTest {
     @Autowired
     private ControllableExternalServiceClient externalServiceClient;
 
+    @Autowired
+    private ExternalWorkflowTaskProcessor taskProcessor;
+
+    @Autowired
+    private ExternalWorkflowTaskRepository taskRepository;
+
+    @Autowired
+    private ControllableWorkflowNotificationClient notificationClient;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
+
     @BeforeEach
     void setUp() {
+        taskRepository.deleteAll();
         repository.deleteAll();
         externalServiceClient.reset();
+        notificationClient.reset();
     }
 
     @Test
@@ -71,6 +96,11 @@ class ExternalWorkflowServiceTest {
         Long workflowId = service.createWorkflow();
         service.start(workflowId);
 
+        assertThat(service.currentStatus(workflowId)).isEqualTo(AWAITING_EXTERNAL_SERVICE_RESULT);
+        assertThat(taskRepository.countByStatus(PENDING)).isOne();
+        assertThat(service.statusHistory(workflowId)).containsExactly(NEW, AWAITING_EXTERNAL_SERVICE_RESULT);
+
+        assertThat(processAllTasks()).isEqualTo(3);
         assertThat(service.currentStatus(workflowId)).isEqualTo(END);
         assertThat(service.statusHistory(workflowId))
                 .containsExactly(
@@ -93,6 +123,7 @@ class ExternalWorkflowServiceTest {
         Long workflowId = service.createWorkflow();
         service.start(workflowId);
 
+        assertThat(processAllTasks()).isEqualTo(3);
         assertThat(service.currentStatus(workflowId)).isEqualTo(END);
         assertThat(service.statusHistory(workflowId))
                 .containsExactly(
@@ -102,6 +133,30 @@ class ExternalWorkflowServiceTest {
                         NOTIFY,
                         END
                 );
+    }
+
+    @Test
+    void eachTaskUsesItsOwnTransactionWhenDrainedInsideAnOuterTransaction() {
+        externalServiceClient.nextResult(DONE);
+        Long workflowId = service.createWorkflow();
+        service.start(workflowId);
+
+        new TransactionTemplate(transactionManager).executeWithoutResult(ignored ->
+                assertThat(processAllTasks()).isEqualTo(3)
+        );
+
+        assertThat(service.statusHistory(workflowId))
+                .containsExactly(
+                        NEW,
+                        AWAITING_EXTERNAL_SERVICE_RESULT,
+                        EXTERNAL_SERVICE_DONE,
+                        NOTIFY,
+                        END
+                );
+        assertThat(service.statusRevisionNumbers(workflowId))
+                .hasSize(5)
+                .doesNotHaveDuplicates()
+                .isSorted();
     }
 
     @Test
@@ -116,6 +171,7 @@ class ExternalWorkflowServiceTest {
         assertThat(service.currentStatus(workflowId)).isEqualTo(NEW);
         assertThat(service.statusHistory(workflowId)).containsExactly(NEW);
         assertThat(service.statusRevisionNumbers(workflowId)).hasSize(1);
+        assertThat(taskRepository.countByStatus(PENDING)).isZero();
     }
 
     @Test
@@ -150,9 +206,48 @@ class ExternalWorkflowServiceTest {
 
             assertThat(failure).isInstanceOf(FsmEventSourcingTransitionFailedException.class);
             assertThat(externalServiceClient.submissionCount()).isEqualTo(1);
+            assertThat(taskRepository.countByStatus(PENDING)).isOne();
         } finally {
             executor.shutdownNow();
         }
+    }
+
+    @Test
+    void failedTaskRemainsPendingAndCanBeRetried() {
+        externalServiceClient.nextResult(DONE);
+        Long workflowId = service.createWorkflow();
+        service.start(workflowId);
+
+        assertThat(taskProcessor.processNext()).isTrue();
+        assertThat(service.currentStatus(workflowId)).isEqualTo(EXTERNAL_SERVICE_DONE);
+        notificationClient.nextFailure(new IllegalStateException("notification is unavailable"));
+
+        assertThatThrownBy(taskProcessor::processNext)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("notification is unavailable");
+        assertThat(service.currentStatus(workflowId)).isEqualTo(EXTERNAL_SERVICE_DONE);
+        assertThat(service.statusHistory(workflowId))
+                .containsExactly(NEW, AWAITING_EXTERNAL_SERVICE_RESULT, EXTERNAL_SERVICE_DONE);
+        assertThat(taskRepository.countByStatus(PENDING)).isOne();
+
+        assertThat(processAllTasks()).isEqualTo(2);
+        assertThat(service.currentStatus(workflowId)).isEqualTo(END);
+        assertThat(notificationClient.successfulNotificationCount()).isOne();
+        assertThat(notificationClient.attemptedIdempotencyKeys()).containsExactly(
+                "external-workflow:" + workflowId + ":notification",
+                "external-workflow:" + workflowId + ":notification"
+        );
+    }
+
+    private int processAllTasks() {
+        int processedTasks = 0;
+        while (taskProcessor.processNext()) {
+            processedTasks++;
+            if (processedTasks > 10) {
+                throw new IllegalStateException("Transactional task chain did not terminate");
+            }
+        }
+        return processedTasks;
     }
 
     @TestConfiguration(proxyBeanMethods = false)
@@ -162,6 +257,12 @@ class ExternalWorkflowServiceTest {
         @Primary
         ControllableExternalServiceClient controllableExternalServiceClient() {
             return new ControllableExternalServiceClient();
+        }
+
+        @Bean
+        @Primary
+        ControllableWorkflowNotificationClient controllableWorkflowNotificationClient() {
+            return new ControllableWorkflowNotificationClient();
         }
     }
 
@@ -216,6 +317,44 @@ class ExternalWorkflowServiceTest {
                 throw exception;
             }
             return result.get();
+        }
+    }
+
+    static class ControllableWorkflowNotificationClient implements WorkflowNotificationClient {
+
+        private final AtomicReference<RuntimeException> failure = new AtomicReference<>();
+        private final AtomicInteger successfulNotifications = new AtomicInteger();
+        private final List<String> attemptedIdempotencyKeys = new ArrayList<>();
+
+        void reset() {
+            failure.set(null);
+            successfulNotifications.set(0);
+            attemptedIdempotencyKeys.clear();
+        }
+
+        void nextFailure(RuntimeException failure) {
+            this.failure.set(failure);
+        }
+
+        int successfulNotificationCount() {
+            return successfulNotifications.get();
+        }
+
+        List<String> attemptedIdempotencyKeys() {
+            return List.copyOf(attemptedIdempotencyKeys);
+        }
+
+        @Override
+        public void notify(
+                io.github.ngirchev.fsm.example.spring.domain.ExternalWorkflow workflow,
+                String idempotencyKey
+        ) {
+            attemptedIdempotencyKeys.add(idempotencyKey);
+            RuntimeException exception = failure.getAndSet(null);
+            if (exception != null) {
+                throw exception;
+            }
+            successfulNotifications.incrementAndGet();
         }
     }
 }

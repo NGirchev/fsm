@@ -95,16 +95,7 @@ class IdGuard<T>(
 
 /**
  * Target state of a transition together with its declarative content
- * (conditions, actions, postActions, timeout) plus optional per-transition
- * auto-transition settings.
- *
- * Equality and hashCode intentionally exclude auto-transition settings:
- *   - schedulers are typically lambdas, which have no meaningful identity-based equality;
- *   - transition deduplication in builder sets is based on declarative content, so two
- *     transitions with identical state/conditions/actions/postActions/timeout but different
- *     auto-transition settings are treated as duplicates (the second one is rejected with
- *     [io.github.ngirchev.fsm.exception.DuplicateTransitionException]). Use the DSL
- *     `auto().deferWith(...)` on a single transition to attach a scheduler.
+ * (conditions, actions, postActions, timeout) plus an optional local auto-transition flag.
  */
 class To<STATE>(
     val state: STATE,
@@ -113,9 +104,6 @@ class To<STATE>(
     val postActions: List<Action<in StateContext<STATE>>>,
     val timeout: Timeout? = null,
 ) {
-    var autoTransitionScheduler: AutoTransitionScheduler<STATE>? = null
-        private set
-
     var autoTransitionEnabled: Boolean = false
         private set
 
@@ -125,21 +113,19 @@ class To<STATE>(
         actions: List<Action<in StateContext<STATE>>>,
         postActions: List<Action<in StateContext<STATE>>>,
         timeout: Timeout? = null,
-        autoTransitionScheduler: AutoTransitionScheduler<STATE>? = null,
-        autoTransitionEnabled: Boolean = false,
+        autoTransitionEnabled: Boolean,
     ) : this(state, conditions, actions, postActions, timeout) {
-        this.autoTransitionScheduler = autoTransitionScheduler
-        this.autoTransitionEnabled = autoTransitionEnabled || autoTransitionScheduler != null
+        this.autoTransitionEnabled = autoTransitionEnabled
     }
 
-    // Keep the original five-argument copy JVM API while retaining scheduling metadata.
+    // Keep the original five-argument copy JVM API while retaining local auto-transition metadata.
     fun copy(
         state: STATE = this.state,
         conditions: List<Guard<in StateContext<STATE>>> = this.conditions,
         actions: List<Action<in StateContext<STATE>>> = this.actions,
         postActions: List<Action<in StateContext<STATE>>> = this.postActions,
         timeout: Timeout? = this.timeout,
-    ): To<STATE> = To(state, conditions, actions, postActions, timeout, autoTransitionScheduler, autoTransitionEnabled)
+    ): To<STATE> = To(state, conditions, actions, postActions, timeout, autoTransitionEnabled)
 
     operator fun component1(): STATE = state
     operator fun component2(): List<Guard<in StateContext<STATE>>> = conditions
@@ -169,7 +155,7 @@ fun <STATE> To(
     condition: Guard<in StateContext<STATE>>? = null,
     action: Action<in StateContext<STATE>>? = null,
     postAction: Action<in StateContext<STATE>>? = null,
-    timeout: Timeout? = null
+    timeout: Timeout? = null,
 ): To<STATE> = To(
     state = state,
     conditions = listOfNotNull(condition),
@@ -184,15 +170,13 @@ fun <STATE> To(
     action: Action<in StateContext<STATE>>? = null,
     postAction: Action<in StateContext<STATE>>? = null,
     timeout: Timeout? = null,
-    autoTransitionScheduler: AutoTransitionScheduler<STATE>?,
-    autoTransitionEnabled: Boolean = false,
+    autoTransitionEnabled: Boolean,
 ): To<STATE> = To(
     state = state,
     conditions = listOfNotNull(condition),
     actions = listOfNotNull(action),
     postActions = listOfNotNull(postAction),
     timeout = timeout,
-    autoTransitionScheduler = autoTransitionScheduler,
     autoTransitionEnabled = autoTransitionEnabled,
 )
 

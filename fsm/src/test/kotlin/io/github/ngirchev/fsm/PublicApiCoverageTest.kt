@@ -40,29 +40,23 @@ class PublicApiCoverageTest {
         }
     }
 
-    @Test fun `basic single and multiple auto DSL preserve callbacks and scheduling`() {
+    @Test fun `basic single and multiple auto DSL preserve transition handlers`() {
         val calls = mutableListOf<String>()
-        val callbacks = mutableListOf<() -> Unit>()
-        val scheduler = AutoTransitionScheduler<String> { _, _, callback -> callbacks.add(callback) }
         val table = BTransitionTable.Builder<String>()
             .from("NEW").to("READY").auto()
             .condition { true }.action { calls.add("action") }.postAction { calls.add("post") }
-            .deferWith(scheduler).end()
+            .end()
             .from("READY").toMultiple().to("DONE").auto()
             .condition { true }.action { calls.add("next") }.postAction { calls.add("last") }
-            .deferWith(scheduler).end().endMultiple().build()
-        val fsm = BFsm(Context("NEW"), table, autoTransitionScheduler = scheduler)
+            .end().endMultiple().build()
+        val fsm = BFsm(Context("NEW"), table)
         fsm.startAutoTransitions()
-        assertEquals("NEW", fsm.getState())
-        callbacks.removeAt(0).invoke()
-        callbacks.removeAt(0).invoke()
         assertEquals("DONE", fsm.getState())
         assertEquals(listOf("action", "post", "next", "last"), calls)
         val domain = Context("NEW")
-        val domainFsm = BDomainFsm<Context, String>(table, autoTransitionScheduler = scheduler)
+        val domainFsm = BDomainFsm<Context, String>(table)
         assertSame(table, domainFsm.transitionTable)
         domainFsm.changeState(domain, "READY")
-        callbacks.removeAt(0).invoke()
         assertEquals("DONE", domain.state)
         assertFailsWith<DuplicateTransitionException> { BTransitionTable.Builder<String>().add("a", "b", "b") }
     }
@@ -70,7 +64,6 @@ class PublicApiCoverageTest {
     @Test fun `extended event and auto wrappers preserve all transition handlers`() {
         val calls = mutableListOf<String>()
         val zero = Timeout(0)
-        val scheduler = ImmediateAutoTransitionScheduler<String>()
         val builder = ExTransitionTable.Builder<String, String>()
         EventFromBuilder("NEW", builder, "GO").to("READY")
             .onCondition { true }.action { calls.add("event") }.postAction { calls.add("event-post") }
@@ -81,14 +74,14 @@ class PublicApiCoverageTest {
             .action { calls.add("multi") }.postAction { calls.add("multi-post") }.timeout(zero).end()
             .endMultiple()
         val table = builder.build()
-        val fsm = ExFsm("NEW", table, scheduler)
+        val fsm = ExFsm("NEW", table)
         fsm.onEvent("GO")
         assertEquals("DONE", fsm.getState())
         assertEquals(listOf("event", "event-post", "auto", "auto-post", "multi", "multi-post"), calls)
         val context = Context("NEW")
-        ExFsm(context, table, scheduler).onEvent("GO")
+        ExFsm(context, table).onEvent("GO")
         assertEquals("DONE", context.state)
-        val domainFsm = ExDomainFsm<Context, String, String>(table, autoTransitionScheduler = scheduler)
+        val domainFsm = ExDomainFsm<Context, String, String>(table)
         assertSame(table, domainFsm.transitionTable)
         assertEquals("NEW", domainFsm.getFsmForDomain(Context("NEW")).getState())
         val duplicate = ExTransitionTable.Builder<String, String>().add("a", "go", "b")
@@ -115,17 +108,15 @@ class PublicApiCoverageTest {
         assertFailsWith<FsmException> { fsm.toState(BTransition("NEW", To("DONE"))) }
     }
 
-    @Test fun `JSON file and stream overloads restore scheduling`() {
-        val scheduler = NamedAutoTransitionScheduler<String>("queued", AutoTransitionScheduler { _, _, _ -> })
+    @Test fun `JSON file and stream overloads restore local auto transitions`() {
         val table = ExTransitionTable.Builder<String, String>()
-            .from("NEW").to("DONE").auto().deferWith(scheduler).end().build()
+            .from("NEW").to("DONE").auto().end().build()
         val file = directory.resolve("flow.json")
         table.toJson(file)
-        val factory = AutoTransitionSchedulerFactory<String> { scheduler }
-        val restoredFile = file.fromJson({ it }, { it }, null, null, factory)
-        val restoredStream = Files.newInputStream(file).use { it.fromJson({ s -> s }, { e -> e }, null, null, factory) }
+        val restoredFile = file.fromJson({ it }, { it })
+        val restoredStream = Files.newInputStream(file).use { it.fromJson({ s -> s }, { e -> e }) }
         for (restored in listOf(restoredFile, restoredStream)) {
-            assertSame(scheduler, restored.transitions.getValue("NEW").single().to.autoTransitionScheduler)
+            assertTrue(restored.transitions.getValue("NEW").single().to.autoTransitionEnabled)
         }
         val plain = ExTransitionTable.Builder<String, String>().add("NEW", "GO", "DONE").build()
         val serializer = FsmJsonSerializer()
@@ -172,7 +163,7 @@ class PublicApiCoverageTest {
         assertNotEquals(original, original.copy(postActions = listOf(action)))
         assertNotEquals(original, original.copy(timeout = Timeout(1)))
         assertTrue(original.toString().contains("DONE"))
-        val dto = ToDto("DONE", emptyList(), emptyList(), emptyList(), null, null)
+        val dto = ToDto("DONE", emptyList(), emptyList(), emptyList(), null)
         assertFalse(dto.autoTransitionEnabled)
         assertEquals(0, FsmDto(false, emptyMap()).maxImmediateAutoTransitions)
         assertTrue(FsmTransitionFailedException("a", "b", "ORDER", "reason").message!!.contains("reason"))

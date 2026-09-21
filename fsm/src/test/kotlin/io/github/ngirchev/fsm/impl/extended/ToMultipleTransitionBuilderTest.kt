@@ -2,7 +2,6 @@ package io.github.ngirchev.fsm.impl.extended
 
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
-import io.github.ngirchev.fsm.AutoTransitionScheduler
 import io.github.ngirchev.fsm.exception.FsmException
 import io.github.ngirchev.fsm.Timeout
 import kotlin.test.assertEquals
@@ -38,20 +37,17 @@ class ToMultipleTransitionBuilderTest {
     }
 
     @Test
-    fun autoShouldMarkTransitionAsAutoAndAllowDeferWith() {
-        val scheduler = AutoTransitionScheduler<String> { _, _, runTransition -> runTransition() }
+    fun autoShouldMarkTransitionAsAuto() {
         val builder = ExTransitionTable.Builder<String, String>()
         val toMultipleBuilder = builder.from("from").toMultiple()
 
         toMultipleBuilder.to("to")
             .auto()
-            .deferWith(scheduler)
             .end()
             .endMultiple()
 
         val transition = builder.build().transitions["from"]?.single() ?: error("Expected transition")
         assertTrue(transition.to.autoTransitionEnabled)
-        assertSame(scheduler, transition.to.autoTransitionScheduler)
     }
 
     @Test

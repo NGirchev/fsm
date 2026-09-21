@@ -1,6 +1,5 @@
 package io.github.ngirchev.fsm.impl
 
-import io.github.ngirchev.fsm.AutoTransitionScheduler
 import io.github.ngirchev.fsm.To
 import io.github.ngirchev.fsm.impl.basic.BTransition
 import kotlin.test.Test
@@ -67,31 +66,9 @@ class AbstractTransitionTest {
     }
 
     @Test
-    fun equalsWhenOnlySchedulerDiffersThenReturnTrue() {
-        val firstScheduler = AutoTransitionScheduler<String> { _, _, runTransition -> runTransition() }
-        val secondScheduler = AutoTransitionScheduler<String> { _, _, runTransition -> runTransition() }
-
-        val transition1 = BTransition("from", To("to", autoTransitionScheduler = firstScheduler))
-        val transition2 = BTransition("from", To("to", autoTransitionScheduler = secondScheduler))
-
-        assertTrue(transition1 == transition2)
-    }
-
-    @Test
     fun hashCodeWhenSameTransitionThenReturnSameHashCode() {
         val transition1 = BTransition("from", "to")
         val transition2 = BTransition("from", "to")
-        assertEquals(transition1.hashCode(), transition2.hashCode())
-    }
-
-    @Test
-    fun hashCodeWhenOnlySchedulerDiffersThenReturnSameHashCode() {
-        val firstScheduler = AutoTransitionScheduler<String> { _, _, runTransition -> runTransition() }
-        val secondScheduler = AutoTransitionScheduler<String> { _, _, runTransition -> runTransition() }
-
-        val transition1 = BTransition("from", To("to", autoTransitionScheduler = firstScheduler))
-        val transition2 = BTransition("from", To("to", autoTransitionScheduler = secondScheduler))
-
         assertEquals(transition1.hashCode(), transition2.hashCode())
     }
 

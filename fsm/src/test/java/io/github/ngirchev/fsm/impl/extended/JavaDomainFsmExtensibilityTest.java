@@ -1,6 +1,5 @@
 package io.github.ngirchev.fsm.impl.extended;
 
-import io.github.ngirchev.fsm.AutoTransitionScheduler;
 import io.github.ngirchev.fsm.StateContext;
 import io.github.ngirchev.fsm.To;
 import io.github.ngirchev.fsm.Transition;
@@ -42,10 +41,9 @@ class JavaDomainFsmExtensibilityTest {
 
         private OrderFsm(
             ExTransitionTable<OrderState, OrderEvent> transitionTable,
-            boolean autoTransitionEnabled,
-            AutoTransitionScheduler<OrderState> autoTransitionScheduler
+            boolean autoTransitionEnabled
         ) {
-            super(transitionTable, autoTransitionEnabled, autoTransitionScheduler);
+            super(transitionTable, autoTransitionEnabled);
         }
 
         static OrderFsm create() {
@@ -74,10 +72,9 @@ class JavaDomainFsmExtensibilityTest {
 
         private OrderTransitionTable(
             Map<OrderState, LinkedHashSet<ExTransition<OrderState, OrderEvent>>> transitions,
-            boolean autoTransitionEnabled,
-            AutoTransitionScheduler<OrderState> autoTransitionScheduler
+            boolean autoTransitionEnabled
         ) {
-            super(transitions, autoTransitionEnabled, autoTransitionScheduler);
+            super(transitions, autoTransitionEnabled);
         }
 
         @Override

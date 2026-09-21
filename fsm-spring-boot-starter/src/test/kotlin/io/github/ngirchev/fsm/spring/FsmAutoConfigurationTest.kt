@@ -1,7 +1,6 @@
 package io.github.ngirchev.fsm.spring
 
 import io.github.ngirchev.fsm.Action
-import io.github.ngirchev.fsm.AutoTransitionScheduler
 import io.github.ngirchev.fsm.Guard
 import io.github.ngirchev.fsm.StateContext
 import io.github.ngirchev.fsm.To
@@ -36,56 +35,6 @@ class FsmAutoConfigurationTest {
             fsm.onEvent("GO")
 
             assertThat(fsm.getState()).isEqualTo("DONE")
-        }
-    }
-
-    @Test
-    @Suppress("UNCHECKED_CAST")
-    fun `round trip preserves deferred execution with local and global auto settings`() {
-        listOf(false, true).forEach { globalAuto ->
-            runner.withUserConfiguration(Scheduling::class.java).run { context ->
-                val scheduler = context.getBean("afterCommit") as AutoTransitionScheduler<String>
-                val table = ExTransitionTable.Builder<String, String>()
-                    .autoTransitionEnabled(globalAuto)
-                    .add("NEW", "GO", "READY")
-                    .from("READY").to("DONE").auto().deferWith(scheduler).end().build()
-                val serializer = context.getBean(SpringFsmJsonSerializer::class.java)
-                val json = serializer.serialize(table)
-                assertThat(json).contains("afterCommit")
-                val restored = serializer.deserialize(json, { it }, { it })
-                assertThat(restored.transitions.getValue("READY").single().to.autoTransitionScheduler)
-                    .isSameAs(scheduler)
-                val fsm = restored.createFsm("NEW")
-
-                fsm.onEvent("GO")
-
-                assertThat(fsm.getState()).isEqualTo("READY")
-                val callbacks = context.getBean(Scheduling::class.java).callbacks
-                assertThat(callbacks).hasSize(1)
-                callbacks.removeAt(0).invoke()
-                assertThat(fsm.getState()).isEqualTo("DONE")
-            }
-        }
-    }
-
-    @Test
-    fun `unknown scheduler references fail instead of changing execution semantics`() {
-        runner.run { context ->
-            val serializer = context.getBean(SpringFsmJsonSerializer::class.java)
-            val json = """{"autoTransitionEnabled":false,"transitions":{"NEW":[{"from":"NEW","event":null,"to":{"state":"DONE","conditions":[],"actions":[],"postActions":[],"timeout":null,"autoTransitionEnabled":true,"autoTransitionScheduler":"missing"}}]}}"""
-            assertThatThrownBy { serializer.deserialize(json, { it }, { it }) }
-                .isInstanceOf(IllegalArgumentException::class.java).hasMessageContaining("missing")
-        }
-    }
-
-    @Test
-    fun `unregistered schedulers cannot be silently omitted`() {
-        runner.run { context ->
-            val scheduler = AutoTransitionScheduler<String> { _, _, _ -> }
-            val table = ExTransitionTable.Builder<String, String>()
-                .from("NEW").to("DONE").auto().deferWith(scheduler).end().build()
-            assertThatThrownBy { context.getBean(SpringFsmJsonSerializer::class.java).serialize(table) }
-                .isInstanceOf(IllegalArgumentException::class.java)
         }
     }
 
@@ -179,13 +128,6 @@ class FsmAutoConfigurationTest {
     @Configuration(proxyBeanMethods = false)
     @EnableAutoConfiguration
     class BootApplication
-
-    @Configuration(proxyBeanMethods = false)
-    class Scheduling {
-        val callbacks = mutableListOf<() -> Unit>()
-        @Bean fun afterCommit(): AutoTransitionScheduler<String> =
-            AutoTransitionScheduler { _, _, runTransition -> callbacks.add(runTransition) }
-    }
 
     @Configuration(proxyBeanMethods = false)
     class Behaviors {

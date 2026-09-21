@@ -6,7 +6,6 @@ import io.github.ngirchev.fsm.impl.extended.ExTransitionTable
 import java.util.concurrent.TimeUnit
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertSame
 import kotlin.test.assertTrue
 import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
@@ -26,25 +25,22 @@ class CopySchedulingCompatibilityTest {
 
     @Test
     fun localAutoFlagWithoutSchedulerSurvivesCopyAndDoesNotAffectEquality() {
-        val automatic = To("to", autoTransitionScheduler = null, autoTransitionEnabled = true)
+        val automatic = To("to", autoTransitionEnabled = true)
         val ordinary = To("to")
         val copied = automatic.copy()
         assertTrue(copied.autoTransitionEnabled)
-        assertEquals(null, copied.autoTransitionScheduler)
         assertEquals(ordinary, copied)
         assertEquals(ordinary.hashCode(), copied.hashCode())
-        val dto = ToDto("to", emptyList(), emptyList(), emptyList(), null, null, true)
+        val dto = ToDto("to", emptyList(), emptyList(), emptyList(), null, true)
         assertTrue(dto.copy().autoTransitionEnabled)
     }
 
     @Test
-    fun transitionCopyRetainsLocalAutoScheduling() {
-        val scheduler = NamedAutoTransitionScheduler<String>("deferred") { _, _, _ -> }
-        val target = To("old", autoTransitionScheduler = scheduler)
+    fun transitionCopyRetainsLocalAutoFlag() {
+        val target = To("old", autoTransitionEnabled = true)
         val copied = target.copy(state = "new")
         assertEquals("new", copied.state)
         assertTrue(copied.autoTransitionEnabled)
-        assertSame(scheduler, copied.autoTransitionScheduler)
         val (state, conditions, actions, postActions, timeout) = copied
         assertEquals("new", state)
         assertEquals(emptyList(), conditions)
@@ -54,12 +50,11 @@ class CopySchedulingCompatibilityTest {
     }
 
     @Test
-    fun dtoCopyRetainsLocalAutoScheduling() {
-        val target = ToDto("old", emptyList(), emptyList(), emptyList(), null, "deferred", true)
+    fun dtoCopyRetainsLocalAutoFlag() {
+        val target = ToDto("old", emptyList(), emptyList(), emptyList(), null, true)
         val copied = target.copy(state = "new")
         assertEquals("new", copied.state)
         assertTrue(copied.autoTransitionEnabled)
-        assertEquals("deferred", copied.autoTransitionScheduler)
     }
 
     @Test
@@ -85,7 +80,6 @@ class CopySchedulingCompatibilityTest {
         val empty = original.copy("new", emptyList(), emptyList(), emptyList(), null)
         assertEquals(ToDto("new", emptyList(), emptyList(), emptyList(), null).hashCode(), empty.hashCode())
         empty.autoTransitionEnabled = true
-        empty.autoTransitionScheduler = "deferred"
         assertEquals(ToDto("new", emptyList(), emptyList(), emptyList(), null), empty)
     }
 

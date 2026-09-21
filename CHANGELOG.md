@@ -7,8 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 - Added an optional runtime limit for immediate auto-transition chains.
-- Added local auto-transition configuration via `auto().deferWith(...)`, with `deferWith` only exposed from auto-transition builders.
+- Added local auto-transition configuration via `.auto()`.
 - Changed eventless transitions to support local auto opt-in while preserving global `autoTransitionEnabled(true)` behavior for all eventless transitions.
+- Removed `AutoTransitionScheduler`, deferred auto-transition DSL methods, and scheduler serialization.
+  Durable asynchronous progression is now modeled with persisted tasks and ordinary FSM events.
+- Added automatic Spring Boot processing for declared `FsmTaskProcessor` beans, with configurable
+  polling, bounded queue draining, and an opt-out for externally managed workers.
 
 ## [1.2.0] - 2026-06-08
 

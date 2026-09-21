@@ -59,28 +59,6 @@ class FsmJsonSerializer(
     }
 
     /**
-     * Deserializes JSON string to ExTransitionTable.
-     * Requires state and event parsers and optional factories for actions/guards/schedulers.
-     */
-    fun <STATE, EVENT> deserialize(
-        json: String,
-        stateParser: (String) -> STATE,
-        eventParser: (String) -> EVENT,
-        actionFactory: ActionFactory<STATE>?,
-        guardFactory: GuardFactory<STATE>?,
-        autoTransitionSchedulerFactory: AutoTransitionSchedulerFactory<STATE>?,
-    ): ExTransitionTable<STATE, EVENT> {
-        val dto = deserializeDto(json)
-        return dto.toExTransitionTable(
-            stateParser,
-            eventParser,
-            actionFactory,
-            guardFactory,
-            autoTransitionSchedulerFactory,
-        )
-    }
-    
-    /**
      * Deserializes JSON from InputStream to ExTransitionTable
      */
     fun <STATE, EVENT> deserialize(
@@ -94,25 +72,4 @@ class FsmJsonSerializer(
         return dto.toExTransitionTable(stateParser, eventParser, actionFactory, guardFactory)
     }
 
-    /**
-     * Deserializes JSON from InputStream to ExTransitionTable.
-     * Requires state and event parsers and optional factories for actions/guards/schedulers.
-     */
-    fun <STATE, EVENT> deserialize(
-        input: InputStream,
-        stateParser: (String) -> STATE,
-        eventParser: (String) -> EVENT,
-        actionFactory: ActionFactory<STATE>?,
-        guardFactory: GuardFactory<STATE>?,
-        autoTransitionSchedulerFactory: AutoTransitionSchedulerFactory<STATE>?,
-    ): ExTransitionTable<STATE, EVENT> {
-        val dto = deserializeDto(input)
-        return dto.toExTransitionTable(
-            stateParser,
-            eventParser,
-            actionFactory,
-            guardFactory,
-            autoTransitionSchedulerFactory,
-        )
-    }
 }

@@ -13,4 +13,11 @@ public class DefaultExternalServiceClientConfiguration {
     ExternalServiceClient externalServiceClient() {
         return workflow -> ExternalCallResult.DONE;
     }
+
+    @Bean
+    @ConditionalOnMissingBean
+    WorkflowNotificationClient workflowNotificationClient() {
+        return (workflow, idempotencyKey) -> {
+        };
+    }
 }

@@ -14,7 +14,6 @@ public class ExternalWorkflowDemoRunner implements CommandLineRunner {
     private static final Logger log = LoggerFactory.getLogger(ExternalWorkflowDemoRunner.class);
 
     private final ExternalWorkflowService service;
-
     public ExternalWorkflowDemoRunner(ExternalWorkflowService service) {
         this.service = service;
     }
@@ -23,6 +22,6 @@ public class ExternalWorkflowDemoRunner implements CommandLineRunner {
     public void run(String... args) {
         Long workflowId = service.createWorkflow();
         service.start(workflowId);
-        log.info("Workflow {} status history: {}", workflowId, service.statusHistory(workflowId));
+        log.info("Workflow {} started; the starter task worker will continue it in the background", workflowId);
     }
 }

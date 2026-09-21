@@ -6,7 +6,6 @@ import ch.qos.logback.core.read.ListAppender
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
-import io.github.ngirchev.fsm.AutoTransitionScheduler
 import io.github.ngirchev.fsm.exception.DuplicateTransitionException
 import io.github.ngirchev.fsm.exception.FsmException
 import io.github.ngirchev.fsm.Timeout
@@ -410,97 +409,62 @@ class ExTransitionTableTest {
     }
 
     @Test
-    @DisplayName("createDomainFsm should use auto transition scheduler")
-    fun createDomainFsmShouldUseAutoTransitionScheduler() {
-        var scheduledTransitions = 0
-        val scheduler = AutoTransitionScheduler<DocumentState> { _, _, runTransition ->
-            scheduledTransitions++
-            runTransition()
-        }
-        val table = ExTransitionTable.Builder<DocumentState, String>()
-            .autoTransitionEnabled(true)
-            .autoTransitionScheduler(scheduler)
-            .add(DocumentState.NEW, "event", DocumentState.READY_FOR_SIGN)
-            .add(from = DocumentState.READY_FOR_SIGN, to = DocumentState.SIGNED)
-            .build()
-        val domain = Document(state = DocumentState.NEW)
-
-        val domainFsm = table.createDomainFsm<Document>()
-        domainFsm.handle(domain, "event")
-
-        assertEquals(DocumentState.SIGNED, domain.state)
-        assertEquals(1, scheduledTransitions)
-    }
-
-    @Test
-    @DisplayName("add with builder should allow per-transition auto transition scheduler")
-    fun addWithBuilderShouldCapturePerTransitionAutoTransitionScheduler() {
-        val scheduler = AutoTransitionScheduler<DocumentState> { _, _, runTransition -> runTransition() }
-
+    @DisplayName("add with builder should allow a local auto transition")
+    fun addWithBuilderShouldCaptureLocalAutoTransition() {
         val table = ExTransitionTable.Builder<DocumentState, String>()
             .from(DocumentState.NEW)
             .to(DocumentState.READY_FOR_SIGN)
             .auto()
-            .deferWith(scheduler)
             .end()
             .build()
 
         val transition = table.transitions[DocumentState.NEW]?.single() ?: error("Expected transition")
 
-        assertEquals(scheduler, transition.to.autoTransitionScheduler)
         assertTrue(transition.to.autoTransitionEnabled)
     }
 
     @Test
-    @DisplayName("add To object should copy auto transition scheduler")
-    fun addWithToObjectShouldCopyAutoTransitionScheduler() {
-        val scheduler = AutoTransitionScheduler<DocumentState> { _, _, runTransition -> runTransition() }
-
+    @DisplayName("add To object should copy local auto transition flag")
+    fun addWithToObjectShouldCopyLocalAutoTransitionFlag() {
         val table = ExTransitionTable.Builder<DocumentState, String>()
             .add(
                 DocumentState.NEW,
                 null,
-                To(DocumentState.READY_FOR_SIGN, autoTransitionScheduler = scheduler),
+                To(DocumentState.READY_FOR_SIGN, autoTransitionEnabled = true),
             )
             .build()
 
         val transition = table.transitions[DocumentState.NEW]?.single() ?: error("Expected transition")
 
-        assertEquals(scheduler, transition.to.autoTransitionScheduler)
         assertTrue(transition.to.autoTransitionEnabled)
     }
 
     @Test
-    @DisplayName("add with parameters should capture per-transition auto transition scheduler")
-    fun addWithParametersShouldCapturePerTransitionAutoTransitionScheduler() {
-        val scheduler = AutoTransitionScheduler<DocumentState> { _, _, runTransition -> runTransition() }
-
+    @DisplayName("add with parameters should capture local auto transition flag")
+    fun addWithParametersShouldCaptureLocalAutoTransitionFlag() {
         val table = ExTransitionTable.Builder<DocumentState, String>()
             .add(
                 from = DocumentState.NEW,
                 to = DocumentState.READY_FOR_SIGN,
-                autoTransitionScheduler = scheduler,
+                autoTransitionEnabled = true,
             )
             .build()
 
         val transition = table.transitions[DocumentState.NEW]?.single() ?: error("Expected transition")
 
-        assertEquals(scheduler, transition.to.autoTransitionScheduler)
         assertTrue(transition.to.autoTransitionEnabled)
     }
 
     @Test
-    @DisplayName("event transition should reject auto transition scheduler")
-    fun eventTransitionShouldRejectAutoTransitionScheduler() {
-        val scheduler = AutoTransitionScheduler<DocumentState> { _, _, runTransition -> runTransition() }
-
+    @DisplayName("event transition should reject local auto transition flag")
+    fun eventTransitionShouldRejectLocalAutoTransitionFlag() {
         val exception = assertThrows(FsmException::class.java) {
             ExTransitionTable.Builder<DocumentState, String>()
                 .add(
                     from = DocumentState.NEW,
                     onEvent = "event",
                     to = DocumentState.READY_FOR_SIGN,
-                    autoTransitionScheduler = scheduler,
+                    autoTransitionEnabled = true,
                 )
         }
 
@@ -856,8 +820,7 @@ class ExTransitionTableTest {
     private class CustomExTransitionTable(
         transitions: Map<DocumentState, LinkedHashSet<ExTransition<DocumentState, String>>>,
         autoTransitionEnabled: Boolean,
-        autoTransitionScheduler: AutoTransitionScheduler<DocumentState>,
-    ) : ExTransitionTable<DocumentState, String>(transitions, autoTransitionEnabled, autoTransitionScheduler)
+    ) : ExTransitionTable<DocumentState, String>(transitions, autoTransitionEnabled)
 
     private data class RoutingEvent(
         val type: String,
@@ -873,8 +836,7 @@ class ExTransitionTableTest {
     private class RoutingEventTransitionTable(
         transitions: Map<DocumentState, LinkedHashSet<ExTransition<DocumentState, RoutingEvent>>>,
         autoTransitionEnabled: Boolean,
-        autoTransitionScheduler: AutoTransitionScheduler<DocumentState>,
-    ) : ExTransitionTable<DocumentState, RoutingEvent>(transitions, autoTransitionEnabled, autoTransitionScheduler) {
+    ) : ExTransitionTable<DocumentState, RoutingEvent>(transitions, autoTransitionEnabled) {
 
         override fun eventIdentity(event: RoutingEvent?): Any? {
             return event?.let { RoutingEventKey(it.type, it.tenantId) }
@@ -884,6 +846,5 @@ class ExTransitionTableTest {
     private class FactoryExDomainFsm(
         transitionTable: ExTransitionTable<DocumentState, String>,
         autoTransitionEnabled: Boolean,
-        autoTransitionScheduler: AutoTransitionScheduler<DocumentState>,
-    ) : ExDomainFsm<Document, DocumentState, String>(transitionTable, autoTransitionEnabled, autoTransitionScheduler)
+    ) : ExDomainFsm<Document, DocumentState, String>(transitionTable, autoTransitionEnabled)
 }

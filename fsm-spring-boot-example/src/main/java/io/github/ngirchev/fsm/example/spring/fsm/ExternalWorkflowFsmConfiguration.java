@@ -6,11 +6,14 @@ import io.github.ngirchev.fsm.example.spring.domain.ExternalWorkflow;
 import io.github.ngirchev.fsm.example.spring.domain.ExternalWorkflowEvent;
 import io.github.ngirchev.fsm.example.spring.domain.ExternalWorkflowStatus;
 import io.github.ngirchev.fsm.example.spring.integration.ExternalServiceClient;
+import io.github.ngirchev.fsm.example.spring.integration.WorkflowNotificationClient;
+import io.github.ngirchev.fsm.example.spring.task.EnqueueNextWorkflowTaskAction;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import static io.github.ngirchev.fsm.example.spring.domain.ExternalCallResult.DONE;
 import static io.github.ngirchev.fsm.example.spring.domain.ExternalCallResult.FAILED;
+import static io.github.ngirchev.fsm.example.spring.domain.ExternalWorkflowEvent.ADVANCE;
 import static io.github.ngirchev.fsm.example.spring.domain.ExternalWorkflowEvent.START;
 import static io.github.ngirchev.fsm.example.spring.domain.ExternalWorkflowStatus.AWAITING_EXTERNAL_SERVICE_RESULT;
 import static io.github.ngirchev.fsm.example.spring.domain.ExternalWorkflowStatus.END;
@@ -25,8 +28,9 @@ public class ExternalWorkflowFsmConfiguration {
     @Bean
     ExDomainFsm<ExternalWorkflow, ExternalWorkflowStatus, ExternalWorkflowEvent> externalWorkflowFsm(
             ExternalServiceClient externalServiceClient,
+            WorkflowNotificationClient notificationClient,
             PersistWorkflowStatusAction persistWorkflowStatus,
-            AfterCommitAutoTransitionScheduler afterCommitScheduler
+            EnqueueNextWorkflowTaskAction enqueueNextTask
     ) {
         return FsmFactory.INSTANCE.<ExternalWorkflowStatus, ExternalWorkflowEvent>statesWithEvents()
                 .from(NEW).onEvent(START).to(AWAITING_EXTERNAL_SERVICE_RESULT)
@@ -35,44 +39,51 @@ public class ExternalWorkflowFsmConfiguration {
                     workflow.setExternalResult(externalServiceClient.submit(workflow));
                 })
                 .postAction(persistWorkflowStatus)
+                .postAction(enqueueNextTask)
                 .end()
 
-                .from(AWAITING_EXTERNAL_SERVICE_RESULT).toMultiple()
+                .from(AWAITING_EXTERNAL_SERVICE_RESULT).onEvent(ADVANCE).toMultiple()
                 .to(EXTERNAL_SERVICE_DONE)
                 .onCondition(context -> ((ExternalWorkflow) context).getExternalResult() == DONE)
                 .postAction(persistWorkflowStatus)
-                .auto()
-                .deferWith(afterCommitScheduler)
+                .postAction(enqueueNextTask)
                 .end()
                 .to(EXTERNAL_SERVICE_FAILED)
                 .onCondition(context -> ((ExternalWorkflow) context).getExternalResult() == FAILED)
                 .postAction(persistWorkflowStatus)
-                .auto()
-                .deferWith(afterCommitScheduler)
+                .postAction(enqueueNextTask)
                 .end()
                 .endMultiple()
 
-                .from(EXTERNAL_SERVICE_DONE).to(NOTIFY)
-                .action(context -> ((ExternalWorkflow) context).markNotificationSent())
+                .from(EXTERNAL_SERVICE_DONE).onEvent(ADVANCE).to(NOTIFY)
+                .action(context -> {
+                    ExternalWorkflow workflow = (ExternalWorkflow) context;
+                    notificationClient.notify(workflow, notificationIdempotencyKey(workflow));
+                    workflow.markNotificationSent();
+                })
                 .postAction(persistWorkflowStatus)
-                .auto()
-                .deferWith(afterCommitScheduler)
+                .postAction(enqueueNextTask)
                 .end()
 
-                .from(EXTERNAL_SERVICE_FAILED).to(NOTIFY)
-                .action(context -> ((ExternalWorkflow) context).markNotificationSent())
+                .from(EXTERNAL_SERVICE_FAILED).onEvent(ADVANCE).to(NOTIFY)
+                .action(context -> {
+                    ExternalWorkflow workflow = (ExternalWorkflow) context;
+                    notificationClient.notify(workflow, notificationIdempotencyKey(workflow));
+                    workflow.markNotificationSent();
+                })
                 .postAction(persistWorkflowStatus)
-                .auto()
-                .deferWith(afterCommitScheduler)
+                .postAction(enqueueNextTask)
                 .end()
 
-                .from(NOTIFY).to(END)
+                .from(NOTIFY).onEvent(ADVANCE).to(END)
                 .postAction(persistWorkflowStatus)
-                .auto()
-                .deferWith(afterCommitScheduler)
                 .end()
 
                 .build()
                 .createDomainFsm();
+    }
+
+    private static String notificationIdempotencyKey(ExternalWorkflow workflow) {
+        return "external-workflow:" + workflow.getId() + ":notification";
     }
 }
