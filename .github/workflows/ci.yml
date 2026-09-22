@@ -67,6 +67,37 @@ jobs:
         name: build-artifacts
         path: fsm/build/libs/*.jar
 
+  editor-e2e:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: fsm-visual-editor/package-lock.json
+      - uses: gradle/actions/setup-gradle@v4
+      - run: npm ci
+        working-directory: fsm-visual-editor
+      - run: npx playwright install --with-deps chromium
+        working-directory: fsm-visual-editor
+      - run: npm run test:e2e
+        working-directory: fsm-visual-editor
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: editor-browser-failures
+          path: |
+            fsm-visual-editor/playwright-report/
+            fsm-visual-editor/test-results/
+            fsm-visual-editor/e2e-server.log
+
   dependency-submission:
     runs-on: ubuntu-latest
     permissions:

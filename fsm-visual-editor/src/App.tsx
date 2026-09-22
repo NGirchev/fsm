@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { Dispatch, SetStateAction } from 'react';
+import type { Dispatch, SetStateAction, ReactNode } from 'react';
 import {
   Background,
   Controls,
@@ -51,8 +51,15 @@ import { createId, slugifyId, uniqueId } from './domain/ids';
 type Selection = { type: 'state' | 'transition'; id: string } | null;
 const SAMPLE_PROJECT_ID = 'document-fsm-sample';
 
-export function App() {
-  const [document, setDocument] = useState<FsmEditorDocument>(() => loadEditorDocument() ?? sampleDocument);
+export interface EmbeddedEditor {
+  initialDocument: FsmEditorDocument;
+  onDocumentChange: (document: FsmEditorDocument) => void;
+  toolbar: ReactNode;
+  readOnly: boolean;
+}
+
+export function App({ embedded }: { embedded?: EmbeddedEditor }) {
+  const [document, setDocument] = useState<FsmEditorDocument>(() => embedded?.initialDocument ?? loadEditorDocument() ?? sampleDocument);
   const [currentProjectId, setCurrentProjectId] = useState(() => {
     const savedProjectId = loadCurrentProjectId();
 
@@ -67,9 +74,14 @@ export function App() {
   const [selection, setSelection] = useState<Selection>(null);
   const [status, setStatus] = useState('Ready');
   const importInputRef = useRef<HTMLInputElement>(null);
-  const validationIssues = useMemo(() => validateEditorDocument(document), [document]);
+  const validationIssues = useMemo(() => validateEditorDocument(document, Boolean(embedded)), [document, Boolean(embedded)]);
+  const onDocumentChange = embedded?.onDocumentChange;
+  const readOnly = embedded?.readOnly ?? false;
+
+  useEffect(() => { onDocumentChange?.(document); }, [document, onDocumentChange]);
 
   useEffect(() => {
+    if (embedded) return;
     saveEditorDocument(document);
     saveCurrentProjectId(currentProjectId);
 
@@ -84,6 +96,7 @@ export function App() {
   }, [currentProjectId, document]);
 
   useEffect(() => {
+    if (embedded) return;
     void loadRecentProjects(setRecentProjects);
   }, []);
 
@@ -91,6 +104,7 @@ export function App() {
     () =>
       document.states.map((state) => ({
         id: state.id,
+        selected: selection?.type === 'state' && selection.id === state.id,
         position: state.position,
         data: {
           label: state.label,
@@ -104,6 +118,7 @@ export function App() {
     () =>
       document.transitions.map((transition) => ({
         id: transition.id,
+        selected: selection?.type === 'transition' && selection.id === transition.id,
         source: transition.from,
         target: transition.to,
         label: transitionLabel(transition),
@@ -118,14 +133,21 @@ export function App() {
     selection?.type === 'transition' ? document.transitions.find((transition) => transition.id === selection.id) : undefined;
 
   const onNodesChange = useCallback((changes: NodeChange[]) => {
+    if (readOnly) return;
+    setSelection((current) => current?.type === 'state' && changes.some((change) => change.type === 'remove' && change.id === current.id)
+      ? null : current);
     setDocument((current) => applyNodeChangesToDocument(current, changes));
-  }, []);
+  }, [readOnly]);
 
   const onEdgesChange = useCallback((changes: EdgeChange[]) => {
+    if (readOnly) return;
+    setSelection((current) => current?.type === 'transition' && changes.some((change) => change.type === 'remove' && change.id === current.id)
+      ? null : current);
     setDocument((current) => applyEdgeChangesToDocument(current, changes));
-  }, []);
+  }, [readOnly]);
 
   const onConnect = useCallback((connection: Connection) => {
+    if (readOnly) return;
     const source = connection.source;
     const target = connection.target;
 
@@ -140,7 +162,7 @@ export function App() {
 
     setDocument((current) => addAutoTransition(current, source, target));
     setStatus('Auto transition added');
-  }, [document]);
+  }, [document, readOnly]);
 
   const addState = () => {
     setDocument((current) => {
@@ -243,6 +265,7 @@ export function App() {
 
       if (importedDocument) {
         setDocument(importedDocument);
+        setSelection(null);
         setCurrentProjectId(createProjectId(importedDocument));
         setStatus(`Imported editor JSON: ${file.name}`);
         return;
@@ -336,6 +359,8 @@ export function App() {
           </div>
         </div>
         <div className="toolbar-actions">
+          {embedded?.toolbar}
+          {!embedded && <>
           <select
             className="recent-select"
             value={currentProjectId}
@@ -367,7 +392,8 @@ export function App() {
           >
             <Trash2 size={18} />
           </button>
-          <button type="button" className="icon-button" onClick={addState} title="Add state" aria-label="Add state">
+          </>}
+          <button type="button" className="icon-button" disabled={readOnly} onClick={addState} title="Add state" aria-label="Add state">
             <Plus size={18} />
           </button>
           <button
@@ -376,25 +402,29 @@ export function App() {
             onClick={() => importInputRef.current?.click()}
             title="Import JSON"
             aria-label="Import JSON"
+            disabled={readOnly}
           >
             <Upload size={18} />
           </button>
           <button type="button" className="icon-button" onClick={exportEditorJson} title="Export editor JSON" aria-label="Export editor JSON">
             <FileJson size={18} />
           </button>
-          <button type="button" className="text-button" onClick={exportJava} title="Generate Java class">
+          {!embedded && <><button type="button" className="text-button" onClick={exportJava} title="Generate Java class"
+            disabled={validationIssues.some((issue) => issue.severity === 'error')}>
             JAVA
           </button>
-          <button type="button" className="text-button" onClick={exportKotlin} title="Generate Kotlin class">
+          <button type="button" className="text-button" onClick={exportKotlin} title="Generate Kotlin class"
+            disabled={validationIssues.some((issue) => issue.severity === 'error')}>
             KT
           </button>
+          </>}
           <button
             type="button"
             className="icon-button danger"
             onClick={deleteSelection}
             title="Delete selected"
             aria-label="Delete selected"
-            disabled={!selection}
+            disabled={readOnly || !selection}
           >
             <Trash2 size={18} />
           </button>
@@ -416,6 +446,9 @@ export function App() {
       <main className="workspace">
         <section className="canvas" aria-label="FSM graph">
           <ReactFlow
+            nodesDraggable={!readOnly}
+            nodesConnectable={!readOnly}
+            deleteKeyCode={readOnly ? null : 'Backspace'}
             nodes={nodes}
             edges={edges}
             onNodesChange={onNodesChange}
@@ -434,11 +467,14 @@ export function App() {
         </section>
 
         <aside className="inspector">
-          <ProjectPanel document={document} setDocument={setDocument} />
+          <fieldset disabled={readOnly} className="editor-fields">
+          <ProjectPanel document={document} setDocument={setDocument} runtime={Boolean(embedded)} />
           <EventPanel document={document} setDocument={setDocument} addEvent={addEvent} deleteEvent={deleteEvent} />
+          {embedded && <p className="muted">Guard and action IDs must be existing Spring bean names. Publication checks these references.</p>}
           <BehaviorPanel document={document} setDocument={setDocument} addBehavior={addBehavior} deleteBehavior={deleteBehavior} />
           {selectedState && <StateInspector state={selectedState} document={document} setDocument={setDocument} />}
-          {selectedTransition && <TransitionInspector transition={selectedTransition} document={document} setDocument={setDocument} />}
+          {selectedTransition && <TransitionInspector transition={selectedTransition} document={document} setDocument={setDocument} runtime={Boolean(embedded)} />}
+          </fieldset>
           <ValidationPanel issues={validationIssues} />
         </aside>
       </main>
@@ -449,9 +485,11 @@ export function App() {
 function ProjectPanel({
   document,
   setDocument,
+  runtime = false,
 }: {
   document: FsmEditorDocument;
   setDocument: Dispatch<SetStateAction<FsmEditorDocument>>;
+  runtime?: boolean;
 }) {
   return (
     <section className="panel">
@@ -460,7 +498,7 @@ function ProjectPanel({
         Name
         <input value={document.name} onChange={(event) => setDocument((current) => ({ ...current, name: event.target.value }))} />
       </label>
-      <label>
+      {!runtime && <><label>
         Package
         <input
           value={document.codegen.packageName}
@@ -481,11 +519,12 @@ function ProjectPanel({
           <input value={document.codegen.stateType} onChange={(event) => updateCodegen(setDocument, 'stateType', event.target.value)} />
         </label>
       </div>
+      </>}
       <div className="field-row">
-        <label>
+        {!runtime && <label>
           Event
           <input value={document.codegen.eventType} onChange={(event) => updateCodegen(setDocument, 'eventType', event.target.value)} />
-        </label>
+        </label>}
         <label>
           Initial
           <select
@@ -500,13 +539,18 @@ function ProjectPanel({
           </select>
         </label>
       </div>
-      <label>
+      {!runtime && <label>
         Code style
         <select value={document.codegen.style} onChange={(event) => updateCodegen(setDocument, 'style', event.target.value)}>
           <option value="fluent">Fluent chain</option>
           <option value="builder">Builder add calls</option>
         </select>
-      </label>
+      </label>}
+      {runtime && <label>
+        Automatic transition limit
+        <input type="number" min="0" max="2147483647" value={document.maxImmediateAutoTransitions ?? 0}
+          onChange={(event) => setDocument((current) => ({ ...current, maxImmediateAutoTransitions: Number(event.target.value) }))} />
+      </label>}
       <label className="toggle-row">
         <input
           type="checkbox"
@@ -558,6 +602,7 @@ function EventList({
       {events.map((eventRef, index) => (
         <div className="behavior-row" key={`event-${index}`}>
           <input
+            aria-label={`Event ID ${index + 1}`}
             value={eventRef.id}
             onChange={(event) => setDocument((current) => renameEventAtIndex(current, index, event.target.value))}
           />
@@ -629,7 +674,7 @@ function BehaviorList({
     <div className="behavior-list">
       <div className="section-head">
         <span>{title}</span>
-        <button type="button" className="small-button" onClick={() => addBehavior(kind)}>
+        <button type="button" className="small-button" aria-label={kind === 'conditions' ? 'Add guard' : 'Add action'} onClick={() => addBehavior(kind)}>
           <Plus size={14} />
         </button>
       </div>
@@ -637,6 +682,7 @@ function BehaviorList({
       {behaviors.map((behavior, index) => (
         <div className="behavior-row" key={`${kind}-${index}`}>
           <input
+            aria-label={`${kind === 'conditions' ? 'Guard' : 'Action'} ID ${index + 1}`}
             value={behavior.id}
             onChange={(event) =>
               setDocument((current) => renameBehaviorAtIndex(current, kind, index, event.target.value))
@@ -711,10 +757,12 @@ function TransitionInspector({
   transition,
   document,
   setDocument,
+  runtime = false,
 }: {
   transition: FsmTransition;
   document: FsmEditorDocument;
   setDocument: Dispatch<SetStateAction<FsmEditorDocument>>;
+  runtime?: boolean;
 }) {
   const updateTransition = (patch: Partial<FsmTransition>) => {
     setDocument((current) => ({
@@ -761,7 +809,7 @@ function TransitionInspector({
         <button
           type="button"
           className={transition.trigger.kind === 'event' ? 'active' : ''}
-          onClick={() => eventTrigger && updateTransition({ trigger: { kind: 'event', event: eventTrigger } })}
+          onClick={() => eventTrigger && updateTransition({ trigger: { kind: 'event', event: eventTrigger }, autoTransitionEnabled: false })}
           disabled={!eventTrigger}
           title={eventTrigger ? undefined : 'Create an event first'}
         >
@@ -780,7 +828,7 @@ function TransitionInspector({
           Event
           <select
             value={transition.trigger.event}
-            onChange={(event) => updateTransition({ trigger: { kind: 'event', event: event.target.value } })}
+            onChange={(event) => updateTransition({ trigger: { kind: 'event', event: event.target.value }, autoTransitionEnabled: false })}
           >
             {document.events.map((eventRef) => (
               <option key={eventRef.id} value={eventRef.id}>
@@ -796,6 +844,11 @@ function TransitionInspector({
         selected={transition.conditions}
         onChange={(conditions) => updateTransition({ conditions })}
       />
+      {runtime && transition.trigger.kind === 'auto' && <label className="toggle-row">
+        <input type="checkbox" checked={transition.autoTransitionEnabled ?? false}
+          onChange={(event) => updateTransition({ autoTransitionEnabled: event.target.checked })} />
+        Run this transition automatically even when global auto transitions are disabled
+      </label>}
       <BehaviorPicker
         title="Actions"
         options={document.behaviors.actions}

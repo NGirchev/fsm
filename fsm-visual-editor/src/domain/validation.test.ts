@@ -68,6 +68,26 @@ describe('validateEditorDocument', () => {
     );
   });
 
+  it.each([false, true])('rejects local auto on event transitions (runtime=%s)', (runtime) => {
+    const document = {
+      ...sampleDocument,
+      transitions: [{ ...sampleDocument.transitions[0], autoTransitionEnabled: true }],
+    };
+    expect(validateEditorDocument(document, runtime)).toContainEqual({
+      severity: 'error', path: 'transitions[0].autoTransitionEnabled',
+      message: 'Only eventless transitions can be enabled for automatic execution.',
+    });
+  });
+
+  it('does not warn that a locally enabled eventless transition is disabled', () => {
+    const document = {
+      ...sampleDocument,
+      autoTransitionEnabled: false,
+      transitions: [{ ...sampleDocument.transitions[0], trigger: { kind: 'auto' as const }, autoTransitionEnabled: true }],
+    };
+    expect(validateEditorDocument(document).filter((issue) => issue.path.startsWith('transitions'))).toEqual([]);
+  });
+
   it('requires codegen metadata and a valid timeout', () => {
     const document = {
       ...sampleDocument,

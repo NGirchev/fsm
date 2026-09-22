@@ -3,11 +3,14 @@
 /fsm-visual-editor/node_modules/
 /fsm-visual-editor/dist/
 /fsm-visual-editor/coverage/
+/fsm-visual-editor/test-results/
+/fsm-visual-editor/playwright-report/
 /fsm-visual-editor/projects/*.fsm.json
 !/fsm-visual-editor/projects/.gitkeep
 /.idea/
 /.gradle/
 /.gradle-local/
+/.kotlin/
 *.DS_Store
 
 # Compiled class file

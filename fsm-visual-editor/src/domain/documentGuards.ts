@@ -10,12 +10,14 @@ interface LegacyTransition {
   actions?: string[];
   postActions?: string[];
   timeout?: unknown;
+  autoTransitionEnabled?: boolean;
 }
 
 interface LegacyDocument {
   formatVersion?: number;
   name?: string;
   autoTransitionEnabled?: boolean;
+  maxImmediateAutoTransitions?: number;
   codegen?: Partial<FsmEditorDocument['codegen']>;
   states?: unknown[];
   transitions?: unknown[];
@@ -117,6 +119,8 @@ function hasValidDocumentMetadata(value: LegacyDocument): boolean {
   return (
     (value.name === undefined || typeof value.name === 'string') &&
     (value.autoTransitionEnabled === undefined || typeof value.autoTransitionEnabled === 'boolean') &&
+    (value.maxImmediateAutoTransitions === undefined ||
+      (Number.isInteger(value.maxImmediateAutoTransitions) && value.maxImmediateAutoTransitions >= 0)) &&
     (value.updatedAt === undefined || typeof value.updatedAt === 'string') &&
     (value.events === undefined || Array.isArray(value.events))
   );
@@ -148,6 +152,7 @@ function isLegacyTransition(value: unknown): value is LegacyTransition {
     typeof value.id === 'string' &&
     typeof value.from === 'string' &&
     typeof value.to === 'string' &&
+    (value.autoTransitionEnabled === undefined || typeof value.autoTransitionEnabled === 'boolean') &&
     (value.event === undefined || value.event === null || typeof value.event === 'string') &&
     isOptionalStringArray(value.conditions) &&
     isOptionalStringArray(value.actions) &&

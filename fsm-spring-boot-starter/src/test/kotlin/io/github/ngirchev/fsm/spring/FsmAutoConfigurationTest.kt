@@ -8,6 +8,9 @@ import io.github.ngirchev.fsm.Timeout
 import io.github.ngirchev.fsm.impl.extended.ExFsm
 import io.github.ngirchev.fsm.impl.extended.ExTransitionTable
 import io.github.ngirchev.fsm.exception.FsmEventSourcingTransitionFailedException
+import io.github.ngirchev.fsm.spring.definition.FlowLoader
+import io.github.ngirchev.fsm.spring.definition.FlowService
+import io.github.ngirchev.fsm.spring.definition.FlowStore
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
@@ -118,10 +121,19 @@ class FsmAutoConfigurationTest {
         ApplicationContextRunner().withUserConfiguration(BootApplication::class.java).run { context ->
             assertThat(context).hasSingleBean(FsmBeanRegistry::class.java)
                 .hasSingleBean(SpringFsmJsonSerializer::class.java)
+                .hasSingleBean(FlowLoader::class.java)
+                .doesNotHaveBean(FlowService::class.java)
             val table = ExTransitionTable.Builder<String, String>().add("NEW", "GO", "DONE").build()
             val serializer = context.getBean(SpringFsmJsonSerializer::class.java)
             assertThat(serializer.toDto(serializer.deserialize(serializer.serialize(table), { it }, { it })))
                 .isEqualTo(serializer.toDto(table))
+        }
+    }
+
+    @Test
+    fun `flow service is registered when an application provides a store`() {
+        runner.withBean(FlowStore::class.java, { org.mockito.Mockito.mock(FlowStore::class.java) }).run { context ->
+            assertThat(context).hasSingleBean(FlowService::class.java)
         }
     }
 

@@ -5,6 +5,7 @@ The starter includes the core library and targets Spring Boot 3.5 / Java 17+.
 For this checkout use `implementation(project(":fsm-spring-boot-starter"))`.
 
 Boot automatically registers `FsmBeanRegistry` and `SpringFsmJsonSerializer`.
+It also registers `FlowLoader`, and registers `FlowService` when the application provides a `FlowStore` bean.
 No component scan or explicit import of the starter package is needed.
 Application-defined beans of these types replace the defaults. The serializer uses
 the application's Jackson `ObjectMapper`.
@@ -68,9 +69,23 @@ Set `fsm.tasks.enabled=false` when processing is owned by an external job runner
 dedicated single-threaded `fsmTaskScheduler`; applications can replace that named `TaskScheduler`
 bean when they need different execution infrastructure.
 
-The starter does not create a shared mutable FSM, access a database or manage flow versions. Create
-an FSM for each domain object using the restored table. Persistence, initial state, task storage and
-business validation remain application responsibilities.
+## Versioned flows
+
+`FlowService` owns version numbering, draft editing/deletion, definition validation and publication.
+Stores supporting deletion implement `deleteDraft`: hide the draft from `get`/`list`, but retain
+its allocated number in `latest` so stale clients cannot address a replacement version. The
+default implementation rejects deletion for stores that have not opted in.
+`FlowDefinition.editor` optionally carries visual editor metadata. It is stored with the definition
+and ignored by `FlowLoader`; definitions without this field remain supported. Stores that persist
+definitions as JSON should retain this field when reading and writing versions.
+Applications implement `FlowStore` to lock a flow key, read versions and persist changes. The
+service runs mutations in a transaction; the store must hold its lock until that transaction ends
+and persist status changes in order. Failed validation leaves the previous version active. The
+starter does not choose a database, schema or locking strategy. The
+[example](../fsm-spring-boot-example/README.md) implements the store with JPA and PostgreSQL.
+
+Create an FSM for each domain object using the restored table. Domain state storage and business
+validation remain application responsibilities.
 
 ```bash
 ./gradlew :fsm-spring-boot-starter:test

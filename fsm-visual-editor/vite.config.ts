@@ -11,7 +11,7 @@ export default defineConfig({
 });
 
 function projectsApiPlugin(): Plugin {
-  const projectsDir = path.resolve(__dirname, 'projects');
+  const projectsDir = process.env.FSM_EDITOR_PROJECTS_DIR ?? path.resolve(__dirname, 'projects');
 
   return {
     name: 'fsm-visual-editor-projects-api',

@@ -2,7 +2,7 @@ spring:
   application:
     name: fsm-spring-boot-example
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/fsm}
+    url: ${DB_URL:jdbc:postgresql://localhost:${POSTGRES_PORT:55439}/fsm}
     username: ${DB_USER:fsm}
     password: ${DB_PASSWORD:fsm}
   jpa:

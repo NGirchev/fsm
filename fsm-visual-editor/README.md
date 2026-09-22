@@ -9,6 +9,46 @@ npm install
 npm run dev
 ```
 
+## Embedded example mode
+
+The Spring Boot example reuses this application's graph editor at `/fsm-editor/`.
+Its Gradle build runs the frontend build with `--mode example` and bundles the result as static
+resources. That mode opens the application's `order` flow and uses its version API to create drafts,
+save both runtime JSON and visual layout, and publish. Active/archived versions are read-only.
+The standalone mode above continues to use local projects and Java/Kotlin generation.
+
+See [the example instructions](../fsm-spring-boot-example/README.md#visual-order-editor) to run it.
+
+## Browser regression tests
+
+Requires Node 22+, Java 17+ and a running Docker daemon. From this directory:
+
+```bash
+npm ci
+npx playwright install chromium
+npm run test:e2e
+```
+
+The runner builds the example, starts a disposable PostgreSQL container and Spring application
+under `/test`, and gives Vite a temporary projects directory. It never uses the development
+database or `projects/`. Chromium runs headlessly with a fresh context per test. Servers,
+container and temporary files are removed on completion or interruption. On failure, see
+`playwright-report/`, `test-results/` (screenshots and traces) and `e2e-server.log`.
+Pass Playwright options after `--`, for example `npm run test:e2e -- --grep 'delete draft'`.
+
+| Scenarios | Tests |
+| --- | --- |
+| Project settings, validation, add/rename/describe/drag/delete states, keyboard deletion and cascading edges | `e2e/graph.spec.ts`, both modes |
+| Connect handles, duplicate connections, edge selection/deletion, endpoints, event/auto trigger, guards/actions/post-actions, timeout units | `e2e/graph.spec.ts`, both modes |
+| Event and behavior creation/rename/deletion, reference propagation, JSON import/export and invalid input | `e2e/graph.spec.ts`, both modes |
+| Zoom, fit, minimap, interaction lock | `e2e/graph.spec.ts`, both modes |
+| Create/save/discard/delete/cancel, reload/layout persistence, read-only versions, failure/retry paths | `e2e/order.spec.ts` |
+| Publish validation, new order version and unchanged existing orders, protected active/archive versions | `e2e/order.spec.ts` |
+| Autosave, browser fallback, project switch/delete, failed project requests, Java/Kotlin exports in both styles | `e2e/projects.spec.ts` |
+
+Successful order operations use the real HTTP API and database. Failure scenarios deliberately
+intercept only the request whose error handling is being tested. Unit tests remain `npm test`.
+
 ## GitHub Pages
 
 The repository publishes this editor with the `GitHub Pages` workflow. The workflow builds the static Vite app from this directory and deploys `dist`.

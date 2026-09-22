@@ -44,6 +44,7 @@ export interface FsmTransition {
   actions: string[];
   postActions: string[];
   timeout?: TimeoutConfig;
+  autoTransitionEnabled?: boolean;
 }
 
 export interface BehaviorRef {
@@ -66,6 +67,7 @@ export interface FsmEditorDocument {
   formatVersion: typeof EDITOR_FORMAT_VERSION;
   name: string;
   autoTransitionEnabled: boolean;
+  maxImmediateAutoTransitions?: number;
   codegen: CodegenConfig;
   states: FsmState[];
   events: BehaviorRef[];
