@@ -3,21 +3,23 @@ import { CODEGEN_STYLES, TIME_UNITS, type FsmEditorDocument, type FsmTransition,
 const javaIdentifierPattern = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 const qualifiedJavaIdentifierPattern = /^[A-Za-z_$][A-Za-z0-9_$]*(\.[A-Za-z_$][A-Za-z0-9_$]*)*$/;
 
-export function validateEditorDocument(document: FsmEditorDocument): ValidationIssue[] {
+export function validateEditorDocument(document: FsmEditorDocument, runtime = false): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
   requireText(document.name, 'name', 'FSM name is required.', issues);
-  requireQualifiedIdentifier(document.codegen.packageName, 'codegen.packageName', 'Package name must be a valid Java package.', issues);
-  requireIdentifier(document.codegen.className, 'codegen.className', 'Class name must be a valid Java identifier.', issues);
-  requireIdentifier(
-    document.codegen.factoryMethodName,
-    'codegen.factoryMethodName',
-    'Factory method name must be a valid Java identifier.',
-    issues,
-  );
-  requireIdentifier(document.codegen.domainType, 'codegen.domainType', 'Domain type must be a valid Java identifier.', issues);
-  requireIdentifier(document.codegen.stateType, 'codegen.stateType', 'State type must be a valid Java identifier.', issues);
-  requireIdentifier(document.codegen.eventType, 'codegen.eventType', 'Event type must be a valid Java identifier.', issues);
+  if (!runtime) {
+    requireQualifiedIdentifier(document.codegen.packageName, 'codegen.packageName', 'Package name must be a valid Java package.', issues);
+    requireIdentifier(document.codegen.className, 'codegen.className', 'Class name must be a valid Java identifier.', issues);
+    requireIdentifier(
+      document.codegen.factoryMethodName,
+      'codegen.factoryMethodName',
+      'Factory method name must be a valid Java identifier.',
+      issues,
+    );
+    requireIdentifier(document.codegen.domainType, 'codegen.domainType', 'Domain type must be a valid Java identifier.', issues);
+    requireIdentifier(document.codegen.stateType, 'codegen.stateType', 'State type must be a valid Java identifier.', issues);
+    requireIdentifier(document.codegen.eventType, 'codegen.eventType', 'Event type must be a valid Java identifier.', issues);
+  }
   requireText(document.codegen.initialState, 'codegen.initialState', 'Initial state is required.', issues);
 
   if (!CODEGEN_STYLES.includes(document.codegen.style)) {
@@ -31,7 +33,7 @@ export function validateEditorDocument(document: FsmEditorDocument): ValidationI
     const path = `states[${index}]`;
     requireText(state.id, `${path}.id`, 'State id is required.', issues);
     requireText(state.label, `${path}.label`, 'State label is required.', issues);
-    requireIdentifier(state.label, `${path}.label`, 'State label must be a valid Java enum constant.', issues);
+    if (!runtime) requireIdentifier(state.label, `${path}.label`, 'State label must be a valid Java enum constant.', issues);
 
     if (stateIds.has(state.id)) {
       issues.push({ severity: 'error', path: `${path}.id`, message: `Duplicate state id "${state.id}".` });
@@ -39,7 +41,7 @@ export function validateEditorDocument(document: FsmEditorDocument): ValidationI
     stateIds.add(state.id);
 
     if (stateLabels.has(state.label)) {
-      issues.push({ severity: 'warning', path: `${path}.label`, message: `Duplicate state label "${state.label}".` });
+      issues.push({ severity: runtime ? 'error' : 'warning', path: `${path}.label`, message: `Duplicate state label "${state.label}".` });
     }
     stateLabels.add(state.label);
   });
@@ -56,9 +58,20 @@ export function validateEditorDocument(document: FsmEditorDocument): ValidationI
     });
   }
 
-  const conditionIds = validateBehaviorIds(document.behaviors.conditions, 'behaviors.conditions', issues);
-  const actionIds = validateBehaviorIds(document.behaviors.actions, 'behaviors.actions', issues);
-  const eventIds = validateBehaviorIds(document.events, 'events', issues, 'Event id must be a Java enum constant.');
+  const conditionIds = validateBehaviorIds(document.behaviors.conditions, 'behaviors.conditions', issues, undefined, runtime);
+  const actionIds = validateBehaviorIds(document.behaviors.actions, 'behaviors.actions', issues, undefined, runtime);
+  const eventIds = validateBehaviorIds(document.events, 'events', issues, 'Event id must be a Java enum constant.', runtime);
+  if (runtime) {
+    document.events.forEach((event, index) => {
+      if (event.id.length > 120) {
+        issues.push({ severity: 'error', path: `events[${index}].id`, message: 'Event ID must contain at most 120 characters.' });
+      }
+    });
+  }
+  const limit = document.maxImmediateAutoTransitions ?? 0;
+  if (!Number.isInteger(limit) || limit < 0 || limit > 2147483647) {
+    issues.push({ severity: 'error', path: 'maxImmediateAutoTransitions', message: 'Automatic transition limit must be a non-negative integer.' });
+  }
   const transitionIds = new Set<string>();
   const transitionKeys = new Map<string, number>();
   const hasEventTransition = document.transitions.some((transition) => transition.trigger.kind === 'event');
@@ -100,14 +113,18 @@ export function validateEditorDocument(document: FsmEditorDocument): ValidationI
     }
 
     if (transition.trigger.kind === 'event') {
+      if (transition.autoTransitionEnabled) {
+        issues.push({ severity: 'error', path: `${path}.autoTransitionEnabled`,
+          message: 'Only eventless transitions can be enabled for automatic execution.' });
+      }
       if (!eventIds.has(transition.trigger.event)) {
         issues.push({ severity: 'error', path: `${path}.trigger.event`, message: `Unknown event "${transition.trigger.event}".` });
       }
-    } else if (!document.autoTransitionEnabled) {
+    } else if (!document.autoTransitionEnabled && !transition.autoTransitionEnabled) {
       issues.push({
         severity: 'warning',
         path: `${path}.trigger`,
-        message: 'Auto transition will not run after event handling while auto transitions are disabled.',
+        message: 'This automatic transition is disabled and will not run after an event.',
       });
     }
 
@@ -154,12 +171,14 @@ function validateBehaviorIds(
   path: string,
   issues: ValidationIssue[],
   identifierMessage = 'Behavior id must be a Java identifier.',
+  runtime = false,
 ): Set<string> {
   const ids = new Set<string>();
 
   behaviors.forEach((behavior, index) => {
     const itemPath = `${path}[${index}]`;
-    requireIdentifier(behavior.id, `${itemPath}.id`, identifierMessage, issues);
+    if (runtime) requireText(behavior.id, `${itemPath}.id`, 'ID is required.', issues);
+    else requireIdentifier(behavior.id, `${itemPath}.id`, identifierMessage, issues);
 
     if (ids.has(behavior.id)) {
       issues.push({ severity: 'error', path: `${itemPath}.id`, message: `Duplicate behavior id "${behavior.id}".` });

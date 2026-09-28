@@ -28,7 +28,9 @@ fun <STATE, EVENT> ExTransitionTable<STATE, EVENT>.toJson(output: OutputStream) 
 }
 
 /**
- * Deserializes JSON string to ExTransitionTable
+ * Deserializes JSON string to ExTransitionTable.
+ * Action and guard factories are optional best-effort helpers: missing factories or unknown IDs
+ * drop only the affected actions/guards.
  */
 fun <STATE, EVENT> String.fromJson(
     stateParser: (String) -> STATE,
@@ -40,7 +42,8 @@ fun <STATE, EVENT> String.fromJson(
 }
 
 /**
- * Deserializes JSON file to ExTransitionTable
+ * Deserializes JSON file to ExTransitionTable with the same best-effort action/guard restore as
+ * [String.fromJson].
  */
 fun <STATE, EVENT> Path.fromJson(
     stateParser: (String) -> STATE,
@@ -53,7 +56,8 @@ fun <STATE, EVENT> Path.fromJson(
 }
 
 /**
- * Deserializes JSON from InputStream to ExTransitionTable
+ * Deserializes JSON from InputStream to ExTransitionTable with the same best-effort
+ * action/guard restore as [String.fromJson].
  */
 fun <STATE, EVENT> InputStream.fromJson(
     stateParser: (String) -> STATE,

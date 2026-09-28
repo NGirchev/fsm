@@ -93,13 +93,61 @@ class IdGuard<T>(
     override fun invoke(context: T): Boolean = guard(context)
 }
 
-data class To<STATE>(
+/**
+ * Target state of a transition together with its declarative content
+ * (conditions, actions, postActions, timeout) plus an optional local auto-transition flag.
+ */
+class To<STATE>(
     val state: STATE,
     val conditions: List<Guard<in StateContext<STATE>>>,
     val actions: List<Action<in StateContext<STATE>>>,
     val postActions: List<Action<in StateContext<STATE>>>,
-    val timeout: Timeout? = null
-)
+    val timeout: Timeout? = null,
+) {
+    var autoTransitionEnabled: Boolean = false
+        private set
+
+    constructor(
+        state: STATE,
+        conditions: List<Guard<in StateContext<STATE>>>,
+        actions: List<Action<in StateContext<STATE>>>,
+        postActions: List<Action<in StateContext<STATE>>>,
+        timeout: Timeout? = null,
+        autoTransitionEnabled: Boolean,
+    ) : this(state, conditions, actions, postActions, timeout) {
+        this.autoTransitionEnabled = autoTransitionEnabled
+    }
+
+    // Keep the original five-argument copy JVM API while retaining local auto-transition metadata.
+    fun copy(
+        state: STATE = this.state,
+        conditions: List<Guard<in StateContext<STATE>>> = this.conditions,
+        actions: List<Action<in StateContext<STATE>>> = this.actions,
+        postActions: List<Action<in StateContext<STATE>>> = this.postActions,
+        timeout: Timeout? = this.timeout,
+    ): To<STATE> = To(state, conditions, actions, postActions, timeout, autoTransitionEnabled)
+
+    operator fun component1(): STATE = state
+    operator fun component2(): List<Guard<in StateContext<STATE>>> = conditions
+    operator fun component3(): List<Action<in StateContext<STATE>>> = actions
+    operator fun component4(): List<Action<in StateContext<STATE>>> = postActions
+    operator fun component5(): Timeout? = timeout
+
+    override fun equals(other: Any?): Boolean =
+        this === other || other is To<*> && state == other.state && conditions == other.conditions &&
+            actions == other.actions && postActions == other.postActions && timeout == other.timeout
+
+    override fun hashCode(): Int {
+        var result = state?.hashCode() ?: 0
+        result = 31 * result + conditions.hashCode()
+        result = 31 * result + actions.hashCode()
+        result = 31 * result + postActions.hashCode()
+        return 31 * result + (timeout?.hashCode() ?: 0)
+    }
+
+    override fun toString(): String =
+        "To(state=$state, conditions=$conditions, actions=$actions, postActions=$postActions, timeout=$timeout)"
+}
 
 // Top-level factory function for backwards compatibility - accepts single nullable values
 fun <STATE> To(
@@ -107,13 +155,29 @@ fun <STATE> To(
     condition: Guard<in StateContext<STATE>>? = null,
     action: Action<in StateContext<STATE>>? = null,
     postAction: Action<in StateContext<STATE>>? = null,
-    timeout: Timeout? = null
+    timeout: Timeout? = null,
 ): To<STATE> = To(
     state = state,
     conditions = listOfNotNull(condition),
     actions = listOfNotNull(action),
     postActions = listOfNotNull(postAction),
-    timeout = timeout
+    timeout = timeout,
+)
+
+fun <STATE> To(
+    state: STATE,
+    condition: Guard<in StateContext<STATE>>? = null,
+    action: Action<in StateContext<STATE>>? = null,
+    postAction: Action<in StateContext<STATE>>? = null,
+    timeout: Timeout? = null,
+    autoTransitionEnabled: Boolean,
+): To<STATE> = To(
+    state = state,
+    conditions = listOfNotNull(condition),
+    actions = listOfNotNull(action),
+    postActions = listOfNotNull(postAction),
+    timeout = timeout,
+    autoTransitionEnabled = autoTransitionEnabled,
 )
 
 data class Timeout(

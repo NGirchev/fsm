@@ -5,23 +5,10 @@ import org.junit.jupiter.api.Test
 import io.github.ngirchev.fsm.exception.FsmException
 import io.github.ngirchev.fsm.Timeout
 import kotlin.test.assertEquals
+import kotlin.test.assertSame
+import kotlin.test.assertTrue
 
 class ToMultipleTransitionBuilderTest {
-
-    @Test
-    fun onEventWhenCalledTwiceThenThrowException() {
-        val builder = ExTransitionTable.Builder<String, String>()
-        val toMultipleBuilder = builder.from("from").toMultiple()
-        val toMultipleTransitionBuilder = toMultipleBuilder.to("to")
-
-        toMultipleTransitionBuilder.onEvent("event1")
-
-        val exception = assertThrows(FsmException::class.java) {
-            toMultipleTransitionBuilder.onEvent("event2")
-        }
-
-        assertEquals("Already has event", exception.message)
-    }
 
     @Test
     fun timeoutWhenCalledTwiceThenThrowException() {
@@ -50,11 +37,39 @@ class ToMultipleTransitionBuilderTest {
     }
 
     @Test
+    fun autoShouldMarkTransitionAsAuto() {
+        val builder = ExTransitionTable.Builder<String, String>()
+        val toMultipleBuilder = builder.from("from").toMultiple()
+
+        toMultipleBuilder.to("to")
+            .auto()
+            .end()
+            .endMultiple()
+
+        val transition = builder.build().transitions["from"]?.single() ?: error("Expected transition")
+        assertTrue(transition.to.autoTransitionEnabled)
+    }
+
+    @Test
+    fun autoShouldRejectEventTransition() {
+        val builder = ExTransitionTable.Builder<String, String>()
+        val toMultipleBuilder = builder.from("from").toMultiple()
+        val toMultipleTransitionBuilder = toMultipleBuilder.to("to", "event")
+
+        val exception = assertThrows(FsmException::class.java) {
+            toMultipleTransitionBuilder.auto()
+        }
+
+        assertEquals("Only eventless auto transitions can be configured as auto", exception.message)
+    }
+
+    @Test
     fun endShouldAddTransitionToMultipleBuilder() {
         val builder = ExTransitionTable.Builder<String, String>()
         val toMultipleBuilder = builder.from("from").toMultiple()
-        val toMultipleTransitionBuilder = toMultipleBuilder.to("to")
+        val toMultipleTransitionBuilder = toMultipleBuilder
             .onEvent("event")
+            .to("to")
             .onCondition { true }
             .action { }
             .postAction { }
@@ -64,6 +79,7 @@ class ToMultipleTransitionBuilderTest {
         toMultipleBuilder.endMultiple()
 
         val table = builder.build()
-        assertEquals(1, table.transitions.size)
+        val transition = table.transitions["from"]?.single() ?: error("Expected transition")
+        assertEquals("event", transition.event)
     }
 }

@@ -78,6 +78,9 @@ function appendFluentFactory(
   if (document.autoTransitionEnabled) {
     lines.push('                .autoTransitionEnabled(true)');
   }
+  if (document.maxImmediateAutoTransitions) {
+    lines.push(`                .maxImmediateAutoTransitions(${document.maxImmediateAutoTransitions})`);
+  }
 
   groups.forEach((group) => {
     if (group.transitions.length === 1) {
@@ -105,6 +108,9 @@ function appendBuilderFactory(
   if (document.autoTransitionEnabled) {
     lines.push('                .autoTransitionEnabled(true)');
   }
+  if (document.maxImmediateAutoTransitions) {
+    lines.push(`                .maxImmediateAutoTransitions(${document.maxImmediateAutoTransitions})`);
+  }
 
   transitions.forEach((transition) => {
     lines.push(
@@ -116,7 +122,7 @@ function appendBuilderFactory(
       `                                        ${javaList('Guard', document.codegen.stateType, transition.conditions, conditionNames)},`,
       `                                        ${javaList('Action', document.codegen.stateType, transition.actions, actionNames)},`,
       `                                        ${javaList('Action', document.codegen.stateType, transition.postActions, actionNames)},`,
-      `                                        ${transition.timeout ? `new Timeout(${transition.timeout.value}L, TimeUnit.${transition.timeout.unit})` : 'null'}`,
+      `                                        ${transition.timeout ? `new Timeout(${transition.timeout.value}L, TimeUnit.${transition.timeout.unit})` : 'null'}${transition.autoTransitionEnabled ? ', true' : ''}`,
       '                                ),',
       `                                ${transition.trigger.kind === 'event' ? eventLiteral(document, transition.trigger.event) : 'null'}`,
       '                        )',
@@ -277,6 +283,7 @@ function appendTransitionTail(
   if (transition.timeout) {
     lines.push(`                .timeout(new Timeout(${transition.timeout.value}L, TimeUnit.${transition.timeout.unit}))`);
   }
+  if (transition.autoTransitionEnabled) lines.push('                .auto()');
 
   lines.push(singleTransition ? '                .end()' : '                .end()');
 }

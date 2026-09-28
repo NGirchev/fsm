@@ -73,6 +73,9 @@ function appendFluentFactory(
   if (document.autoTransitionEnabled) {
     lines.push('            .autoTransitionEnabled(true)');
   }
+  if (document.maxImmediateAutoTransitions) {
+    lines.push(`            .maxImmediateAutoTransitions(${document.maxImmediateAutoTransitions})`);
+  }
 
   groups.forEach((group) => {
     if (group.transitions.length === 1) {
@@ -100,6 +103,9 @@ function appendBuilderFactory(
   if (document.autoTransitionEnabled) {
     lines.push('            .autoTransitionEnabled(true)');
   }
+  if (document.maxImmediateAutoTransitions) {
+    lines.push(`            .maxImmediateAutoTransitions(${document.maxImmediateAutoTransitions})`);
+  }
 
   transitions.forEach((transition) => {
     lines.push(
@@ -112,6 +118,7 @@ function appendBuilderFactory(
       `                        actions = ${kotlinList(transition.actions, actionNames, toKotlinIdentifier)},`,
       `                        postActions = ${kotlinList(transition.postActions, actionNames, toKotlinIdentifier)},`,
       `                        timeout = ${transition.timeout ? `Timeout(${transition.timeout.value}L, TimeUnit.${transition.timeout.unit})` : 'null'},`,
+      ...(transition.autoTransitionEnabled ? ['                        autoTransitionEnabled = true,'] : []),
       '                    ),',
       `                    onEvent = ${transition.trigger.kind === 'event' ? eventLiteral(document, transition.trigger.event) : 'null'},`,
       '                ),',
@@ -248,6 +255,7 @@ function appendTransitionTail(
   if (transition.timeout) {
     lines.push(`            .timeout(Timeout(${transition.timeout.value}L, TimeUnit.${transition.timeout.unit}))`);
   }
+  if (transition.autoTransitionEnabled) lines.push('            .auto()');
 
   lines.push('            .end()');
 }

@@ -7,7 +7,6 @@ import io.mockk.junit5.MockKExtension
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
-import io.github.ngirchev.fsm.AutoTransitionScheduler
 import io.github.ngirchev.fsm.StateChangeListener
 import io.github.ngirchev.fsm.StateContext
 import io.github.ngirchev.fsm.exception.FsmException
@@ -32,6 +31,7 @@ class ExDomainFsmTest {
             from = DocumentState.NEW,
             to = DocumentState.READY_FOR_SIGN
         )
+        every { exTransitionTable.getAutoTransition(any(), any()) } returns null
         val fsm = ExDomainFsm(exTransitionTable, autoTransitionEnabled = false)
 
         val document = Document()
@@ -113,8 +113,7 @@ class ExDomainFsmTest {
             .add(DocumentState.NEW, "RUN", DocumentState.READY_FOR_SIGN)
             .autoTransitionEnabled(false)
             .build()
-        val scheduler = AutoTransitionScheduler<DocumentState> { _, _, runTransition -> runTransition() }
-        val fsm = CustomExDomainFsm(transitionTable, scheduler)
+        val fsm = CustomExDomainFsm(transitionTable)
 
         val document = Document()
         fsm.handle(document, "RUN")
@@ -140,11 +139,9 @@ class ExDomainFsmTest {
 
     private class CustomExDomainFsm(
         transitionTable: ExTransitionTable<DocumentState, String>,
-        scheduler: AutoTransitionScheduler<DocumentState>,
     ) : ExDomainFsm<Document, DocumentState, String>(
         transitionTable,
         autoTransitionEnabled = true,
-        autoTransitionScheduler = scheduler,
     ) {
         var createdFsm: CustomExFsm? = null
             private set
@@ -156,7 +153,7 @@ class ExDomainFsmTest {
             autoTransitionEnabled: Boolean,
         ): ExFsm<DocumentState, String> {
             createdAutoTransitionEnabled = autoTransitionEnabled
-            return CustomExFsm(domain, transitionTable, autoTransitionEnabled, autoTransitionScheduler)
+            return CustomExFsm(domain, transitionTable, autoTransitionEnabled)
                 .also { createdFsm = it }
         }
     }
@@ -165,8 +162,7 @@ class ExDomainFsmTest {
         context: StateContext<DocumentState>,
         transitionTable: ExTransitionTable<DocumentState, String>,
         autoTransitionEnabled: Boolean,
-        autoTransitionScheduler: AutoTransitionScheduler<DocumentState>,
-    ) : ExFsm<DocumentState, String>(context, transitionTable, autoTransitionEnabled, autoTransitionScheduler)
+    ) : ExFsm<DocumentState, String>(context, transitionTable, autoTransitionEnabled)
 
     private class HandleTrackingExDomainFsm(
         transitionTable: ExTransitionTable<DocumentState, String>,
@@ -198,56 +194,12 @@ class ExDomainFsmTest {
         assertEquals(1, fsm.createdFsm?.removeAutoTransitionCompletionListenerCount)
     }
 
-    @Test
-    fun handleShouldKeepForwardingListenerForScheduledAutoTransitionRetryUntilSuccess() {
-        var autoTransitionAttempts = 0
-        val callbacks = mutableListOf<() -> Unit>()
-        val scheduler = AutoTransitionScheduler<DocumentState> { _, _, runTransition ->
-            callbacks.add(runTransition)
-        }
-        val transitionTable = ExTransitionTable.Builder<DocumentState, String>()
-            .autoTransitionEnabled(true)
-            .add(DocumentState.NEW, "RUN", DocumentState.READY_FOR_SIGN)
-            .add(
-                from = DocumentState.READY_FOR_SIGN,
-                onEvent = null,
-                to = DocumentState.SIGNED,
-                action = {
-                    autoTransitionAttempts++
-                    if (autoTransitionAttempts == 1) {
-                        throw FsmException("retry")
-                    }
-                }
-            )
-            .build()
-        val fsm = TrackingExDomainFsm(transitionTable, autoTransitionEnabled = true, scheduler)
-
-        fsm.handle(Document(), "RUN")
-
-        assertEquals(0, fsm.createdFsm?.removeStateChangeListenerCount)
-
-        assertThrows(FsmException::class.java) {
-            callbacks.single().invoke()
-        }
-
-        assertEquals(0, fsm.createdFsm?.removeStateChangeListenerCount)
-
-        callbacks.single().invoke()
-
-        assertEquals(1, fsm.createdFsm?.removeStateChangeListenerCount)
-        assertEquals(1, fsm.createdFsm?.removeAutoTransitionCompletionListenerCount)
-    }
-
     private class TrackingExDomainFsm(
         transitionTable: ExTransitionTable<DocumentState, String>,
         autoTransitionEnabled: Boolean,
-        scheduler: AutoTransitionScheduler<DocumentState> = AutoTransitionScheduler { _, _, runTransition ->
-            runTransition()
-        },
     ) : ExDomainFsm<Document, DocumentState, String>(
         transitionTable,
         autoTransitionEnabled,
-        scheduler,
     ) {
         var createdFsm: TrackingExFsm? = null
             private set
@@ -256,7 +208,7 @@ class ExDomainFsmTest {
             domain: Document,
             autoTransitionEnabled: Boolean,
         ): ExFsm<DocumentState, String> {
-            return TrackingExFsm(domain, transitionTable, autoTransitionEnabled, autoTransitionScheduler)
+            return TrackingExFsm(domain, transitionTable, autoTransitionEnabled)
                 .also { createdFsm = it }
         }
     }
@@ -265,8 +217,7 @@ class ExDomainFsmTest {
         context: StateContext<DocumentState>,
         transitionTable: ExTransitionTable<DocumentState, String>,
         autoTransitionEnabled: Boolean,
-        autoTransitionScheduler: AutoTransitionScheduler<DocumentState>,
-    ) : ExFsm<DocumentState, String>(context, transitionTable, autoTransitionEnabled, autoTransitionScheduler) {
+    ) : ExFsm<DocumentState, String>(context, transitionTable, autoTransitionEnabled) {
         var removeStateChangeListenerCount = 0
             private set
         var removeAutoTransitionCompletionListenerCount = 0

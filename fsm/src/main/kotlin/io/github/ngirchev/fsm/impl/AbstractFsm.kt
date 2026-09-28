@@ -15,7 +15,6 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
     context: StateContext<STATE>,
     open val transitionTable: TRANSITION_TABLE,
     autoTransitionEnabled: Boolean? = null,
-    protected val autoTransitionScheduler: AutoTransitionScheduler<STATE> = ImmediateAutoTransitionScheduler(),
 ) : StateSupport<STATE>,
     TransitionSupport<STATE, TRANSITION>,
     Notifiable<STATE> {
@@ -40,12 +39,10 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
         state: STATE,
         transitionTable: TRANSITION_TABLE,
         autoTransitionEnabled: Boolean? = null,
-        autoTransitionScheduler: AutoTransitionScheduler<STATE> = ImmediateAutoTransitionScheduler(),
     ) : this(
         DefaultStateContext(state),
         transitionTable,
         autoTransitionEnabled,
-        autoTransitionScheduler,
     )
 
     protected val context: StateContext<STATE> = context
@@ -56,11 +53,7 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
     /** Explicitly execute enabled auto transitions from the current state, without an event. */
     fun startAutoTransitions() {
         writeLocked {
-            if (autoTransitionEnabled) {
-                performAutoTransitions()
-            } else {
-                notifyAutoTransitionCompleted()
-            }
+            performAutoTransitions()
         }
     }
 
@@ -115,11 +108,7 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
 
     protected fun transitionToState(transition: TRANSITION) {
         executeSingleTransition(transition)
-        if (autoTransitionEnabled) {
-            performAutoTransitions()
-        } else {
-            notifyAutoTransitionCompleted()
-        }
+        performAutoTransitions()
     }
 
     protected open fun executeSingleTransition(transition: TRANSITION) {
@@ -137,42 +126,19 @@ abstract class AbstractFsm<STATE, TRANSITION : AbstractTransition<STATE>, TRANSI
     }
 
     protected open fun performAutoTransitions() {
-        if (autoTransitionScheduler is ImmediateAutoTransitionScheduler) {
-            performImmediateAutoTransitions()
-            notifyAutoTransitionCompleted()
-            return
-        }
-        performScheduledAutoTransitions()
-    }
-
-    protected open fun performImmediateAutoTransitions() {
-        var completedTransitions = 0
+        var completedImmediateTransitions = 0
         while (true) {
-            val autoTransition = transitionTable.getAutoTransition(context) ?: return
+            val autoTransition = transitionTable.getAutoTransition(context, autoTransitionEnabled) ?: run {
+                notifyAutoTransitionCompleted()
+                return
+            }
+
             val limit = transitionTable.maxImmediateAutoTransitions
-            if (limit > 0 && completedTransitions >= limit) {
+            if (limit > 0 && completedImmediateTransitions >= limit) {
                 throw AutoTransitionLimitExceededException(limit)
             }
             executeSingleTransition(autoTransition)
-            completedTransitions++
-        }
-    }
-
-    protected open fun performScheduledAutoTransitions() {
-        val autoTransition = transitionTable.getAutoTransition(context)
-        if (autoTransition == null) {
-            notifyAutoTransitionCompleted()
-        } else {
-            autoTransitionScheduler.schedule(context, autoTransition) {
-                writeLocked {
-                    executeSingleTransition(autoTransition)
-                    if (autoTransitionEnabled) {
-                        performScheduledAutoTransitions()
-                    } else {
-                        notifyAutoTransitionCompleted()
-                    }
-                }
-            }
+            completedImmediateTransitions++
         }
     }
 

@@ -1,1 +1,3 @@
 io.github.ngirchev.fsm.spring.FsmAutoConfiguration
+io.github.ngirchev.fsm.spring.worker.FsmTaskAutoConfiguration
+io.github.ngirchev.fsm.spring.admin.FsmAdminAutoConfiguration

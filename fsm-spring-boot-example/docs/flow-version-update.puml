@@ -1,0 +1,53 @@
+@startuml
+title Updating and using an order flow
+
+actor User
+participant FlowController
+participant FlowService
+participant FlowLoader
+participant OrderService
+database PostgreSQL
+
+== Publish a new version ==
+
+User -> FlowController: POST /api/flows/order/versions\nFlowDefinition
+FlowController -> FlowService: createDraft("order", definition)
+FlowService -> PostgreSQL: lock "order" and insert v2 DRAFT
+FlowService --> FlowController: FlowVersion v2 DRAFT
+FlowController --> User: 201 Created
+
+opt Edit the draft
+    User -> FlowController: PUT /api/flows/order/versions/2\nupdated FlowDefinition
+    FlowController -> FlowService: updateDraft("order", 2, definition)
+    FlowService -> PostgreSQL: update v2 DRAFT
+    FlowService --> FlowController: FlowVersion v2 DRAFT
+    FlowController --> User: 200 OK
+end
+
+User -> FlowController: POST /api/flows/order/versions/2/publish
+FlowController -> FlowService: publish("order", 2)
+FlowService -> FlowLoader: validate v2 definition
+FlowLoader --> FlowService: valid
+FlowService -> PostgreSQL: v1 ACTIVE -> ARCHIVED\nv2 DRAFT -> ACTIVE
+FlowService --> FlowController: FlowVersion v2 ACTIVE
+FlowController --> User: 200 OK
+
+== Use the published versions ==
+
+User -> OrderService: create order
+OrderService -> FlowService: active("order")
+FlowService -> PostgreSQL: load v2 ACTIVE
+OrderService -> PostgreSQL: insert order with flow_version = 2
+
+User -> OrderService: send event to an older order
+OrderService -> PostgreSQL: load order with flow_version = 1
+OrderService -> FlowService: get("order", 1)
+FlowService -> PostgreSQL: load v1 ARCHIVED
+OrderService -> FlowLoader: execute event using v1
+
+note over OrderService, PostgreSQL
+New orders use the active version.
+Existing orders keep their pinned version.
+end note
+
+@enduml

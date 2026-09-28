@@ -7,6 +7,22 @@ import kotlin.test.assertFailsWith
 
 class ExFsmStartupTest {
     @Test
+    fun `startup executes locally enabled transitions and stops before a disabled transition`() {
+        val table = ExTransitionTable.Builder<String, String>()
+            .from("NEW").to("READY").auto().end()
+            .from("READY").to("DONE").end()
+            .build()
+        val fsm = table.createFsm("NEW")
+        var completions = 0
+        fsm.addAutoTransitionCompletionListener { completions++ }
+
+        fsm.startAutoTransitions()
+
+        assertEquals("READY", fsm.getState())
+        assertEquals(1, completions)
+    }
+
+    @Test
     fun `explicit startup executes a complete initial chain and notifies completion`() {
         val table = ExTransitionTable.Builder<String, String>()
             .autoTransitionEnabled(true)

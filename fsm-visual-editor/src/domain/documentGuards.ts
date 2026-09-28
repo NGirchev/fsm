@@ -1,4 +1,5 @@
 import { CODEGEN_STYLES, EDITOR_FORMAT_VERSION, type CodegenStyle, type FsmEditorDocument } from './types';
+import { isStateColor } from './stateColors';
 
 interface LegacyTransition {
   id: string;
@@ -10,12 +11,15 @@ interface LegacyTransition {
   actions?: string[];
   postActions?: string[];
   timeout?: unknown;
+  autoTransitionEnabled?: boolean;
 }
 
 interface LegacyDocument {
+  execution?: FsmEditorDocument['execution'];
   formatVersion?: number;
   name?: string;
   autoTransitionEnabled?: boolean;
+  maxImmediateAutoTransitions?: number;
   codegen?: Partial<FsmEditorDocument['codegen']>;
   states?: unknown[];
   transitions?: unknown[];
@@ -115,8 +119,13 @@ export function normalizeEditorDocument(value: unknown): FsmEditorDocument | nul
 
 function hasValidDocumentMetadata(value: LegacyDocument): boolean {
   return (
+    (value.execution === undefined || (isRecord(value.execution) &&
+      Array.isArray(value.execution.stateListeners) && value.execution.stateListeners.every((id) => typeof id === 'string') &&
+      Array.isArray(value.execution.completionListeners) && value.execution.completionListeners.every((id) => typeof id === 'string'))) &&
     (value.name === undefined || typeof value.name === 'string') &&
     (value.autoTransitionEnabled === undefined || typeof value.autoTransitionEnabled === 'boolean') &&
+    (value.maxImmediateAutoTransitions === undefined ||
+      (Number.isInteger(value.maxImmediateAutoTransitions) && value.maxImmediateAutoTransitions >= 0)) &&
     (value.updatedAt === undefined || typeof value.updatedAt === 'string') &&
     (value.events === undefined || Array.isArray(value.events))
   );
@@ -131,7 +140,8 @@ function isState(value: unknown): value is FsmEditorDocument['states'][number] {
     typeof value.id === 'string' &&
     typeof value.label === 'string' &&
     isPosition(value.position) &&
-    (value.description === undefined || typeof value.description === 'string')
+    (value.description === undefined || typeof value.description === 'string') &&
+    (value.color === undefined || isStateColor(value.color))
   );
 }
 
@@ -148,6 +158,7 @@ function isLegacyTransition(value: unknown): value is LegacyTransition {
     typeof value.id === 'string' &&
     typeof value.from === 'string' &&
     typeof value.to === 'string' &&
+    (value.autoTransitionEnabled === undefined || typeof value.autoTransitionEnabled === 'boolean') &&
     (value.event === undefined || value.event === null || typeof value.event === 'string') &&
     isOptionalStringArray(value.conditions) &&
     isOptionalStringArray(value.actions) &&

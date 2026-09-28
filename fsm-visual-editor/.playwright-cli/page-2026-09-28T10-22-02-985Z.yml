@@ -1,0 +1,144 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e10]:
+      - strong [ref=e11]: FSM Visual Editor
+      - generic [ref=e12]: Ready
+    - generic [ref=e13]:
+      - generic [ref=e14]:
+        - combobox "Recent projects" [ref=e15]:
+          - 'option "Current: Document FSM" [selected]'
+        - button "New flow" [ref=e16] [cursor=pointer]
+        - button "Delete current project" [disabled] [ref=e20]
+      - generic [ref=e25]:
+        - button "Add state" [ref=e26] [cursor=pointer]
+        - button "Import JSON" [ref=e28] [cursor=pointer]
+        - button "Export editor JSON" [ref=e32] [cursor=pointer]
+      - generic [ref=e39]:
+        - button "JAVA" [ref=e40] [cursor=pointer]
+        - button "KT" [ref=e41] [cursor=pointer]
+      - button "Delete selected" [disabled] [ref=e44]
+  - main [ref=e48]:
+    - region "FSM graph" [ref=e49]:
+      - application [ref=e50]:
+        - generic [ref=e52]:
+          - generic:
+            - generic:
+              - img:
+                - group "Edge from new to ready-for-sign" [ref=e53] [cursor=pointer]
+              - img:
+                - group "Edge from ready-for-sign to signed" [ref=e56] [cursor=pointer]
+              - img:
+                - group "Edge from ready-for-sign to canceled" [ref=e59] [cursor=pointer]
+              - img:
+                - group "Edge from signed to auto-sent" [ref=e62] [cursor=pointer]
+              - img:
+                - group "Edge from signed to done" [ref=e65] [cursor=pointer]
+              - img:
+                - group "Edge from signed to canceled"
+              - img:
+                - group "Edge from auto-sent to done" [ref=e68] [cursor=pointer]
+            - generic:
+              - generic "TO_READY" [ref=e71] [cursor=pointer]
+              - generic "USER_SIGN" [ref=e76] [cursor=pointer]
+              - generic "FAILED_EVENT" [ref=e81] [cursor=pointer]
+              - generic "TO_END" [ref=e86] [cursor=pointer]
+              - generic "TO_END" [ref=e91] [cursor=pointer]
+              - generic "TO_END" [ref=e96] [cursor=pointer]
+              - generic "TO_END" [ref=e101] [cursor=pointer]
+            - generic:
+              - group [ref=e106]:
+                - generic [ref=e108]: Start
+                - generic "NEW" [ref=e111]
+              - group [ref=e113]:
+                - generic "READY_FOR_SIGN" [ref=e115]
+              - group [ref=e117]:
+                - generic "SIGNED" [ref=e119]
+              - group [ref=e121]:
+                - generic "CANCELED" [ref=e123]
+              - group [ref=e125]:
+                - generic "AUTO_SENT" [ref=e127]
+              - group [ref=e129]:
+                - generic "DONE" [ref=e131]
+        - img "Mini Map" [ref=e134]
+        - generic "Control Panel" [ref=e141]:
+          - button "Zoom In" [ref=e142] [cursor=pointer]
+          - button "Zoom Out" [ref=e145] [cursor=pointer]
+          - button "Fit View" [ref=e148] [cursor=pointer]
+          - button "Toggle Interactivity" [ref=e151] [cursor=pointer]
+        - link "React Flow attribution" [ref=e155] [cursor=pointer]:
+          - /url: https://reactflow.dev
+          - text: React Flow
+    - complementary [ref=e157]:
+      - group [ref=e158]:
+        - group [ref=e159]:
+          - heading [level=2] [ref=e161] [cursor=pointer]
+          - generic [ref=e166]:
+            - generic [ref=e167]:
+              - text: Name
+              - textbox "Name" [ref=e168]: Document FSM
+            - generic [ref=e169]:
+              - text: Package
+              - textbox "Package" [ref=e170]: io.github.ngirchev.fsm.generated
+            - generic [ref=e171]:
+              - text: Factory class
+              - textbox "Factory class" [ref=e172]: DocumentFsmFactory
+            - generic [ref=e173]:
+              - generic [ref=e174]:
+                - text: Domain
+                - textbox "Domain" [ref=e175]: Document
+              - generic [ref=e176]:
+                - text: State
+                - textbox "State" [ref=e177]: DocumentState
+            - generic [ref=e178]:
+              - generic [ref=e179]:
+                - text: Event
+                - textbox "Event" [ref=e180]: DocumentEvent
+              - generic [ref=e181]:
+                - text: Initial
+                - combobox "Initial" [ref=e182]:
+                  - option "NEW" [selected]
+                  - option "READY_FOR_SIGN"
+                  - option "SIGNED"
+                  - option "CANCELED"
+                  - option "AUTO_SENT"
+                  - option "DONE"
+            - generic [ref=e183]:
+              - text: Code style
+              - combobox "Code style" [ref=e184]:
+                - option "Fluent chain" [selected]
+                - option "Builder add calls"
+            - generic [ref=e185]:
+              - text: Automatic transition limit
+              - spinbutton "Automatic transition limit" [ref=e186]: "0"
+            - generic [ref=e187]:
+              - checkbox "Auto transitions" [ref=e188]
+              - text: Auto transitions
+        - group [ref=e189]:
+          - generic [ref=e190] [cursor=pointer]:
+            - heading "Events 4" [level=2] [ref=e191]:
+              - text: Events
+              - generic [ref=e195]: "4"
+            - button "Add event" [ref=e197]
+          - generic [ref=e202]:
+            - generic [ref=e203]:
+              - textbox "Event ID 1" [ref=e208]: TO_READY
+              - button "Delete event TO_READY" [ref=e209] [cursor=pointer]
+            - generic [ref=e213]:
+              - textbox "Event ID 2" [ref=e218]: USER_SIGN
+              - button "Delete event USER_SIGN" [ref=e219] [cursor=pointer]
+            - generic [ref=e223]:
+              - textbox "Event ID 3" [ref=e228]: FAILED_EVENT
+              - button "Delete event FAILED_EVENT" [ref=e229] [cursor=pointer]
+            - generic [ref=e233]:
+              - textbox "Event ID 4" [ref=e238]: TO_END
+              - button "Delete event TO_END" [ref=e239] [cursor=pointer]
+        - group [ref=e243]:
+          - heading "Behavior 3" [level=2] [ref=e245] [cursor=pointer]:
+            - text: Behavior
+            - generic [ref=e257]: "3"
+        - generic [ref=e260]: Select a state or transition on the canvas to edit it.
+      - generic [ref=e268]:
+        - generic [ref=e269]:
+          - heading [level=2] [ref=e270]
+          - generic [ref=e274]: OK
+        - paragraph [ref=e277]: No errors

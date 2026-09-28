@@ -45,8 +45,8 @@ object FsmSerializationDemo {
                 from = OrderState.PAYMENT_PENDING,
                 onEvent = "PAYMENT_SUCCESS",
                 to = OrderState.PAID,
-                action = NamedAction("ChargeCard") { },
-                postAction = NamedAction("SendReceipt") { },
+                action = namedAction("ChargeCard"),
+                postAction = namedAction("SendReceipt"),
                 timeout = Timeout(5)
             )
             .add(from = OrderState.PAYMENT_PENDING, onEvent = "CANCEL", to = OrderState.CANCELLED)
@@ -54,30 +54,30 @@ object FsmSerializationDemo {
                 from = OrderState.PAID,
                 onEvent = "START_PROCESSING",
                 to = OrderState.PROCESSING,
-                action = NamedAction("ValidateOrder") { }
+                action = namedAction("ValidateOrder")
             )
             .add(
                 from = OrderState.PROCESSING,
                 onEvent = "SHIP",
                 to = OrderState.SHIPPED,
-                action = NamedAction("PreparePackage") { },
-                postAction = NamedAction("NotifyCarrier") { },
+                action = namedAction("PreparePackage"),
+                postAction = namedAction("NotifyCarrier"),
                 timeout = Timeout(2)
             )
             .add(
                 from = OrderState.SHIPPED,
                 onEvent = "DELIVER",
                 to = OrderState.DELIVERED,
-                action = NamedAction("ConfirmDelivery") { },
-                postAction = NamedAction("SendThankYou") { },
+                action = namedAction("ConfirmDelivery"),
+                postAction = namedAction("SendThankYou"),
                 timeout = Timeout(3)
             )
             .add(
                 from = OrderState.DELIVERED,
                 onEvent = "REFUND",
                 to = OrderState.REFUNDED,
-                action = NamedAction("ProcessRefund") { },
-                postAction = NamedAction("NotifyAccounting") { }
+                action = namedAction("ProcessRefund"),
+                postAction = namedAction("NotifyAccounting")
             )
             .add(from = OrderState.PAID, onEvent = "CANCEL", to = OrderState.CANCELLED)
             .add(from = OrderState.PROCESSING, onEvent = "CANCEL", to = OrderState.CANCELLED)
@@ -89,19 +89,15 @@ object FsmSerializationDemo {
     private fun complexOrderFsm() {
         println("\n>>> Example 2: Complex FSM with conditions and actions <<<\n")
 
-        var emailSent = 0
-        var smsSent = 0
-        var notificationSent = 0
-
         // Named conditions
-        val needsVerification = NamedGuard<Any>("NeedsVerification") { true }
-        val isExpressDelivery = NamedGuard<Any>("IsExpressDelivery") { false }
-        val isInternational = NamedGuard<Any>("IsInternational") { false }
+        val needsVerification = namedGuard("NeedsVerification", true)
+        val isExpressDelivery = namedGuard("IsExpressDelivery", false)
+        val isInternational = namedGuard("IsInternational", false)
 
         // Named actions
-        val sendEmail = NamedAction<Any>("SendEmail") { emailSent++ }
-        val sendSms = NamedAction<Any>("SendSMS") { smsSent++ }
-        val sendNotification = NamedAction<Any>("SendNotification") { notificationSent++ }
+        val sendEmail = namedAction("SendEmail")
+        val sendSms = namedAction("SendSMS")
+        val sendNotification = namedAction("SendNotification")
 
         val transitionTable = ExTransitionTable.Builder<OrderState, String>()
             .from(OrderState.NEW)
@@ -125,16 +121,16 @@ object FsmSerializationDemo {
             .toMultiple()
             .to(OrderState.PROCESSING)
             .onCondition(isExpressDelivery)
-            .action(NamedAction("ProcessExpress") { emailSent++ })
+            .action(namedAction("ProcessExpress"))
             .timeout(Timeout(1))
             .end()
             .to(OrderState.PROCESSING)
             .onCondition(isInternational)
-            .action(NamedAction("ProcessInternational") { emailSent++ })
+            .action(namedAction("ProcessInternational"))
             .timeout(Timeout(3))
             .end()
             .to(OrderState.PROCESSING)
-            .action(NamedAction("ProcessStandard") { emailSent++ })
+            .action(namedAction("ProcessStandard"))
             .timeout(Timeout(2))
             .end()
             .endMultiple()
@@ -178,6 +174,12 @@ object FsmSerializationDemo {
         println("--- PlantUML ---")
         transitionTable.toJson(Path("simple_order_fsm2.json"))
     }
+
+    private fun namedAction(name: String): NamedAction<Any> =
+        NamedAction<Any>(name) { }.also { it(Any()) }
+
+    private fun namedGuard(name: String, result: Boolean): NamedGuard<Any> =
+        NamedGuard<Any>(name) { result }.also { it(Any()) }
 
     private operator fun String.times(n: Int): String = this.repeat(n)
 }

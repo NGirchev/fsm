@@ -11,6 +11,7 @@ import io.github.ngirchev.fsm.Action
 import io.github.ngirchev.fsm.Timeout
 import io.github.ngirchev.fsm.To
 import io.github.ngirchev.fsm.StateChangeListener
+import io.github.ngirchev.fsm.exception.FsmException
 import io.github.ngirchev.fsm.impl.extended.ExFsm
 import io.github.ngirchev.fsm.impl.extended.ExDomainFsm
 import io.github.ngirchev.fsm.impl.extended.ExTransition
@@ -20,7 +21,9 @@ import io.github.ngirchev.fsm.it.document.DocumentState
 import io.github.ngirchev.fsm.it.document.DocumentState.*
 import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 class FsmSerializationTest {
@@ -204,7 +207,7 @@ class FsmSerializationTest {
             .to(SIGNED).onEvent("USER_SIGN").end()
             .to(CANCELED).onEvent("FAILED_EVENT").end()
             .endMultiple()
-            .from(SIGNED).onEvent("TO_END").to(DONE).end()
+            .from(SIGNED).to(DONE).onEvent("TO_END").end()
             .build()
 
         // when - serialize and deserialize
@@ -245,6 +248,37 @@ class FsmSerializationTest {
         assertEquals(true, originalTable.autoTransitionEnabled)
         assertEquals(true, restoredTable.autoTransitionEnabled)
         assertEquals(7, restoredTable.maxImmediateAutoTransitions)
+    }
+
+    @Test
+    fun `should serialize and deserialize local auto transition`() {
+        val originalTable = ExTransitionTable.Builder<DocumentState, String>()
+            .autoTransitionEnabled(true)
+            .from(NEW)
+            .onEvent("START")
+            .to(READY_FOR_SIGN)
+            .end()
+            .from(READY_FOR_SIGN)
+            .to(SIGNED)
+            .auto()
+            .end()
+            .build()
+
+        val json = originalTable.toJson()
+        val dto = FsmJsonSerializer().deserializeDto(json)
+
+        assertTrue(dto.transitions[READY_FOR_SIGN.toString()]?.single()?.to?.autoTransitionEnabled == true)
+
+        val restoredTable = json.fromJson<DocumentState, String>(
+            { DocumentState.valueOf(it) },
+            { it },
+        )
+        assertTrue(restoredTable.transitions[READY_FOR_SIGN]?.single()?.to?.autoTransitionEnabled == true)
+
+        val restoredFsm = ExFsm(NEW, restoredTable, autoTransitionEnabled = true)
+        restoredFsm.onEvent("START")
+
+        assertEquals(SIGNED, restoredFsm.getState())
     }
 
     @Test
@@ -490,12 +524,18 @@ class FsmSerializationTest {
 
     @Test
     fun `should handle factory returning null for unknown IDs`() {
-        // given - FSM with IdGuard
-        val guard = IdGuard<Any>("knownGuard") { true }
+        // given - FSM with both known and unknown IdGuard
+        val knownGuard = IdGuard<Any>("knownGuard") { true }
+        val missingGuard = IdGuard<Any>("missingGuard") { true }
         val originalTable = ExTransitionTable.Builder<DocumentState, String>()
             .add(
                 from = NEW, onEvent = "START",
-                To(READY_FOR_SIGN, condition = guard)
+                To(
+                    state = READY_FOR_SIGN,
+                    conditions = listOf(knownGuard, missingGuard),
+                    actions = emptyList(),
+                    postActions = emptyList(),
+                )
             )
             .build()
 
@@ -516,12 +556,11 @@ class FsmSerializationTest {
             guardFactory
         )
 
-        // then - verify that known guard is restored, unknown ones are skipped
         val newTransitions = restoredTable.transitions[NEW]
         assertNotNull(newTransitions)
         val transition = newTransitions.firstOrNull { it.event == "START" }
         assertNotNull(transition)
-        assertEquals(1, transition.to.conditions.size) // Only known guard should be restored
+        assertEquals(1, transition.to.conditions.size)
     }
 
     @Test
@@ -627,11 +666,10 @@ class FsmSerializationTest {
         val restoredTable = json.fromJson<DocumentState, String>(
             { DocumentState.valueOf(it) },
             { it },
-            null, // null actionFactory
-            null  // null guardFactory
+            null,
+            null
         )
 
-        // then - conditions and actions should be empty (not restored)
         val newTransitions = restoredTable.transitions[NEW]
         assertNotNull(newTransitions)
         val transition = newTransitions.firstOrNull { it.event == "START" }
@@ -673,12 +711,11 @@ class FsmSerializationTest {
             null
         )
 
-        // then - only action1 should be restored
         val newTransitions = restoredTable.transitions[NEW]
         assertNotNull(newTransitions)
         val transition1 = newTransitions.firstOrNull { it.event == "START" }
         assertNotNull(transition1)
-        assertEquals(1, transition1.to.actions.size) // action1 should be restored
+        assertEquals(1, transition1.to.actions.size)
 
         val readyTransitions = restoredTable.transitions[READY_FOR_SIGN]
         assertNotNull(readyTransitions)
@@ -957,8 +994,8 @@ class FsmSerializationTest {
         val table = ExTransitionTable.Builder<DocumentState, String>()
             .from(NEW)
             .toMultiple()
-            .to(READY_FOR_SIGN)
             .onEvent("START")
+            .to(READY_FOR_SIGN)
             .postAction(postAction)
             .end()
             .endMultiple()

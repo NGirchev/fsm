@@ -6,12 +6,12 @@ import path from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 export default defineConfig({
-  base: process.env.VITE_BASE_PATH ?? '/',
+  base: './',
   plugins: [react(), projectsApiPlugin()],
 });
 
 function projectsApiPlugin(): Plugin {
-  const projectsDir = path.resolve(__dirname, 'projects');
+  const projectsDir = process.env.FSM_EDITOR_PROJECTS_DIR ?? path.resolve(__dirname, 'projects');
 
   return {
     name: 'fsm-visual-editor-projects-api',

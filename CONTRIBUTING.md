@@ -93,7 +93,7 @@ Use descriptive branch names:
 
 * Write tests for all new features
 * Write tests for bug fixes
-* Maintain or improve code coverage (minimum 80% line coverage, 70% branch coverage)
+* Maintain 100% line and branch coverage in `fsm` and `fsm-spring-boot-starter`
 * Use descriptive test names that explain what is being tested
 
 Example:

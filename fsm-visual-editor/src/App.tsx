@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import {
   Background,
@@ -14,13 +14,27 @@ import {
 } from '@xyflow/react';
 import {
   AlertCircle,
+  Box,
+  Boxes,
+  ChevronDown,
+  ChevronUp,
   FilePlus2,
   FileJson,
+  GitBranch,
   GitBranchPlus,
+  MousePointerClick,
   Plus,
+  Play,
+  CircleDot,
+  SlidersHorizontal,
   Trash2,
   Upload,
+  Zap,
 } from 'lucide-react';
+import { Panel } from './Panel';
+import { FlowEdge } from './FlowEdge';
+import { AUTO_COLOR, colorVariables, colorsForIds, graphColor } from './graphColors';
+import { GRAPH_PALETTE, randomStateColor, withStateColors } from './domain/stateColors';
 import {
   createEmptyDocument,
   createProjectId,
@@ -47,13 +61,26 @@ import {
   type TimeUnit,
 } from './domain';
 import { createId, slugifyId, uniqueId } from './domain/ids';
+import { moveItem } from './domain/ordering';
+import { ExecutionSettings } from './ExecutionSettings';
+import { CatalogPicker } from './CatalogPicker';
+import type { CatalogBehavior } from './domain';
 
 type Selection = { type: 'state' | 'transition'; id: string } | null;
 const SAMPLE_PROJECT_ID = 'document-fsm-sample';
+const edgeTypes = { flow: FlowEdge };
 
-export function App() {
-  const [document, setDocument] = useState<FsmEditorDocument>(() => loadEditorDocument() ?? sampleDocument);
+export interface EmbeddedEditor {
+  catalog: CatalogBehavior[];
+  initialDocument: FsmEditorDocument;
+  onDocumentChange: (document: FsmEditorDocument) => void;
+  readOnly: boolean;
+}
+
+export function App({ embedded }: { embedded?: EmbeddedEditor }) {
+  const [document, setDocument] = useState<FsmEditorDocument>(() => embedded?.initialDocument ?? loadEditorDocument() ?? withStateColors(sampleDocument));
   const [currentProjectId, setCurrentProjectId] = useState(() => {
+    if (embedded) return '';
     const savedProjectId = loadCurrentProjectId();
 
     if (savedProjectId) {
@@ -65,11 +92,17 @@ export function App() {
   });
   const [recentProjects, setRecentProjects] = useState<SavedProject[]>([]);
   const [selection, setSelection] = useState<Selection>(null);
+  const [nodeSizes, setNodeSizes] = useState(() => new Map<string, { width: number; height: number }>());
   const [status, setStatus] = useState('Ready');
   const importInputRef = useRef<HTMLInputElement>(null);
-  const validationIssues = useMemo(() => validateEditorDocument(document), [document]);
+  const validationIssues = useMemo(() => validateEditorDocument(document, Boolean(embedded)), [document, Boolean(embedded)]);
+  const onDocumentChange = embedded?.onDocumentChange;
+  const readOnly = embedded?.readOnly ?? false;
+
+  useLayoutEffect(() => { onDocumentChange?.(document); }, [document, onDocumentChange]);
 
   useEffect(() => {
+    if (embedded) return;
     saveEditorDocument(document);
     saveCurrentProjectId(currentProjectId);
 
@@ -84,33 +117,53 @@ export function App() {
   }, [currentProjectId, document]);
 
   useEffect(() => {
+    if (embedded) return;
     void loadRecentProjects(setRecentProjects);
   }, []);
 
+  const stateColors = useMemo(() => new Map(document.states.map((state) =>
+    [state.id, GRAPH_PALETTE.find((color) => color.ink === state.color) ?? graphColor(state.id)])), [document.states]);
+  const eventColors = useMemo(() => colorsForIds(document.events.map((event) => event.id)), [document.events]);
   const nodes = useMemo<Node[]>(
     () =>
       document.states.map((state) => ({
         id: state.id,
+        selected: selection?.type === 'state' && selection.id === state.id,
         position: state.position,
+        measured: nodeSizes.get(state.id),
+        style: colorVariables(stateColors.get(state.id)!),
         data: {
-          label: state.label,
+          label: <>
+            {state.label === document.codegen.initialState && <span className="node-start"><Play size={11} aria-hidden /> Start</span>}
+            <span className="node-name" title={state.label}>{state.label}</span>
+          </>,
         },
         className: selection?.type === 'state' && selection.id === state.id ? 'selected-node' : undefined,
       })),
-    [document.states, selection],
+    [document.states, document.codegen.initialState, selection, nodeSizes, stateColors],
   );
 
   const edges = useMemo<Edge[]>(
     () =>
       document.transitions.map((transition) => ({
         id: transition.id,
+        type: 'flow',
+        selected: selection?.type === 'transition' && selection.id === transition.id,
         source: transition.from,
         target: transition.to,
-        label: transitionLabel(transition),
-        markerEnd: { type: MarkerType.ArrowClosed },
+        label: selection?.type === 'transition' && selection.id === transition.id
+          ? transitionLabel(transition)
+          : transition.trigger.kind === 'event' ? transition.trigger.event : 'auto',
+        data: {
+          onSelect: () => setSelection({ type: 'transition', id: transition.id }),
+          automatic: transition.trigger.kind === 'auto',
+          color: transition.trigger.kind === 'event' ? eventColors.get(transition.trigger.event) ?? graphColor(transition.trigger.event) : AUTO_COLOR,
+        },
+        markerEnd: { type: MarkerType.ArrowClosed,
+          color: transition.trigger.kind === 'event' ? (eventColors.get(transition.trigger.event) ?? graphColor(transition.trigger.event)).ink : AUTO_COLOR.ink },
         className: selection?.type === 'transition' && selection.id === transition.id ? 'selected-edge' : undefined,
       })),
-    [document.transitions, selection],
+    [document.transitions, selection, eventColors],
   );
 
   const selectedState = selection?.type === 'state' ? document.states.find((state) => state.id === selection.id) : undefined;
@@ -118,14 +171,33 @@ export function App() {
     selection?.type === 'transition' ? document.transitions.find((transition) => transition.id === selection.id) : undefined;
 
   const onNodesChange = useCallback((changes: NodeChange[]) => {
+    // React Flow needs measured sizes for the minimap, including in read-only mode.
+    setNodeSizes((current) => {
+      let next = current;
+      for (const change of changes) {
+        if (change.type !== 'dimensions' || !change.dimensions) continue;
+        const previous = current.get(change.id);
+        if (previous?.width === change.dimensions.width && previous?.height === change.dimensions.height) continue;
+        if (next === current) next = new Map(current);
+        next.set(change.id, change.dimensions);
+      }
+      return next;
+    });
+    if (readOnly) return;
+    setSelection((current) => current?.type === 'state' && changes.some((change) => change.type === 'remove' && change.id === current.id)
+      ? null : current);
     setDocument((current) => applyNodeChangesToDocument(current, changes));
-  }, []);
+  }, [readOnly]);
 
   const onEdgesChange = useCallback((changes: EdgeChange[]) => {
+    if (readOnly) return;
+    setSelection((current) => current?.type === 'transition' && changes.some((change) => change.type === 'remove' && change.id === current.id)
+      ? null : current);
     setDocument((current) => applyEdgeChangesToDocument(current, changes));
-  }, []);
+  }, [readOnly]);
 
   const onConnect = useCallback((connection: Connection) => {
+    if (readOnly) return;
     const source = connection.source;
     const target = connection.target;
 
@@ -140,7 +212,7 @@ export function App() {
 
     setDocument((current) => addAutoTransition(current, source, target));
     setStatus('Auto transition added');
-  }, [document]);
+  }, [document, readOnly]);
 
   const addState = () => {
     setDocument((current) => {
@@ -150,6 +222,7 @@ export function App() {
       const state: FsmState = {
         id,
         label,
+        color: randomStateColor(current.states.map((candidate) => candidate.color)),
         position: { x: 80 + current.states.length * 40, y: 80 + current.states.length * 30 },
       };
 
@@ -242,7 +315,8 @@ export function App() {
       const importedDocument = normalizeEditorDocument(parsed);
 
       if (importedDocument) {
-        setDocument(importedDocument);
+        setDocument(withStateColors(importedDocument));
+        setSelection(null);
         setCurrentProjectId(createProjectId(importedDocument));
         setStatus(`Imported editor JSON: ${file.name}`);
         return;
@@ -268,7 +342,7 @@ export function App() {
 
   const createNewFlow = () => {
     const nextDocument = createEmptyDocument();
-    setDocument(nextDocument);
+    setDocument(withStateColors(nextDocument));
     setCurrentProjectId(createProjectId(nextDocument));
     setSelection(null);
     setStatus('New flow created');
@@ -280,7 +354,7 @@ export function App() {
     }
 
     if (projectId === SAMPLE_PROJECT_ID) {
-      setDocument(sampleDocument);
+      setDocument(withStateColors(sampleDocument));
       setCurrentProjectId(SAMPLE_PROJECT_ID);
       setSelection(null);
       setStatus('Opened example Document FSM');
@@ -316,7 +390,7 @@ export function App() {
         return;
       }
 
-      setDocument(sampleDocument);
+      setDocument(withStateColors(sampleDocument));
       setCurrentProjectId(SAMPLE_PROJECT_ID);
       setSelection(null);
       setStatus('Deleted project and opened example Document FSM');
@@ -332,10 +406,12 @@ export function App() {
           <GitBranchPlus size={22} aria-hidden />
           <div>
             <strong>FSM Visual Editor</strong>
-            <span>{status}</span>
+            <span className={/error|failed|unavailable|conflict|invalid|unsupported/i.test(status) ? 'status-error' : undefined}>{status}</span>
           </div>
         </div>
         <div className="toolbar-actions">
+          {!embedded && <>
+          <div className="toolbar-group">
           <select
             className="recent-select"
             value={currentProjectId}
@@ -353,7 +429,7 @@ export function App() {
                 </option>
               ))}
           </select>
-          <button type="button" className="text-button" onClick={createNewFlow}>
+          <button type="button" className="text-button primary" onClick={createNewFlow}>
             <FilePlus2 size={17} />
             New flow
           </button>
@@ -367,8 +443,13 @@ export function App() {
           >
             <Trash2 size={18} />
           </button>
-          <button type="button" className="icon-button" onClick={addState} title="Add state" aria-label="Add state">
+          </div>
+          <span className="toolbar-divider" aria-hidden />
+          </>}
+          <div className="toolbar-group">
+          <button type="button" className="text-button" disabled={readOnly} onClick={addState} title="Add state" aria-label="Add state">
             <Plus size={18} />
+            Add state
           </button>
           <button
             type="button"
@@ -376,28 +457,40 @@ export function App() {
             onClick={() => importInputRef.current?.click()}
             title="Import JSON"
             aria-label="Import JSON"
+            disabled={readOnly}
           >
             <Upload size={18} />
           </button>
           <button type="button" className="icon-button" onClick={exportEditorJson} title="Export editor JSON" aria-label="Export editor JSON">
             <FileJson size={18} />
           </button>
-          <button type="button" className="text-button" onClick={exportJava} title="Generate Java class">
+          </div>
+          {!embedded && <>
+          <span className="toolbar-divider" aria-hidden />
+          <div className="toolbar-group">
+          <button type="button" className="text-button" onClick={exportJava} title="Generate Java class"
+            disabled={validationIssues.some((issue) => issue.severity === 'error')}>
             JAVA
           </button>
-          <button type="button" className="text-button" onClick={exportKotlin} title="Generate Kotlin class">
+          <button type="button" className="text-button" onClick={exportKotlin} title="Generate Kotlin class"
+            disabled={validationIssues.some((issue) => issue.severity === 'error')}>
             KT
           </button>
+          </div>
+          </>}
+          <span className="toolbar-divider" aria-hidden />
+          <div className="toolbar-group">
           <button
             type="button"
             className="icon-button danger"
             onClick={deleteSelection}
             title="Delete selected"
             aria-label="Delete selected"
-            disabled={!selection}
+            disabled={readOnly || !selection}
           >
             <Trash2 size={18} />
           </button>
+          </div>
           <input
             ref={importInputRef}
             type="file"
@@ -416,8 +509,12 @@ export function App() {
       <main className="workspace">
         <section className="canvas" aria-label="FSM graph">
           <ReactFlow
+            nodesDraggable={!readOnly}
+            nodesConnectable={!readOnly}
+            deleteKeyCode={readOnly ? null : 'Backspace'}
             nodes={nodes}
             edges={edges}
+            edgeTypes={edgeTypes}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
@@ -425,21 +522,31 @@ export function App() {
             onEdgeClick={(_, edge) => setSelection({ type: 'transition', id: edge.id })}
             onPaneClick={() => setSelection(null)}
             fitView
-            defaultEdgeOptions={{ type: 'smoothstep' }}
+            fitViewOptions={{ maxZoom: 1 }}
+            defaultEdgeOptions={{ type: 'flow' }}
           >
-            <Background gap={20} size={1} />
-            <MiniMap pannable zoomable />
+            <Background gap={24} size={1} color="#bac8db" />
+            <MiniMap pannable zoomable nodeColor={(node) => (stateColors.get(node.id) ?? graphColor(node.id)).fill}
+              nodeStrokeColor={(node) => (stateColors.get(node.id) ?? graphColor(node.id)).ink} nodeStrokeWidth={3}
+              maskColor="rgba(51, 65, 85, 0.15)" />
             <Controls />
           </ReactFlow>
         </section>
 
         <aside className="inspector">
-          <ProjectPanel document={document} setDocument={setDocument} />
+          <fieldset disabled={readOnly} className="editor-fields">
+          <ProjectPanel document={document} setDocument={setDocument} runtime={Boolean(embedded)} />
           <EventPanel document={document} setDocument={setDocument} addEvent={addEvent} deleteEvent={deleteEvent} />
-          <BehaviorPanel document={document} setDocument={setDocument} addBehavior={addBehavior} deleteBehavior={deleteBehavior} />
+          {embedded && <ExecutionSettings catalog={embedded.catalog} document={document} setDocument={setDocument} />}
+          {!embedded && <BehaviorPanel document={document} setDocument={setDocument} addBehavior={addBehavior} deleteBehavior={deleteBehavior} />}
+          {!selectedState && !selectedTransition && <section className="panel empty-state">
+            <MousePointerClick size={18} aria-hidden />
+            <span>Select a state or transition on the canvas to edit it.</span>
+          </section>}
           {selectedState && <StateInspector state={selectedState} document={document} setDocument={setDocument} />}
-          {selectedTransition && <TransitionInspector transition={selectedTransition} document={document} setDocument={setDocument} />}
-          <ValidationPanel issues={validationIssues} />
+          {selectedTransition && <TransitionInspector transition={selectedTransition} document={document} setDocument={setDocument} catalog={embedded?.catalog} />}
+          </fieldset>
+          <ValidationPanel issues={validationIssues} document={document} onSelectTransition={(id) => setSelection({ type: 'transition', id })} />
         </aside>
       </main>
     </div>
@@ -449,18 +556,19 @@ export function App() {
 function ProjectPanel({
   document,
   setDocument,
+  runtime = false,
 }: {
   document: FsmEditorDocument;
   setDocument: Dispatch<SetStateAction<FsmEditorDocument>>;
+  runtime?: boolean;
 }) {
   return (
-    <section className="panel">
-      <h2>Project</h2>
+    <Panel title="Project" className="project-panel" icon={<SlidersHorizontal size={15} aria-hidden />} collapsible defaultOpen>
       <label>
         Name
         <input value={document.name} onChange={(event) => setDocument((current) => ({ ...current, name: event.target.value }))} />
       </label>
-      <label>
+      {!runtime && <><label>
         Package
         <input
           value={document.codegen.packageName}
@@ -481,11 +589,12 @@ function ProjectPanel({
           <input value={document.codegen.stateType} onChange={(event) => updateCodegen(setDocument, 'stateType', event.target.value)} />
         </label>
       </div>
+      </>}
       <div className="field-row">
-        <label>
+        {!runtime && <label>
           Event
           <input value={document.codegen.eventType} onChange={(event) => updateCodegen(setDocument, 'eventType', event.target.value)} />
-        </label>
+        </label>}
         <label>
           Initial
           <select
@@ -500,12 +609,17 @@ function ProjectPanel({
           </select>
         </label>
       </div>
-      <label>
+      {!runtime && <label>
         Code style
         <select value={document.codegen.style} onChange={(event) => updateCodegen(setDocument, 'style', event.target.value)}>
           <option value="fluent">Fluent chain</option>
           <option value="builder">Builder add calls</option>
         </select>
+      </label>}
+      <label>
+        Automatic transition limit
+        <input type="number" min="0" max="2147483647" value={document.maxImmediateAutoTransitions ?? 0}
+          onChange={(event) => setDocument((current) => ({ ...current, maxImmediateAutoTransitions: Number(event.target.value) }))} />
       </label>
       <label className="toggle-row">
         <input
@@ -515,7 +629,7 @@ function ProjectPanel({
         />
         Auto transitions
       </label>
-    </section>
+    </Panel>
   );
 }
 
@@ -531,15 +645,12 @@ function EventPanel({
   deleteEvent: (index: number) => void;
 }) {
   return (
-    <section className="panel">
-      <div className="section-head">
-        <h2>Events</h2>
-        <button type="button" className="small-button" onClick={addEvent} title="Add event" aria-label="Add event">
-          <Plus size={14} />
-        </button>
-      </div>
+    <Panel title="Events" className="events-panel" icon={<Zap size={15} aria-hidden />} count={document.events.length} collapsible defaultOpen
+      actions={<button type="button" className="small-button" onClick={addEvent} title="Add event" aria-label="Add event">
+        <Plus size={14} />
+      </button>}>
       <EventList events={document.events} setDocument={setDocument} deleteEvent={deleteEvent} />
-    </section>
+    </Panel>
   );
 }
 
@@ -552,12 +663,15 @@ function EventList({
   setDocument: Dispatch<SetStateAction<FsmEditorDocument>>;
   deleteEvent: (index: number) => void;
 }) {
+  const colors = colorsForIds(events.map((event) => event.id));
   return (
     <div className="behavior-list">
       {events.length === 0 && <span className="muted">No events</span>}
       {events.map((eventRef, index) => (
-        <div className="behavior-row" key={`event-${index}`}>
+        <div className="behavior-row event-row" style={colorVariables(colors.get(eventRef.id)!)} key={`event-${index}`}>
+          <span className="event-swatch" aria-hidden><CircleDot size={14} /></span>
           <input
+            aria-label={`Event ID ${index + 1}`}
             value={eventRef.id}
             onChange={(event) => setDocument((current) => renameEventAtIndex(current, index, event.target.value))}
           />
@@ -588,8 +702,8 @@ function BehaviorPanel({
   deleteBehavior: (kind: 'conditions' | 'actions', index: number) => void;
 }) {
   return (
-    <section className="panel">
-      <h2>Behavior</h2>
+    <Panel title="Behavior" className="behavior-panel" icon={<Boxes size={15} aria-hidden />} collapsible
+      count={document.behaviors.conditions.length + document.behaviors.actions.length}>
       <BehaviorList
         title="Guards"
         kind="conditions"
@@ -606,7 +720,7 @@ function BehaviorPanel({
         addBehavior={addBehavior}
         deleteBehavior={deleteBehavior}
       />
-    </section>
+    </Panel>
   );
 }
 
@@ -629,7 +743,7 @@ function BehaviorList({
     <div className="behavior-list">
       <div className="section-head">
         <span>{title}</span>
-        <button type="button" className="small-button" onClick={() => addBehavior(kind)}>
+        <button type="button" className="small-button" aria-label={kind === 'conditions' ? 'Add guard' : 'Add action'} onClick={() => addBehavior(kind)}>
           <Plus size={14} />
         </button>
       </div>
@@ -637,6 +751,7 @@ function BehaviorList({
       {behaviors.map((behavior, index) => (
         <div className="behavior-row" key={`${kind}-${index}`}>
           <input
+            aria-label={`${kind === 'conditions' ? 'Guard' : 'Action'} ID ${index + 1}`}
             value={behavior.id}
             onChange={(event) =>
               setDocument((current) => renameBehaviorAtIndex(current, kind, index, event.target.value))
@@ -667,8 +782,21 @@ function StateInspector({
   setDocument: Dispatch<SetStateAction<FsmEditorDocument>>;
 }) {
   return (
-    <section className="panel selected-panel">
-      <h2>State</h2>
+    <Panel title="State" icon={<Box size={15} aria-hidden />} className="selected-panel">
+      <label>
+        Color
+        <span className="state-color-field">
+          <span className="event-swatch" aria-hidden
+            style={colorVariables(GRAPH_PALETTE.find((color) => color.ink === state.color) ?? graphColor(state.id))} />
+          <select aria-label="State color" value={state.color ?? graphColor(state.id).ink}
+            onChange={(event) => setDocument((current) => ({ ...current,
+              states: current.states.map((candidate) => candidate.id === state.id
+                ? { ...candidate, color: event.target.value } : candidate),
+            }))}>
+            {GRAPH_PALETTE.map((color) => <option key={color.ink} value={color.ink}>{color.name}</option>)}
+          </select>
+        </span>
+      </label>
       <label>
         Label
         <input
@@ -703,7 +831,7 @@ function StateInspector({
       </label>
       <p className="muted">Incoming: {document.transitions.filter((transition) => transition.to === state.id).length}</p>
       <p className="muted">Outgoing: {document.transitions.filter((transition) => transition.from === state.id).length}</p>
-    </section>
+    </Panel>
   );
 }
 
@@ -711,14 +839,25 @@ function TransitionInspector({
   transition,
   document,
   setDocument,
+  catalog,
 }: {
   transition: FsmTransition;
   document: FsmEditorDocument;
   setDocument: Dispatch<SetStateAction<FsmEditorDocument>>;
+  catalog?: CatalogBehavior[];
 }) {
   const updateTransition = (patch: Partial<FsmTransition>) => {
     setDocument((current) => ({
       ...current,
+      behaviors: catalog ? {
+        conditions: [...current.behaviors.conditions, ...catalog.filter((bean) => bean.kind === 'guard'
+          && patch.conditions?.includes(bean.id) && !current.behaviors.conditions.some((item) => item.id === bean.id))
+          .map((bean) => ({ id: bean.id, label: bean.description }))],
+        actions: [...current.behaviors.actions, ...catalog.filter((bean) => bean.kind === 'action'
+          && [...(patch.actions ?? []), ...(patch.postActions ?? [])].includes(bean.id)
+          && !current.behaviors.actions.some((item) => item.id === bean.id))
+          .map((bean) => ({ id: bean.id, label: bean.description }))],
+      } : current.behaviors,
       transitions: current.transitions.map((candidate) => (candidate.id === transition.id ? { ...candidate, ...patch } : candidate)),
     }));
   };
@@ -732,9 +871,33 @@ function TransitionInspector({
     }
   }
 
+  const siblings = document.transitions.filter((item) => item.from === transition.from);
+
   return (
-    <section className="panel selected-panel">
-      <h2>Transition</h2>
+    <Panel title="Transition" icon={<GitBranch size={15} aria-hidden />} className="selected-panel">
+      {siblings.length > 1 && <fieldset aria-label="Branch priority" className="check-group">
+        <legend>Branch priority (first matching wins)</legend>
+        <ol className="priority-list">
+          {siblings.map((item, index) =>
+            <li key={item.id} className="priority-row">
+              <span className="priority-index">{index + 1}</span>
+              <span className="priority-label">
+                {document.states.find((state) => state.id === item.to)?.label} · {item.trigger.kind === 'event' ? item.trigger.event : 'Eventless'}
+              </span>
+              <span className="priority-actions">
+                {([-1, 1] as const).map((direction) => <button key={direction} type="button" className="small-button"
+                  aria-label={`Move branch ${index + 1} ${direction === -1 ? 'up' : 'down'}`}
+                  disabled={index + direction < 0 || index + direction >= siblings.length}
+                  onClick={() => setDocument((current) => {
+                    const ordered = moveItem(siblings, index, direction);
+                    let position = 0;
+                    return { ...current, transitions: current.transitions.map((candidate) =>
+                      candidate.from === transition.from ? ordered[position++] : candidate) };
+                  })}>{direction === -1 ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</button>)}
+              </span>
+            </li>)}
+        </ol>
+      </fieldset>}
       <div className="field-row">
         <label>
           From
@@ -761,7 +924,7 @@ function TransitionInspector({
         <button
           type="button"
           className={transition.trigger.kind === 'event' ? 'active' : ''}
-          onClick={() => eventTrigger && updateTransition({ trigger: { kind: 'event', event: eventTrigger } })}
+          onClick={() => eventTrigger && updateTransition({ trigger: { kind: 'event', event: eventTrigger }, autoTransitionEnabled: false })}
           disabled={!eventTrigger}
           title={eventTrigger ? undefined : 'Create an event first'}
         >
@@ -770,7 +933,9 @@ function TransitionInspector({
         <button
           type="button"
           className={transition.trigger.kind === 'auto' ? 'active' : ''}
-          onClick={() => updateTransition({ trigger: { kind: 'auto' } })}
+          onClick={() => {
+            if (transition.trigger.kind !== 'auto') updateTransition({ trigger: { kind: 'auto' }, autoTransitionEnabled: true });
+          }}
         >
           Auto
         </button>
@@ -780,7 +945,7 @@ function TransitionInspector({
           Event
           <select
             value={transition.trigger.event}
-            onChange={(event) => updateTransition({ trigger: { kind: 'event', event: event.target.value } })}
+            onChange={(event) => updateTransition({ trigger: { kind: 'event', event: event.target.value }, autoTransitionEnabled: false })}
           >
             {document.events.map((eventRef) => (
               <option key={eventRef.id} value={eventRef.id}>
@@ -792,18 +957,26 @@ function TransitionInspector({
       )}
       <BehaviorPicker
         title="Guards"
+        catalog={catalog?.filter((bean) => bean.kind === 'guard')}
         options={document.behaviors.conditions}
         selected={transition.conditions}
         onChange={(conditions) => updateTransition({ conditions })}
       />
+      {transition.trigger.kind === 'auto' && <label className="toggle-row">
+        <input type="checkbox" checked={transition.autoTransitionEnabled ?? false}
+          onChange={(event) => updateTransition({ autoTransitionEnabled: event.target.checked })} />
+        Run this transition automatically even when global auto transitions are disabled
+      </label>}
       <BehaviorPicker
         title="Actions"
+        catalog={catalog?.filter((bean) => bean.kind === 'action')}
         options={document.behaviors.actions}
         selected={transition.actions}
         onChange={(actions) => updateTransition({ actions })}
       />
       <BehaviorPicker
         title="Post actions"
+        catalog={catalog?.filter((bean) => bean.kind === 'action')}
         options={document.behaviors.actions}
         selected={transition.postActions}
         onChange={(postActions) => updateTransition({ postActions })}
@@ -845,7 +1018,8 @@ function TransitionInspector({
           </select>
         </label>
       </div>
-    </section>
+      <p className="muted">Timeout waits inside the current call. Use a queued notification for a background step.</p>
+    </Panel>
   );
 }
 
@@ -854,16 +1028,27 @@ function BehaviorPicker({
   options,
   selected,
   onChange,
+  catalog,
 }: {
   title: string;
   options: BehaviorRef[];
   selected: string[];
   onChange: (next: string[]) => void;
+  catalog?: CatalogBehavior[];
 }) {
+  if (catalog) return <CatalogPicker title={title} options={catalog} selected={selected} onChange={onChange} />;
   return (
     <fieldset className="check-group">
       <legend>{title}</legend>
       {options.length === 0 && <span className="muted">None</span>}
+      {selected.length > 0 && <ol aria-label={`${title} execution order`}>
+        {selected.map((id, index) => <li key={id}>{id}
+          {([-1, 1] as const).map((direction) => <button type="button" key={direction}
+            aria-label={`Move ${title} ${id} ${direction === -1 ? 'up' : 'down'}`}
+            disabled={index + direction < 0 || index + direction >= selected.length}
+            onClick={() => onChange(moveItem(selected, index, direction))}>{direction === -1 ? 'Up' : 'Down'}</button>)}
+        </li>)}
+      </ol>}
       {options.map((option) => (
         <label key={option.id} className="toggle-row">
           <input
@@ -885,22 +1070,35 @@ function BehaviorPicker({
   );
 }
 
-function ValidationPanel({ issues }: { issues: ReturnType<typeof validateEditorDocument> }) {
+function ValidationPanel({ issues, document, onSelectTransition }: {
+  issues: ReturnType<typeof validateEditorDocument>;
+  document: FsmEditorDocument;
+  onSelectTransition: (id: string) => void;
+}) {
   const errorCount = issues.filter((issue) => issue.severity === 'error').length;
+  const warningCount = issues.length - errorCount;
 
   return (
-    <section className="panel validation-panel">
-      <h2>
-        <AlertCircle size={16} />
-        Validation
-      </h2>
-      <p className={errorCount > 0 ? 'error-text' : 'ok-text'}>{errorCount > 0 ? `${errorCount} error(s)` : 'No errors'}</p>
-      {issues.map((issue, index) => (
-        <p key={`${issue.path}-${index}`} className={issue.severity === 'error' ? 'error-text' : 'warning-text'}>
-          {issue.path}: {issue.message}
-        </p>
-      ))}
-    </section>
+    <Panel title="Validation" icon={<AlertCircle size={15} aria-hidden />} className="validation-panel"
+      actions={<span className={`validation-badge ${errorCount > 0 ? 'has-errors' : warningCount > 0 ? 'has-warnings' : ''}`.trim()}>
+        {errorCount > 0 ? errorCount : warningCount > 0 ? warningCount : 'OK'}</span>}>
+      <p className={errorCount > 0 ? 'error-text' : warningCount > 0 ? 'warning-text' : 'ok-text'}>
+        {errorCount > 0 ? `${errorCount} error(s)` : warningCount > 0 ? `${warningCount} warning(s)` : 'No issues'}
+      </p>
+      {issues.map((issue, index) => {
+        const transitionIndex = /^transitions\[(\d+)]/.exec(issue.path);
+        const transition = transitionIndex ? document.transitions[Number(transitionIndex[1])] : undefined;
+        const source = transition && document.states.find((state) => state.id === transition.from)?.label;
+        const target = transition && document.states.find((state) => state.id === transition.to)?.label;
+        const disabledAuto = issue.path === `transitions[${transitionIndex?.[1]}].trigger`
+          && transition?.trigger.kind === 'auto' && !document.autoTransitionEnabled && !transition.autoTransitionEnabled;
+        return <div key={`${issue.path}-${index}`} className={issue.severity === 'error' ? 'error-text validation-issue' : 'warning-text validation-issue'}>
+          <p>{transition ? `${source ?? transition.from} → ${target ?? transition.to}: ` : `${issue.path}: `}{issue.message}</p>
+          {disabledAuto && <p>If this arrow is intentional, enable automatic execution on this transition or “Auto transitions” in Project. Otherwise delete it or change its trigger to Event.</p>}
+          {transition && <button type="button" className="small-button" onClick={() => onSelectTransition(transition.id)}>Show transition</button>}
+        </div>;
+      })}
+    </Panel>
   );
 }
 
@@ -1075,6 +1273,7 @@ export function addAutoTransition(document: FsmEditorDocument, source: string, t
     from: source,
     to: target,
     trigger: { kind: 'auto' },
+    autoTransitionEnabled: true,
     conditions: [],
     actions: [],
     postActions: [],
