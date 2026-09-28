@@ -9,17 +9,55 @@ npm install
 npm run dev
 ```
 
-## Embedded example mode
+## Embedding the universal editor
 
-The Spring Boot example reuses this application's graph editor at `/fsm-editor/`.
-Its Gradle build runs the frontend build with `--mode example` and bundles the result as static
-resources. That mode opens the application's `order` flow and uses its version API to create drafts,
-save both runtime JSON and visual layout, and publish. Active/archived versions are read-only.
-The standalone mode above continues to use local projects and Java/Kotlin generation.
+State colors are assigned randomly from the 12-color palette on creation or import if missing.
+Loading a saved diagram never randomizes colors. Select a state and use **State → Color** to change its color. Existing colors
+remain fixed when other states are added or removed. The optional `states[].color` field stores the
+palette's hex color in editor JSON and in the host's `editor.states` metadata; it does not affect FSM
+execution or generated code. Save the document to retain assigned colors. Read-only flows also lock
+the color selector. Event colors continue to be assigned automatically by event ID.
 
-See [the example instructions](../fsm-spring-boot-example/README.md#visual-order-editor) to run it.
+One static application runs on GitHub Pages, locally, or in an iframe. There is no domain-specific
+entry point or build mode. The editor does not know about orders, flow versions, application APIs
+or publication. The host application owns those operations, its catalogs and event type choices.
+
+Use the deployed editor URL with `?parentOrigin=` set to the exact, URL-encoded host origin
+(scheme, hostname and port; no trailing slash). Without that parameter the editor opens local
+projects with Java/Kotlin export. Embedded documents never use the editor's local autosave API.
+The default build uses relative asset URLs, so the same built directory can be served under any path.
+
+The iframe contract uses `postMessage`, channel `fsm-editor/v1`:
+
+| Direction     | Type               | Payload                                                                                                                                   |
+| ------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Editor → host | `ready`            | Host can now load a document. Also emitted after iframe reload.                                                                           |
+| Host → editor | `load`             | Fresh string `session`, `document` (editor JSON) or `definition` (runtime JSON), boolean `readOnly`, optional `catalog`.                  |
+| Editor → host | `loaded`, `change` | `session`, current `document`; the first response supplies the normalized baseline.                                                       |
+| Host → editor | `configure`        | `session`, boolean `readOnly`; preserves selection and unsaved document.                                                                  |
+| Host → editor | `snapshot`         | `session`, string `requestId`; freezes editing for a save.                                                                                |
+| Editor → host | `snapshot`         | `session`, `requestId`, `document` and validated `definition`, or `error` if invalid.                                                     |
+| Editor → host | `error`            | `session`, error text for an invalid load; the current document remains intact.                                                           |
+
+Catalog entries are `{id, kind, description}` with kinds `guard`, `action`, `stateListener`,
+`completionListener`.
+Every message includes `channel`. Always verify both `event.source === iframe.contentWindow`
+and the exact editor origin, and ignore replies for old sessions or unknown request IDs.
+Use an explicit target origin, never `*`. The editor applies the equivalent checks to its parent.
+After saving or an error, send `configure` to restore the appropriate read-only state. On timeout,
+report the failure and unlock; do not claim the document was saved.
+
+The [Spring example](../fsm-spring-boot-example/README.md#visual-order-editor) implements this
+contract in its own static UI: the editor receives only documents and generic configuration.
 
 ## Browser regression tests
+
+`npm run test:codegen` exports Java/Kotlin factories in both styles, compiles them against
+the current core and executes local auto plus event transitions. It requires Java 17+ and uses
+an isolated Gradle test project under `codegen-test`; generated files stay in its build directory.
+`npm test` runs the frontend unit tests. The local auto flag and chain limit are editable in
+standalone and embedded use. Runtime order tests and component coverage are listed in
+[the matrix](../docs/tasks/order-editor-coverage.md).
 
 Requires Node 22+, Java 17+ and a running Docker daemon. From this directory:
 
@@ -29,6 +67,16 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
+Or run from the repository root (after installing Chromium once):
+
+```bash
+./gradlew playwrightTest
+```
+
+The task is listed under `fsm-spring-boot-example` → `verification` in the Gradle panel.
+It builds the application and frontend dependencies before running the same isolated suite.
+It is explicit and does not run as part of the ordinary `check` task.
+
 The runner builds the example, starts a disposable PostgreSQL container and Spring application
 under `/test`, and gives Vite a temporary projects directory. It never uses the development
 database or `projects/`. Chromium runs headlessly with a fresh context per test. Servers,
@@ -36,15 +84,15 @@ container and temporary files are removed on completion or interruption. On fail
 `playwright-report/`, `test-results/` (screenshots and traces) and `e2e-server.log`.
 Pass Playwright options after `--`, for example `npm run test:e2e -- --grep 'delete draft'`.
 
-| Scenarios | Tests |
-| --- | --- |
-| Project settings, validation, add/rename/describe/drag/delete states, keyboard deletion and cascading edges | `e2e/graph.spec.ts`, both modes |
+| Scenarios                                                                                                                                  | Tests                           |
+| ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------- |
+| Project settings, validation, add/rename/describe/drag/delete states, keyboard deletion and cascading edges                                | `e2e/graph.spec.ts`, both modes |
 | Connect handles, duplicate connections, edge selection/deletion, endpoints, event/auto trigger, guards/actions/post-actions, timeout units | `e2e/graph.spec.ts`, both modes |
-| Event and behavior creation/rename/deletion, reference propagation, JSON import/export and invalid input | `e2e/graph.spec.ts`, both modes |
-| Zoom, fit, minimap, interaction lock | `e2e/graph.spec.ts`, both modes |
-| Create/save/discard/delete/cancel, reload/layout persistence, read-only versions, failure/retry paths | `e2e/order.spec.ts` |
-| Publish validation, new order version and unchanged existing orders, protected active/archive versions | `e2e/order.spec.ts` |
-| Autosave, browser fallback, project switch/delete, failed project requests, Java/Kotlin exports in both styles | `e2e/projects.spec.ts` |
+| Event and behavior creation/rename/deletion, reference propagation, JSON import/export and invalid input                                   | `e2e/graph.spec.ts`, both modes |
+| Zoom, fit, minimap, interaction lock                                                                                                       | `e2e/graph.spec.ts`, both modes |
+| Create/save/discard/delete/cancel, reload/layout persistence, read-only versions, failure/retry paths                                      | `e2e/order.spec.ts`             |
+| Publish validation, new order version and unchanged existing orders, protected active/archive versions                                     | `e2e/order.spec.ts`             |
+| Autosave, browser fallback, project switch/delete, failed project requests, Java/Kotlin exports in both styles                             | `e2e/projects.spec.ts`          |
 
 Successful order operations use the real HTTP API and database. Failure scenarios deliberately
 intercept only the request whose error handling is being tested. Unit tests remain `npm test`.
@@ -53,7 +101,7 @@ intercept only the request whose error handling is being tested. Unit tests rema
 
 The repository publishes this editor with the `GitHub Pages` workflow. The workflow builds the static Vite app from this directory and deploys `dist`.
 
-Enable GitHub Pages in the repository settings with `GitHub Actions` as the source. The build sets `VITE_BASE_PATH` to `/<repository-name>/`, so project Pages URLs load bundled assets correctly.
+Enable GitHub Pages in the repository settings with `GitHub Actions` as the source. Relative asset URLs work under the repository Pages path and when the same bundle is embedded elsewhere.
 
 ## What The JSON Stores
 
@@ -76,7 +124,7 @@ Saved files appear in the Recent dropdown and can be reopened later. The same do
 
 The generated Java/Kotlin class is self-contained: it includes the state enum, event enum, a domain DTO implementing `StateContext`, reusable guard/action placeholders, and a factory method returning:
 
-```java
+```text
 ExDomainFsm<DomainType, StateType, EventType>
 ```
 

@@ -7,6 +7,7 @@ import io.github.ngirchev.fsm.spring.definition.FlowDefinition;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Objects;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -19,10 +20,18 @@ class FlowDefinitionJsonTest {
         var original = mapper.readTree(json);
         var definition = mapper.readValue(json, FlowDefinition.class);
         assertThat(definition.initialState()).isEqualTo("NEW");
+        assertThat(definition.table().getMaxImmediateAutoTransitions()).isZero();
         assertThat(definition.table().getTransitions().get("NEW"))
                 .extracting(TransitionDto::getEvent).containsExactly("SUBMIT");
         assertThat(definition.table().getTransitions().get("IN_PROGRESS"))
-                .extracting(TransitionDto::getEvent).containsExactly("FINISH");
+                .extracting(TransitionDto::getEvent).containsExactly("FINISH", "FINISH");
+        assertThat(definition.table().getTransitions().get("IN_PROGRESS"))
+                .extracting(transition -> transition.getTo().getState())
+                .containsExactly("COMMISSION_2_PERCENT", "COMMISSION_1_PERCENT");
+        assertThat(definition.table().getTransitions().get("COMMISSION_2_PERCENT"))
+                .extracting(TransitionDto::getEvent).containsExactly((String) null);
+        assertThat(definition.table().getTransitions().get("COMMISSION_1_PERCENT"))
+                .extracting(TransitionDto::getEvent).containsExactly((String) null);
         assertThat(definition.table().getTransitions().get("COMPLETED")).isEmpty();
         assertThat(mapper.readTree(json)).isEqualTo(original);
     }
@@ -30,7 +39,7 @@ class FlowDefinitionJsonTest {
     @Test
     void visualMetadataRoundTripsWithoutChangingTheExecutableTable() throws Exception {
         var original = mapper.readValue(seedJson(), FlowDefinition.class);
-        assertThat(original.editor()).isNull();
+        assertThat(java.util.Objects.requireNonNull(original.editor()).at("/states/0/color").asText()).isEqualTo("#6d28d9");
         var layout = mapper.readTree("""
                 {"name":"Order", "states":[{"id":"new","label":"NEW",
                 "position":{"x":-214.75,"y":870.25}}]}
@@ -39,7 +48,7 @@ class FlowDefinitionJsonTest {
         var restored = mapper.readValue(mapper.writeValueAsString(definition), FlowDefinition.class);
         assertThat(restored).isEqualTo(definition);
         assertThat(restored.table()).isEqualTo(original.table());
-        assertThat(restored.editor().at("/states/0/position/x").asDouble()).isEqualTo(-214.75);
+        assertThat(Objects.requireNonNull(restored.editor()).at("/states/0/position/x").asDouble()).isEqualTo(-214.75);
     }
 
     @Test
@@ -51,7 +60,7 @@ class FlowDefinitionJsonTest {
     }
 
     private String seedJson() throws Exception {
-        try (var input = getClass().getResourceAsStream("/db/migration/V2__seed_order_flow.sql")) {
+        try (var input = Objects.requireNonNull(getClass().getResourceAsStream("/db/migration/V1__create_fsm_tables.sql"))) {
             String seed = new String(input.readAllBytes(), StandardCharsets.UTF_8);
             int start = seed.indexOf("$json$") + "$json$".length();
             return seed.substring(start, seed.indexOf("$json$", start));

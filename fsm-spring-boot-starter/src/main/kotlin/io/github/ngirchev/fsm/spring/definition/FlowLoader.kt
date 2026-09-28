@@ -11,8 +11,13 @@ class FlowLoader(
 ) {
     /** Restores the core FSM table and resolves named Spring handlers. */
     fun load(definition: FlowDefinition): ExTransitionTable<String, String> {
+        return load(definition) { it }
+    }
+
+    /** Restore an application's prepared event type while retaining core validation. */
+    fun <EVENT> load(definition: FlowDefinition, eventParser: (String) -> EVENT): ExTransitionTable<String, EVENT> {
         validate(definition)
-        return serializer.fromDto(definition.table, { it }, { it })
+        return serializer.fromDto(definition.table, { it }, eventParser)
     }
 
     private fun validate(definition: FlowDefinition) {
@@ -20,9 +25,8 @@ class FlowLoader(
         require(table.transitions.containsKey(definition.initialState)) {
             "Initial state is not in the flow table"
         }
-        require(table.maxImmediateAutoTransitions >= 0 &&
-            (!table.autoTransitionEnabled || table.maxImmediateAutoTransitions > 0)) {
-            "Automatic transition limit must be positive when enabled"
+        require(table.maxImmediateAutoTransitions >= 0) {
+            "Automatic transition limit must not be negative"
         }
 
         table.transitions.forEach(::validateTransitions)
@@ -35,6 +39,9 @@ class FlowLoader(
     }
 
     private fun validateTransition(state: String, transition: TransitionDto) {
+        require(transition.event == null || !transition.to.autoTransitionEnabled) {
+            "Only eventless transitions may enable local automatic execution"
+        }
         require(state == transition.from) { "Transition source differs from its table key" }
         validateState(transition.to.state)
         transition.to.timeout?.let { timeout ->

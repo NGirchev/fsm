@@ -1,6 +1,6 @@
 import { test as base, expect, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
-import type { FsmEditorDocument } from '../src/domain/types';
+import type { FsmEditorDocument } from '../src/domain';
 
 export const test = base.extend<{ noBrowserErrors: void }>({
   noBrowserErrors: [async ({ page }, use) => {
@@ -13,6 +13,10 @@ export const test = base.extend<{ noBrowserErrors: void }>({
 
 export const embedded = process.env.E2E_EMBEDDED_URL!;
 export const standalone = `http://127.0.0.1:${process.env.E2E_VITE_PORT}`;
+export function editor(page: Page) {
+  return page.url().startsWith(embedded) ? page.frameLocator('#flow-editor') : page;
+}
+
 export const api = `${embedded}/api/flows/order/versions`;
 export const fixture: FsmEditorDocument = {
   formatVersion: 2, name: 'Browser test', autoTransitionEnabled: false,
@@ -28,35 +32,42 @@ export const fixture: FsmEditorDocument = {
 };
 
 export async function importDocument(page: Page, document: unknown = fixture) {
-  await page.locator('input[type=file]').setInputFiles({ name: 'test.fsm.json', mimeType: 'application/json',
+  await editor(page).locator('input[type=file]').setInputFiles({ name: 'test.fsm.json', mimeType: 'application/json',
     buffer: Buffer.from(JSON.stringify(document)) });
-  await expect(page.locator('.toolbar-title')).toContainText('Imported editor JSON');
-  await page.getByRole('button', { name: 'Fit View', exact: true }).click();
+  await expect(editor(page).locator('.toolbar-title')).toContainText('Imported editor JSON');
+  await editor(page).getByRole('button', { name: 'Fit View', exact: true }).click();
 }
 
 export async function exportDocument(page: Page): Promise<FsmEditorDocument> {
   const download = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Export editor JSON', exact: true }).click();
+  await editor(page).getByRole('button', { name: 'Export editor JSON', exact: true }).click();
   return JSON.parse(await readFile((await (await download).path())!, 'utf8'));
 }
 
 export async function openDraft(page: Page) {
-  await page.goto(`${embedded}/fsm-editor/`);
+  await page.goto(`${embedded}/#flow`);
   await expect(page.getByRole('button', { name: 'Create draft', exact: true })).toBeEnabled();
   await page.getByRole('button', { name: 'Create draft', exact: true }).click();
   await expect(page.getByRole('status').first()).toContainText('Draft created');
   return Number(await page.getByLabel('Order version').inputValue());
 }
 
+export async function expandSection(page: Page, title: string) {
+  const summary = editor(page).locator('details.panel > summary.panel-head').filter({ hasText: title }).first();
+  if (!(await summary.evaluate((element) => (element.parentElement as HTMLDetailsElement).open))) {
+    await summary.click();
+  }
+}
+
 export async function connect(page: Page, from: string, to: string) {
-  await page.locator(`[data-id="${from}"] .source`).hover();
+  await editor(page).locator(`[data-id="${from}"] .source`).hover();
   await page.mouse.down();
-  await page.locator(`[data-id="${to}"] .target`).hover();
+  await editor(page).locator(`[data-id="${to}"] .target`).hover();
   await page.mouse.up();
 }
 
 export async function selectEdge(page: Page, id = 'ab') {
-  // The label is on the curve; Playwright waits for layout/fit animation to settle before clicking.
-  await page.locator(`.react-flow__edge[data-id="${id}"] .react-flow__edge-textbg`).click();
-  await expect(page.locator('.selected-panel h2')).toHaveText('Transition');
+  // The HTML label chip renders above the edge paths; clicking it selects the transition.
+  await editor(page).locator(`.flow-edge-label[data-id="${id}"]`).click();
+  await expect(editor(page).locator('.selected-panel h2')).toHaveText('Transition');
 }

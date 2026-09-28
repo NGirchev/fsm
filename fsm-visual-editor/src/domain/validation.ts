@@ -61,10 +61,16 @@ export function validateEditorDocument(document: FsmEditorDocument, runtime = fa
   const conditionIds = validateBehaviorIds(document.behaviors.conditions, 'behaviors.conditions', issues, undefined, runtime);
   const actionIds = validateBehaviorIds(document.behaviors.actions, 'behaviors.actions', issues, undefined, runtime);
   const eventIds = validateBehaviorIds(document.events, 'events', issues, 'Event id must be a Java enum constant.', runtime);
+  if (runtime) {
+    document.events.forEach((event, index) => {
+      if (event.id.length > 120) {
+        issues.push({ severity: 'error', path: `events[${index}].id`, message: 'Event ID must contain at most 120 characters.' });
+      }
+    });
+  }
   const limit = document.maxImmediateAutoTransitions ?? 0;
-  if (runtime && (!Number.isInteger(limit) || limit < 0 || limit > 2147483647 ||
-      (document.autoTransitionEnabled && limit === 0))) {
-    issues.push({ severity: 'error', path: 'maxImmediateAutoTransitions', message: 'Automatic transition limit must be a non-negative integer, and positive when auto transitions are enabled.' });
+  if (!Number.isInteger(limit) || limit < 0 || limit > 2147483647) {
+    issues.push({ severity: 'error', path: 'maxImmediateAutoTransitions', message: 'Automatic transition limit must be a non-negative integer.' });
   }
   const transitionIds = new Set<string>();
   const transitionKeys = new Map<string, number>();
@@ -118,7 +124,7 @@ export function validateEditorDocument(document: FsmEditorDocument, runtime = fa
       issues.push({
         severity: 'warning',
         path: `${path}.trigger`,
-        message: 'Auto transition will not run after event handling while auto transitions are disabled.',
+        message: 'This automatic transition is disabled and will not run after an event.',
       });
     }
 

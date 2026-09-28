@@ -9,9 +9,9 @@ import java.util.Optional;
 interface FlowVersionRepository extends JpaRepository<FlowVersionEntity, Long> {
     Optional<FlowVersionEntity> findTopByFlowKeyOrderByVersionDesc(String flowKey);
 
-    Optional<FlowVersionEntity> findByFlowKeyAndVersionAndDeletedFalse(String flowKey, int version);
+    Optional<FlowVersionEntity> findByFlowKeyAndVersion(String flowKey, int version);
 
-    Optional<FlowVersionEntity> findByFlowKeyAndStatusAndDeletedFalse(String flowKey, FlowVersionStatus status);
+    Optional<FlowVersionEntity> findByFlowKeyAndStatus(String flowKey, FlowVersionStatus status);
 
-    List<FlowVersionEntity> findByFlowKeyAndDeletedFalseOrderByVersionDesc(String flowKey);
+    List<FlowVersionEntity> findByFlowKeyOrderByVersionDesc(String flowKey);
 }

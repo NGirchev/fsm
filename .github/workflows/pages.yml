@@ -45,8 +45,6 @@ jobs:
 
     - name: Build site
       working-directory: fsm-visual-editor
-      env:
-        VITE_BASE_PATH: /${{ github.event.repository.name }}/
       run: npm run build
 
     - name: Upload pages artifact

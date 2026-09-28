@@ -106,7 +106,7 @@ class FlowLoaderTest {
     }
 
     @Test
-    fun `requires an automatic transition limit and relies on runtime enforcement`() {
+    fun `accepts unlimited automatic transitions and enforces a positive limit`() {
         val table = ExTransitionTable.Builder<String, String>()
             .autoTransitionEnabled(true)
             .maxImmediateAutoTransitions(2)
@@ -116,8 +116,8 @@ class FlowLoaderTest {
             .build()
         val coreSerializer = FsmJsonSerializer()
         val dto = coreSerializer.deserializeDto(coreSerializer.serialize(table))
-        assertThatThrownBy { loader.load(FlowDefinition("NEW", FsmDto(true, dto.transitions, 0))) }
-            .isInstanceOf(IllegalArgumentException::class.java)
+        assertThatCode { loader.load(FlowDefinition("NEW", FsmDto(true, dto.transitions, 0))) }
+            .doesNotThrowAnyException()
         assertThatThrownBy { loader.load(FlowDefinition("NEW", FsmDto(false, dto.transitions, -1))) }
             .isInstanceOf(IllegalArgumentException::class.java)
         assertThatThrownBy { loader.load(FlowDefinition("NEW", dto)).createFsm("NEW").onEvent("GO") }
@@ -126,6 +126,17 @@ class FlowLoaderTest {
 
     private fun target(state: String = "DONE", timeout: TimeoutDto? = null) =
         ToDto(state, listOf("allowed"), listOf("mark"), emptyList(), timeout)
+
+    @Test
+    fun `local auto accepts an unlimited eventless transition`() {
+        val local = target().also { it.autoTransitionEnabled = true }
+        val eventless = mapOf("NEW" to listOf(TransitionDto("NEW", local, null)))
+        assertThat(loader.load(FlowDefinition("NEW", FsmDto(false, eventless, 0))).createFsm("NEW").getState())
+            .isEqualTo("NEW")
+        val event = mapOf("NEW" to listOf(TransitionDto("NEW", local, "GO")))
+        assertThatThrownBy { loader.load(FlowDefinition("NEW", FsmDto(false, event, 1))) }
+            .isInstanceOf(IllegalArgumentException::class.java)
+    }
 
     private fun definition(destination: ToDto) = FlowDefinition(
         "NEW",

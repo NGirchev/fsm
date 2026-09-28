@@ -7,7 +7,7 @@ interface FlowStore {
     /** Exclusively claim the key, including a new key, until the caller's transaction ends. */
     fun lock(flowKey: String)
 
-    /** Highest allocated version, including deleted drafts, so version numbers are never reused. */
+    /** Highest remaining version. Deleting the highest draft allows its number to be reused. */
     fun latest(flowKey: String): Optional<FlowVersion>
 
     fun get(flowKey: String, version: Int): Optional<FlowVersion>
@@ -19,7 +19,7 @@ interface FlowStore {
     /** Persist a new or changed version; writes must be observable in call order. */
     fun save(version: FlowVersion): FlowVersion
 
-    /** Hide a draft from get/list while retaining its version number. Called under [lock]. */
+    /** Physically remove a draft, including from [latest]. Called under [lock]. */
     fun deleteDraft(flowKey: String, version: Int) {
         throw UnsupportedOperationException("This flow store does not support deleting drafts")
     }

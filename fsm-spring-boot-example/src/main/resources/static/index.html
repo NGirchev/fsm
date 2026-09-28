@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Order flow example</title>
+  <link rel="stylesheet" href="./example.css?v=two-order-flows">
+  <script type="module" src="./example.js?v=two-order-flows"></script>
+</head>
+<body>
+  <header><h1>Order flow example</h1>
+    <nav role="tablist" aria-label="Example views">
+      <button id="orders-tab" role="tab" aria-selected="true" aria-controls="orders-panel">Orders</button>
+      <button id="editor-tab" role="tab" aria-selected="false" aria-controls="editor-panel">Flow editor</button>
+    </nav>
+  </header>
+  <section id="orders-panel" role="tabpanel" aria-labelledby="orders-tab">
+    <div class="test-heading"><div><p class="eyebrow">FLOW PLAYGROUND</p><h2>Test your published flow</h2>
+      <p>Edit → Save draft → Publish → Run a new order.</p></div><span id="active-flow" class="version-badge">Loading active version…</span></div>
+    <div class="order-forms">
+      <form id="run-flow"><h3>Order amount</h3>
+        <label>Amount <input name="amount" type="number" min="0" step="0.01" value="100.00" required></label>
+        <p class="muted">The active flow sets the commission. The fixed flow always uses 2%; the branching flow uses 2% below 1000 and 1% from 1000.</p>
+        <button class="primary">Run flow</button>
+        <p class="muted">One click creates a real demo order and runs SUBMIT → FINISH through the active published version.</p>
+      </form>
+    </div>
+    <p id="order-message" role="status">Run a test to see the path and changes made to your order.</p>
+    <section id="test-result" hidden aria-label="Test run result">
+      <div class="test-heading"><div><p class="eyebrow">EXECUTION</p><h2 id="test-title">Test run</h2></div><span id="test-outcome" class="version-badge"></span></div>
+      <p id="test-summary"></p><ol id="test-steps" class="test-steps"></ol>
+      <p class="muted">This trace shows committed synchronous transitions from this run. Background work is shown in order details below. The trace is kept until you leave or reload this page.</p>
+    </section>
+    <section id="order-detail" hidden>
+      <h2 id="order-title"></h2>
+      <dl id="order-fields"></dl>
+      <h3>History</h3><p>Saved in the database and restored when this order is reopened.</p>
+      <div class="table-scroll"><table><thead><tr><th>Kind</th><th>From</th><th>To</th><th>Event</th><th>Source</th><th>Request ID</th></tr></thead>
+        <tbody id="order-history"></tbody></table></div>
+    </section>
+  </section>
+  <section id="editor-panel" role="tabpanel" aria-labelledby="editor-tab" hidden>
+    <div id="flow-message" role="status">Loading order flow…</div>
+    <div class="flow-toolbar">
+      <label>Order version <select id="flow-version" aria-label="Order version" disabled></select></label>
+      <button id="create-draft" disabled>Create draft</button>
+      <button id="save-draft" disabled>Save draft</button>
+      <button id="publish" disabled>Publish</button>
+      <button id="activate" disabled>Make active</button>
+      <button id="delete-draft" disabled>Delete draft</button>
+      <button id="discard" hidden>Discard changes</button>
+      <button id="retry">Retry</button>
+    </div>
+    <iframe id="flow-editor" title="FSM editor"></iframe>
+  </section>
+</body>
+</html>

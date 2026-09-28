@@ -8,6 +8,7 @@ import io.github.ngirchev.fsm.spring.definition.FlowVersionStatus;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.lang.NonNull;
 
 import java.util.List;
 import java.util.Optional;
@@ -18,47 +19,56 @@ public class JpaFlowStore implements FlowStore {
     private final FlowVersionRepository versions;
     private final ObjectMapper objectMapper;
     private final EntityManager entityManager;
+    private final io.github.ngirchev.fsm.example.order.OrderBehaviorCatalog behaviorCatalog;
 
     @Override
-    public void lock(String flowKey) {
+    public void lock(@NonNull String flowKey) {
         entityManager.createNativeQuery("SELECT pg_advisory_xact_lock(hashtextextended(:flowKey, 0))")
                 .setParameter("flowKey", flowKey)
                 .getSingleResult();
     }
 
     @Override
-    public Optional<FlowVersion> latest(String flowKey) {
+    @NonNull
+    public Optional<FlowVersion> latest(@NonNull String flowKey) {
         return versions.findTopByFlowKeyOrderByVersionDesc(flowKey).map(this::toVersion);
     }
 
     @Override
-    public List<FlowVersion> list(String flowKey) {
-        return versions.findByFlowKeyAndDeletedFalseOrderByVersionDesc(flowKey).stream().map(this::toVersion).toList();
+    @NonNull
+    public List<FlowVersion> list(@NonNull String flowKey) {
+        return versions.findByFlowKeyOrderByVersionDesc(flowKey).stream().map(this::toVersion).toList();
     }
 
     @Override
-    public Optional<FlowVersion> get(String flowKey, int version) {
-        return versions.findByFlowKeyAndVersionAndDeletedFalse(flowKey, version).map(this::toVersion);
+    @NonNull
+    public Optional<FlowVersion> get(@NonNull String flowKey, int version) {
+        return versions.findByFlowKeyAndVersion(flowKey, version).map(this::toVersion);
     }
 
     @Override
-    public Optional<FlowVersion> active(String flowKey) {
-        return versions.findByFlowKeyAndStatusAndDeletedFalse(flowKey, FlowVersionStatus.ACTIVE).map(this::toVersion);
+    @NonNull
+    public Optional<FlowVersion> active(@NonNull String flowKey) {
+        return versions.findByFlowKeyAndStatus(flowKey, FlowVersionStatus.ACTIVE).map(this::toVersion);
     }
 
     @Override
-    public void deleteDraft(String flowKey, int version) {
-        var stored = versions.findByFlowKeyAndVersionAndDeletedFalse(flowKey, version).orElseThrow();
-        stored.setDeleted(true);
-        versions.save(stored);
+    public void deleteDraft(@NonNull String flowKey, int version) {
+        var stored = versions.findByFlowKeyAndVersion(flowKey, version).orElseThrow();
+        versions.delete(stored);
+        versions.flush();
     }
 
     @Override
+    @NonNull
     public FlowVersion save(FlowVersion version) {
         if (version.status() == FlowVersionStatus.ACTIVE) {
             validateStateBounds(version.definition());
+            if (version.flowKey().equals("order")) {
+                behaviorCatalog.validate(version.definition());
+            }
         }
-        var stored = versions.findByFlowKeyAndVersionAndDeletedFalse(version.flowKey(), version.version())
+        var stored = versions.findByFlowKeyAndVersion(version.flowKey(), version.version())
                 .orElseGet(() -> new FlowVersionEntity(version.flowKey(), version.version(),
                         objectMapper.valueToTree(version.definition())));
         stored.setStatus(version.status());

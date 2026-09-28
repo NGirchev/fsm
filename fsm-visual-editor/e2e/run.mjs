@@ -52,7 +52,7 @@ async function cleanup() {
 for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, async () => { await cleanup(); process.exit(130); });
 
 try {
-  await command('./gradlew', [':fsm-spring-boot-example:bootJar']);
+  if (!process.env.E2E_APP_JAR) await command('./gradlew', [':fsm-spring-boot-example:bootJar']);
   await command('docker', ['run', '-d', '--rm', '--name', container, '-e', 'POSTGRES_DB=fsm',
     '-e', 'POSTGRES_USER=fsm', '-e', 'POSTGRES_PASSWORD=fsm', '-p', '127.0.0.1::5432', 'postgres:17-alpine']);
   databaseCreated = true;
@@ -60,8 +60,10 @@ try {
   const dbPort = mapping.split(':').at(-1);
   const appPort = await freePort();
   const vitePort = await freePort();
+  const staticPort = await freePort();
   const libs = resolve(root, 'fsm-spring-boot-example/build/libs');
-  const jar = (await readdir(libs)).find((name) => name.endsWith('.jar') && !name.endsWith('-plain.jar'));
+  const jar = process.env.E2E_APP_JAR ?? (await readdir(libs))
+    .find((name) => name.endsWith('.jar') && !name.endsWith('-plain.jar'));
   if (!jar) throw new Error('Example bootJar not found');
   const log = await open(resolve(editor, 'e2e-server.log'), 'w');
   app = spawn('java', ['-jar', resolve(libs, jar), `--server.port=${appPort}`, '--server.servlet.context-path=/test',
@@ -78,7 +80,7 @@ try {
   }
   tests = spawn(process.execPath, [resolve(editor, 'node_modules/@playwright/test/cli.js'), 'test', ...process.argv.slice(2)], {
     cwd: editor, stdio: 'inherit', env: { ...process.env, E2E_EMBEDDED_URL: embeddedUrl,
-      E2E_VITE_PORT: String(vitePort), FSM_EDITOR_PROJECTS_DIR: resolve(temp, 'projects') },
+      E2E_VITE_PORT: String(vitePort), E2E_STATIC_PORT: String(staticPort), FSM_EDITOR_PROJECTS_DIR: resolve(temp, 'projects') },
   });
   process.exitCode = await new Promise((done, reject) => { tests.on('error', reject); tests.on('exit', (code) => done(code ?? 1)); });
   await log.close();

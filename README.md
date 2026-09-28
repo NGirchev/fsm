@@ -34,7 +34,7 @@ You can also use the `io.github.ngirchev.fsm.impl` package with basic implementa
 
 - `fsm` - the Kotlin/JVM library published as `io.github.ngirchev:fsm`.
 - `fsm-spring-boot-starter` - Spring Boot integration for resolving named FSM handlers.
-- `fsm-spring-boot-example` - one executable example covering versioned dynamic flows and transactional workflows.
+- `fsm-spring-boot-example` - one executable order example with versioned dynamic flows.
 - `fsm-visual-editor` - a Vite/React editor for designing FSM flows and generating Java/Kotlin factories.
 
 ## Installation
@@ -476,6 +476,15 @@ To run the automated test suite:
 ```bash
 ./gradlew test
 ```
+
+Run the editor's Playwright browser tests against an isolated PostgreSQL and application:
+
+```bash
+./gradlew playwrightTest
+```
+
+Requires Docker, Node.js 22+, Java 17+ and Chromium installed for Playwright.
+See [browser test setup](fsm-visual-editor/README.md#browser-regression-tests).
 
 This is the **standard Gradle command** for running tests. The command will:
 

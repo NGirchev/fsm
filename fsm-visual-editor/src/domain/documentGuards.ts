@@ -1,4 +1,5 @@
 import { CODEGEN_STYLES, EDITOR_FORMAT_VERSION, type CodegenStyle, type FsmEditorDocument } from './types';
+import { isStateColor } from './stateColors';
 
 interface LegacyTransition {
   id: string;
@@ -14,6 +15,7 @@ interface LegacyTransition {
 }
 
 interface LegacyDocument {
+  execution?: FsmEditorDocument['execution'];
   formatVersion?: number;
   name?: string;
   autoTransitionEnabled?: boolean;
@@ -117,6 +119,9 @@ export function normalizeEditorDocument(value: unknown): FsmEditorDocument | nul
 
 function hasValidDocumentMetadata(value: LegacyDocument): boolean {
   return (
+    (value.execution === undefined || (isRecord(value.execution) &&
+      Array.isArray(value.execution.stateListeners) && value.execution.stateListeners.every((id) => typeof id === 'string') &&
+      Array.isArray(value.execution.completionListeners) && value.execution.completionListeners.every((id) => typeof id === 'string'))) &&
     (value.name === undefined || typeof value.name === 'string') &&
     (value.autoTransitionEnabled === undefined || typeof value.autoTransitionEnabled === 'boolean') &&
     (value.maxImmediateAutoTransitions === undefined ||
@@ -135,7 +140,8 @@ function isState(value: unknown): value is FsmEditorDocument['states'][number] {
     typeof value.id === 'string' &&
     typeof value.label === 'string' &&
     isPosition(value.position) &&
-    (value.description === undefined || typeof value.description === 'string')
+    (value.description === undefined || typeof value.description === 'string') &&
+    (value.color === undefined || isStateColor(value.color))
   );
 }
 

@@ -10,7 +10,8 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.Transient;
-import lombok.AllArgsConstructor;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -22,6 +23,15 @@ import static io.github.ngirchev.fsm.example.order.OrderController.*;
 @Table(name = "orders")
 @NoArgsConstructor
 public class Order implements StateContext<String> {
+    @Column(nullable = false, precision = 19, scale = 2)
+    private BigDecimal amount;
+    @Setter
+    @Column(nullable = false, precision = 19, scale = 2)
+    private BigDecimal commission = new BigDecimal("0.00");
+    @Setter
+    @Transient
+    @Getter(onMethod_ = @JsonIgnore)
+    private OrderEvent event;
     // Database-generated order ID returned by POST /api/orders.
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -33,29 +43,28 @@ public class Order implements StateContext<String> {
     // Definition version fixed at creation; later publications do not change this order's rules.
     @Column(name = "flow_version", nullable = false)
     private int flowVersion;
-    @Column(nullable = false)
-    private boolean approved = true;
-
-    @Setter
-    @Column(name = "notification_sent", nullable = false)
-    private boolean notificationSent;
     // In-memory FSM transition; excluded from JSON and database storage.
     @Setter
     @Transient
     @Getter(onMethod_ = @JsonIgnore)
     private Transition<String> currentTransition;
 
-    public Order(String state, int flowVersion) {
-        this(state, flowVersion, true);
-    }
+    @Transient
+    private final java.util.List<OrderTrace> trace = new java.util.ArrayList<>();
 
-    public Order(String state, int flowVersion, boolean approved) {
+    public Order(String state, int flowVersion, BigDecimal amount) {
         this.state = state;
         this.flowVersion = flowVersion;
-        this.approved = approved;
+        if (amount == null) {
+            throw new IllegalArgumentException("amount is required");
+        }
+        if (amount.signum() < 0 || amount.scale() > 2 || amount.precision() - amount.scale() > 17) {
+            throw new IllegalArgumentException("amount must be non-negative with at most 17 integer and 2 decimal digits");
+        }
+        this.amount = amount.setScale(2, RoundingMode.HALF_UP);
     }
 
     public OrderResponse toResponse() {
-        return new OrderResponse(id, state, flowVersion, approved, notificationSent);
+        return new OrderResponse(id, state, flowVersion, amount, commission, java.util.List.copyOf(trace));
     }
 }

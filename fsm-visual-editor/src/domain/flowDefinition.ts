@@ -17,6 +17,7 @@ export interface RuntimeTransition {
 }
 
 export interface FlowDefinition {
+  execution?: FsmEditorDocument['execution'];
   initialState: string;
   table: {
     autoTransitionEnabled: boolean;
@@ -33,13 +34,6 @@ export interface FlowDefinition {
   };
 }
 
-export interface FlowVersion {
-  flowKey: string;
-  version: number;
-  status: 'DRAFT' | 'ACTIVE' | 'ARCHIVED';
-  definition: FlowDefinition;
-}
-
 /** Runtime definitions are authoritative; editor metadata only restores presentation. */
 export function fromFlowDefinition(definition: FlowDefinition): FsmEditorDocument {
   const empty = createEmptyDocument();
@@ -47,6 +41,13 @@ export function fromFlowDefinition(definition: FlowDefinition): FsmEditorDocumen
     ...empty, ...definition.editor, transitions: [],
   });
   const entries = Object.entries(definition.table.transitions);
+  if (metadata) {
+    const rank = (label: string) => {
+      const index = metadata.states.findIndex((state) => state.label === label);
+      return index < 0 ? metadata.states.length : index;
+    };
+    entries.sort(([left], [right]) => rank(left) - rank(right));
+  }
   const labels = [definition.initialState];
   // Database JSON objects may reorder keys. Lay out reachable states from the initial state.
   for (let index = 0; index < labels.length; index++) {
@@ -60,13 +61,19 @@ export function fromFlowDefinition(definition: FlowDefinition): FsmEditorDocumen
     ...entries.flatMap(([, transitions]) => transitions.map((transition) => transition.to.state)),
     definition.initialState,
   ])].forEach((label) => { if (!labels.includes(label)) labels.push(label); });
+  if (metadata) {
+    const savedLabels = metadata.states.map((state) => state.label).filter((label) => labels.includes(label));
+    const ordered = [...savedLabels, ...labels.filter((label) => !savedLabels.includes(label))];
+    labels.splice(0, labels.length, ...ordered);
+  }
   const usedIds = new Set<string>();
   const states = labels.map((label, index) => {
     const saved = metadata?.states.find((state) => state.label === label);
     let id = saved?.id || `state-${index}`;
     while (usedIds.has(id)) id += '-';
     usedIds.add(id);
-    return { id, label, position: saved?.position ?? { x: index * 260, y: 100 }, description: saved?.description };
+    return { id, label, position: saved?.position ?? { x: index * 260, y: 100 }, description: saved?.description,
+      ...(saved?.color ? { color: saved.color } : {}) };
   });
   const stateId = (label: string) => states.find((state) => state.label === label)!.id;
   const transitionIds = new Set<string>();
@@ -93,7 +100,8 @@ export function fromFlowDefinition(definition: FlowDefinition): FsmEditorDocumen
   ])];
   return {
     ...empty,
-    name: metadata?.name ?? 'Order flow',
+    execution: definition.execution,
+    name: metadata?.name ?? 'Flow',
     codegen: { ...(metadata?.codegen ?? empty.codegen), stateType: 'String', initialState: definition.initialState },
     autoTransitionEnabled: definition.table.autoTransitionEnabled,
     maxImmediateAutoTransitions: definition.table.maxImmediateAutoTransitions ?? 0,
@@ -134,6 +142,7 @@ export function toFlowDefinition(document: FsmEditorDocument): FlowDefinition {
   });
   return {
     initialState: document.codegen.initialState,
+    ...(document.execution ? { execution: document.execution } : {}),
     table: {
       autoTransitionEnabled: document.autoTransitionEnabled,
       maxImmediateAutoTransitions: document.maxImmediateAutoTransitions ?? 0,

@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "test": "vitest run src",
     "test:e2e": "node e2e/run.mjs",
+    "test:codegen": "vitest run codegen-test/generate.test.ts && ../gradlew -p .. :fsm:classes && ../gradlew -p codegen-test test",
     "test:watch": "vitest"
   },
   "dependencies": {

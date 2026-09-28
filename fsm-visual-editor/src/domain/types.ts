@@ -26,6 +26,7 @@ export interface FsmState {
   label: string;
   position: Point;
   description?: string;
+  color?: string;
 }
 
 export interface TimeoutConfig {
@@ -64,6 +65,7 @@ export interface CodegenConfig {
 }
 
 export interface FsmEditorDocument {
+  execution?: FlowExecution;
   formatVersion: typeof EDITOR_FORMAT_VERSION;
   name: string;
   autoTransitionEnabled: boolean;
@@ -76,6 +78,17 @@ export interface FsmEditorDocument {
     conditions: BehaviorRef[];
     actions: BehaviorRef[];
   };
+}
+
+export interface FlowExecution {
+  stateListeners: string[];
+  completionListeners: string[];
+}
+
+export interface CatalogBehavior {
+  id: string;
+  kind: 'guard' | 'action' | 'stateListener' | 'completionListener';
+  description: string;
 }
 
 export type ValidationSeverity = 'error' | 'warning';

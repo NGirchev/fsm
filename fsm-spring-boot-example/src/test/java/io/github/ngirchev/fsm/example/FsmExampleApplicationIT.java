@@ -20,6 +20,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -54,28 +55,26 @@ class FsmExampleApplicationIT {
     private OrderRepository orders;
 
     @Test
-    void orderGuardChecksPersistedFlagAndCompletionRunsNotificationBean() throws Exception {
+    void amountGuardSelectsBranchAndRunsLogAction() throws Exception {
         var original = flowService.active("order").definition();
         try {
             publish(new FlowDefinition("NEW", new FsmDto(false, Map.of(
                     "NEW", List.of(new TransitionDto("NEW", new ToDto("IN_PROGRESS", List.of(), List.of(), List.of(), null), "SUBMIT")),
                     "IN_PROGRESS", List.of(
-                            new TransitionDto("IN_PROGRESS", new ToDto("SENT", List.of("orderApproved"), List.of(),
-                                    List.of("notifyOrderCompleted"), null), "FINISH"),
-                            new TransitionDto("IN_PROGRESS", new ToDto("FAILED", List.of("orderNotApproved"), List.of(),
+                            new TransitionDto("IN_PROGRESS", new ToDto("SENT", List.of("amountBelowCommissionThreshold"), List.of(),
+                                    List.of("logOrderNotification"), null), "FINISH"),
+                            new TransitionDto("IN_PROGRESS", new ToDto("FAILED", List.of("amountAtLeastCommissionThreshold"), List.of(),
                                     List.of(), null), "FINISH")),
                     "SENT", List.of(), "FAILED", List.of()))));
-            for (boolean approved : List.of(false, true)) {
-                var order = post("/api/orders", new CreateOrderRequest(approved), OrderResponse.class);
-                assertThat(order.approved()).isEqualTo(approved);
-                assertThat(order.notificationSent()).isFalse();
+            for (var amount : List.of(new BigDecimal("100.00"), new BigDecimal("1000.00"))) {
+                var order = post("/api/orders", new CreateOrderRequest(amount), OrderResponse.class);
                 post("/api/orders/" + order.id() + "/events", new OrderEventRequest("SUBMIT"), OrderResponse.class);
                 var result = rest.postForEntity(url("/api/orders/" + order.id() + "/events"),
                         new OrderEventRequest("FINISH"), String.class);
                 assertThat(result.getStatusCode()).isEqualTo(HttpStatus.OK);
                 var stored = rest.getForObject(url("/api/orders/" + order.id()), OrderResponse.class);
-                assertThat(stored.state()).isEqualTo(approved ? "SENT" : "FAILED");
-                assertThat(stored.notificationSent()).isEqualTo(approved);
+                boolean belowThreshold = amount.compareTo(new BigDecimal("1000.00")) < 0;
+                assertThat(stored.state()).isEqualTo(belowThreshold ? "SENT" : "FAILED");
             }
         } finally {
             publish(original);
@@ -117,15 +116,19 @@ class FsmExampleApplicationIT {
         ), 1));
         try {
             var published = publish(automatic);
-            var created = post("/api/orders", null, OrderResponse.class);
+            var created = post("/api/orders", new CreateOrderRequest(new BigDecimal("100.00")), OrderResponse.class);
             assertThat(created.state()).isEqualTo("IN_PROGRESS");
             assertThat(created.flowVersion()).isEqualTo(published.version());
-            assertThat(rest.getForObject(url("/api/orders/" + created.id()), OrderResponse.class)).isEqualTo(created);
+            assertThat(created.trace()).hasSize(1);
+            assertThat(created.trace().get(0).from()).isEqualTo("NEW");
+            assertThat(created.trace().get(0).to()).isEqualTo("IN_PROGRESS");
+            assertThat(rest.getForObject(url("/api/orders/" + created.id()), OrderResponse.class))
+                    .usingRecursiveComparison().ignoringFields("trace").isEqualTo(created);
             var completed = post("/api/orders/" + created.id() + "/events", new OrderEventRequest("FINISH"), OrderResponse.class);
             assertThat(completed.state()).isEqualTo("COMPLETED");
 
             publish(new FlowDefinition("NEW", new FsmDto(false, automatic.table().getTransitions(), 1)));
-            var disabled = post("/api/orders", null, OrderResponse.class);
+            var disabled = post("/api/orders", new CreateOrderRequest(new BigDecimal("100.00")), OrderResponse.class);
             assertThat(disabled.state()).isEqualTo("NEW");
 
             var cyclic = new FlowDefinition("NEW", new FsmDto(true, Map.of(
@@ -134,7 +137,8 @@ class FsmExampleApplicationIT {
             ), 1));
             publish(cyclic);
             long countBefore = orders.count();
-            var failed = rest.postForEntity(url("/api/orders"), null, ApiError.class);
+            var failed = rest.postForEntity(url("/api/orders"),
+                    new CreateOrderRequest(new BigDecimal("100.00")), ApiError.class);
             assertThat(failed.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
             assertThat(orders.count()).isEqualTo(countBefore);
         } finally {
@@ -146,13 +150,13 @@ class FsmExampleApplicationIT {
     void runsSeededFlowAndAppliesNewlyPublishedVersionWithoutRestart() throws Exception {
         var original = flowService.active("order").definition();
         try {
-            var order = post("/api/orders", null, OrderResponse.class);
+            var order = post("/api/orders", new CreateOrderRequest(new BigDecimal("100.00")), OrderResponse.class);
             var pending = post("/api/orders/" + order.id() + "/events", new OrderEventRequest("SUBMIT"), OrderResponse.class);
             var completedSeed = post("/api/orders/" + order.id() + "/events", new OrderEventRequest("FINISH"), OrderResponse.class);
             assertThat(pending.state()).isEqualTo("IN_PROGRESS");
             assertThat(completedSeed.state()).isEqualTo("COMPLETED");
 
-            var inProgress = post("/api/orders", null, OrderResponse.class);
+            var inProgress = post("/api/orders", new CreateOrderRequest(new BigDecimal("100.00")), OrderResponse.class);
             var inProgressPending = post("/api/orders/" + inProgress.id() + "/events",
                     new OrderEventRequest("SUBMIT"), OrderResponse.class);
             assertThat(inProgressPending.state()).isEqualTo("IN_PROGRESS");
@@ -167,7 +171,7 @@ class FsmExampleApplicationIT {
             assertThat(inProgressCompleted.state()).isEqualTo("COMPLETED");
             assertThat(inProgressCompleted.flowVersion()).isEqualTo(inProgress.flowVersion());
 
-            var newOrder = post("/api/orders", null, OrderResponse.class);
+            var newOrder = post("/api/orders", new CreateOrderRequest(new BigDecimal("100.00")), OrderResponse.class);
             assertThat(newOrder.flowVersion()).isEqualTo(published.version());
             var completed = post("/api/orders/" + newOrder.id() + "/events",
                     new OrderEventRequest("FAST_COMPLETE"), OrderResponse.class);
@@ -179,7 +183,7 @@ class FsmExampleApplicationIT {
             assertThat(invalidPublish.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
             assertThat(invalidPublish.getBody().message()).contains("missingBean");
 
-            var stillWorks = post("/api/orders", null, OrderResponse.class);
+            var stillWorks = post("/api/orders", new CreateOrderRequest(new BigDecimal("100.00")), OrderResponse.class);
             var stillCompleted = post("/api/orders/" + stillWorks.id() + "/events",
                     new OrderEventRequest("FAST_COMPLETE"), OrderResponse.class);
             assertThat(stillCompleted.state()).isEqualTo("COMPLETED");

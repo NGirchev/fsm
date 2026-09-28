@@ -13,11 +13,11 @@ spring:
     default-property-inclusion: non_null
     deserialization:
       fail-on-unknown-properties: true
+  web:
+    resources:
+      cache:
+        cachecontrol:
+          no-store: true
 
 server:
   port: ${SERVER_PORT:8080}
-
-fsm:
-  example:
-    runner:
-      enabled: ${FSM_DEMO_RUNNER_ENABLED:false}

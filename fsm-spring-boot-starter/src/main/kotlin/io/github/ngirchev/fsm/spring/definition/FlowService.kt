@@ -11,7 +11,8 @@ open class FlowService(
     open fun createDraft(flowKey: String?, definition: FlowDefinition): FlowVersion {
         val key = requireFlowKey(flowKey)
         store.lock(key)
-        val nextVersion = store.latest(key).map { it.version + 1 }.orElse(1)
+        val latest = store.latest(key)
+        val nextVersion = if (latest.isPresent) latest.get().version + 1 else 1
         return store.save(FlowVersion(key, nextVersion, FlowVersionStatus.DRAFT, definition))
     }
 
@@ -51,6 +52,20 @@ open class FlowService(
         val target = store.get(key, version)
             .orElseThrow { NoSuchElementException("Flow $key version $version was not found") }
         check(target.status == FlowVersionStatus.DRAFT) { "Only a draft version can be published" }
+        loader.load(target.definition)
+        store.active(key).ifPresent { active ->
+            store.save(active.copy(status = FlowVersionStatus.ARCHIVED))
+        }
+        return store.save(target.copy(status = FlowVersionStatus.ACTIVE))
+    }
+
+    @Transactional
+    open fun activate(flowKey: String?, version: Int): FlowVersion {
+        val key = requireFlowKey(flowKey)
+        store.lock(key)
+        val target = store.get(key, version)
+            .orElseThrow { NoSuchElementException("Flow $key version $version was not found") }
+        check(target.status == FlowVersionStatus.ARCHIVED) { "Only an archived version can be activated" }
         loader.load(target.definition)
         store.active(key).ifPresent { active ->
             store.save(active.copy(status = FlowVersionStatus.ARCHIVED))

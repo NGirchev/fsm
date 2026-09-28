@@ -63,7 +63,21 @@ class FlowServiceTest {
     }
 
     @Test
-    fun `deletes only drafts and never reuses their version numbers`() {
+    fun `archived version can become active again without changing existing versions`() {
+        service.createDraft("order", definition)
+        service.publish("order", 1)
+        service.createDraft("order", changed)
+        service.publish("order", 2)
+
+        assertThat(service.activate("order", 1).status).isEqualTo(FlowVersionStatus.ACTIVE)
+        assertThat(service.get("order", 2).status).isEqualTo(FlowVersionStatus.ARCHIVED)
+        assertThat(service.active("order").version).isEqualTo(1)
+        assertThatThrownBy { service.activate("order", 1) }.isInstanceOf(IllegalStateException::class.java)
+        assertThatThrownBy { service.activate("order", 999) }.isInstanceOf(NoSuchElementException::class.java)
+    }
+
+    @Test
+    fun `deletes only drafts and reuses the highest deleted version`() {
         service.createDraft("order", definition)
         service.publish("order", 1)
         service.createDraft("order", definition)
@@ -74,7 +88,7 @@ class FlowServiceTest {
         service.deleteDraft("order", 3)
         assertThat(service.list("order")).hasSize(2)
         assertThatThrownBy { service.deleteDraft("order", 3) }.isInstanceOf(NoSuchElementException::class.java)
-        assertThat(service.createDraft("order", definition).version).isEqualTo(4)
+        assertThat(service.createDraft("order", definition).version).isEqualTo(3)
         assertThatThrownBy { store.unsupportedDelete() }.isInstanceOf(UnsupportedOperationException::class.java)
     }
 
@@ -90,9 +104,8 @@ class FlowServiceTest {
 
     private class TestStore : FlowStore {
         private val flows = mutableMapOf<String, MutableMap<Int, FlowVersion>>()
-        private val deleted = mutableSetOf<Pair<String, Int>>()
-        fun unsupportedDelete() = super<FlowStore>.deleteDraft("order", 1)
-        override fun deleteDraft(flowKey: String, version: Int) { deleted.add(flowKey to version) }
+        fun unsupportedDelete() = super.deleteDraft("order", 1)
+        override fun deleteDraft(flowKey: String, version: Int) { flows[flowKey]?.remove(version) }
         var locks = 0
             private set
 
@@ -105,13 +118,12 @@ class FlowServiceTest {
             Optional.ofNullable(flows[flowKey]?.values?.maxByOrNull(FlowVersion::version))
 
         override fun get(flowKey: String, version: Int): Optional<FlowVersion> =
-            Optional.ofNullable(flows[flowKey]?.get(version)?.takeUnless { (flowKey to version) in deleted })
+            Optional.ofNullable(flows[flowKey]?.get(version))
 
         override fun active(flowKey: String): Optional<FlowVersion> =
             Optional.ofNullable(list(flowKey).firstOrNull { it.status == FlowVersionStatus.ACTIVE })
 
-        override fun list(flowKey: String): List<FlowVersion> = flows[flowKey]?.values.orEmpty()
-            .filterNot { (flowKey to it.version) in deleted }
+        override fun list(flowKey: String): List<FlowVersion> = flows[flowKey]?.values.orEmpty().toList()
 
         override fun save(version: FlowVersion): FlowVersion {
             flows.getValue(version.flowKey)[version.version] = version

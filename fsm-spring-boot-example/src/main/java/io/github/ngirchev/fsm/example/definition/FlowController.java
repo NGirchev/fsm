@@ -3,6 +3,7 @@ package io.github.ngirchev.fsm.example.definition;
 import io.github.ngirchev.fsm.spring.definition.FlowDefinition;
 import io.github.ngirchev.fsm.spring.definition.FlowService;
 import io.github.ngirchev.fsm.spring.definition.FlowVersion;
+import io.github.ngirchev.fsm.example.order.OrderEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -19,6 +20,7 @@ public class FlowController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public FlowVersion create(@PathVariable String flowKey, @RequestBody FlowDefinition definition) {
+        validateEvents(flowKey, definition);
         return service.createDraft(flowKey, definition);
     }
 
@@ -35,6 +37,7 @@ public class FlowController {
     @PutMapping("/{version}")
     public FlowVersion update(@PathVariable String flowKey, @PathVariable int version,
                               @RequestBody FlowDefinition definition) {
+        validateEvents(flowKey, definition);
         return service.updateDraft(flowKey, version, definition);
     }
 
@@ -43,9 +46,20 @@ public class FlowController {
         return service.publish(flowKey, version);
     }
 
+    @PostMapping("/{version}/activate")
+    public FlowVersion activate(@PathVariable String flowKey, @PathVariable int version) {
+        return service.activate(flowKey, version);
+    }
+
     @DeleteMapping("/{version}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable String flowKey, @PathVariable int version) {
         service.deleteDraft(flowKey, version);
+    }
+
+    private static void validateEvents(String flowKey, FlowDefinition definition) {
+        if (flowKey.equals("order")) {
+            OrderEvent.validateFlowEvents(definition);
+        }
     }
 }

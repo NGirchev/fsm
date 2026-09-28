@@ -73,12 +73,14 @@ describe('runtime flow editing', () => {
   });
 
   it('keeps transition IDs attached to their source after JSONB object-key reordering', () => {
-    const saved = toFlowDefinition(fromFlowDefinition(definition));
+    const original = fromFlowDefinition(definition);
+    const saved = toFlowDefinition(original);
     saved.table.transitions = Object.fromEntries(Object.entries(saved.table.transitions).reverse());
     const restored = fromFlowDefinition(saved);
     const byId = Object.fromEntries(restored.transitions.map((transition) => [transition.id, transition.trigger]));
     expect(byId['transition-0']).toEqual({ kind: 'event', event: 'SUBMIT' });
     expect(byId['transition-2']).toEqual({ kind: 'auto' });
+    expect(restored).toEqual(original);
   });
 
   it('preserves per-source priority when transitions from several states are interleaved', () => {
@@ -89,7 +91,7 @@ describe('runtime flow editing', () => {
     expect(fromFlowDefinition(saved).transitions.map((transition) => transition.id)).toEqual(['transition-0', 'transition-1', 'transition-2']);
   });
 
-  it('rejects ambiguous state names, missing initial states and invalid automatic limits', () => {
+  it('rejects ambiguous state names, missing initial states and negative automatic limits', () => {
     const document = fromFlowDefinition(definition);
     document.states[1].label = 'NEW';
     expect(() => toFlowDefinition(document)).toThrow('Duplicate state label');
@@ -98,6 +100,8 @@ describe('runtime flow editing', () => {
     expect(() => toFlowDefinition(document)).toThrow('must match a state label');
     document.codegen.initialState = 'NEW';
     document.maxImmediateAutoTransitions = 0;
+    expect(toFlowDefinition(document).table.maxImmediateAutoTransitions).toBe(0);
+    document.maxImmediateAutoTransitions = -1;
     expect(() => toFlowDefinition(document)).toThrow('Automatic transition limit');
   });
 

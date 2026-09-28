@@ -32,10 +32,6 @@ public class FlowVersionEntity {
     private int version;
 
     @Setter
-    @Column(nullable = false)
-    private boolean deleted;
-
-    @Setter
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 16)
     private FlowVersionStatus status;

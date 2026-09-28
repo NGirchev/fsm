@@ -9,7 +9,6 @@ import org.springframework.data.repository.query.Param;
 import java.util.Optional;
 
 public interface OrderRepository extends JpaRepository<Order, Long> {
-
     // The event handler locks the order until its state change commits.
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select orders from PurchaseOrder orders where orders.id = :id")
