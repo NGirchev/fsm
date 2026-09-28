@@ -6,7 +6,11 @@ import io.github.ngirchev.fsm.impl.basic.BTransitionTable
 import io.github.ngirchev.fsm.impl.extended.ExDomainFsm
 import io.github.ngirchev.fsm.impl.extended.ExFsm
 import io.github.ngirchev.fsm.impl.extended.ExTransitionTable
+import io.github.ngirchev.fsm.impl.extended.FromBuilder
+import io.github.ngirchev.fsm.impl.extended.ToBuilder
+import io.github.ngirchev.fsm.impl.extended.ToMultipleTransitionBuilder
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 
 class PublicConstructorCompatibilityTest {
@@ -64,6 +68,22 @@ class PublicConstructorCompatibilityTest {
                 ExTransitionTable::class.java,
                 Boolean::class.javaObjectType,
             )
+        )
+    }
+
+    @Test
+    fun exTransitionDslShouldKeepOldJvmMethods() {
+        assertEquals(
+            FromBuilder::class.java,
+            FromBuilder::class.java.getMethod("onEvent", Any::class.java).returnType,
+        )
+        assertEquals(
+            ToBuilder::class.java,
+            ToBuilder::class.java.getMethod("onEvent", Any::class.java).returnType,
+        )
+        assertEquals(
+            ToMultipleTransitionBuilder::class.java,
+            ToMultipleTransitionBuilder::class.java.getMethod("onEvent", Any::class.java).returnType,
         )
     }
 }

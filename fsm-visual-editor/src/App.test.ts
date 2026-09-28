@@ -66,6 +66,7 @@ describe('addAutoTransition', () => {
         from: 'new',
         to: 'signed',
         trigger: { kind: 'auto' },
+        autoTransitionEnabled: true,
         conditions: [],
         actions: [],
         postActions: [],

@@ -4,9 +4,13 @@ import io.github.ngirchev.fsm.Action
 import io.github.ngirchev.fsm.Guard
 import io.github.ngirchev.fsm.StateContext
 import io.github.ngirchev.fsm.To
+import io.github.ngirchev.fsm.Timeout
 import io.github.ngirchev.fsm.impl.extended.ExFsm
 import io.github.ngirchev.fsm.impl.extended.ExTransitionTable
 import io.github.ngirchev.fsm.exception.FsmEventSourcingTransitionFailedException
+import io.github.ngirchev.fsm.spring.definition.FlowLoader
+import io.github.ngirchev.fsm.spring.definition.FlowService
+import io.github.ngirchev.fsm.spring.definition.FlowStore
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
@@ -22,18 +26,39 @@ class FsmAutoConfigurationTest {
         .withConfiguration(AutoConfigurations.of(JacksonAutoConfiguration::class.java, FsmAutoConfiguration::class.java))
 
     @Test
+    fun `round trip preserves local automatic execution without a scheduler`() {
+        runner.run { context ->
+            val table = ExTransitionTable.Builder<String, String>()
+                .add("NEW", "GO", "READY")
+                .from("READY").to("DONE").auto().end().build()
+            val serializer = context.getBean(SpringFsmJsonSerializer::class.java)
+            val restored = serializer.deserialize(serializer.serialize(table), { it }, { it })
+            val fsm = restored.createFsm("NEW")
+
+            fsm.onEvent("GO")
+
+            assertThat(fsm.getState()).isEqualTo("DONE")
+        }
+    }
+
+    @Test
     fun `round trip preserves ordinary beans and invokes guards actions and post actions`() {
         runner.withUserConfiguration(Behaviors::class.java).run { context ->
             val registry = context.getBean(FsmBeanRegistry::class.java)
+            assertThat(registry.hasAction("mark")).isTrue()
+            assertThat(registry.hasAction("missing")).isFalse()
+            assertThat(registry.hasGuard("allowed")).isTrue()
+            assertThat(registry.hasGuard("missing")).isFalse()
             val serializer = context.getBean(SpringFsmJsonSerializer::class.java)
             val table = ExTransitionTable.Builder<String, String>()
                 .maxImmediateAutoTransitions(3)
                 .add("NEW", "GO", To("DONE", registry.guard<String>("allowed"),
-                    registry.action<String>("mark"), registry.action<String>("receipt")))
+                    registry.action<String>("mark"), registry.action<String>("receipt"), Timeout(0)))
                 .build()
             val json = serializer.serialize(table)
             assertThat(json).contains("allowed", "mark", "receipt")
             val restored = serializer.deserialize(json, { it }, { it })
+            assertThat(restored.transitions.getValue("NEW").single().to.timeout).isEqualTo(Timeout(0))
             assertThat(serializer.toDto(restored)).isEqualTo(serializer.toDto(table))
             val behaviors = context.getBean(Behaviors::class.java)
             val blocked = ExFsm("NEW", restored)
@@ -96,10 +121,19 @@ class FsmAutoConfigurationTest {
         ApplicationContextRunner().withUserConfiguration(BootApplication::class.java).run { context ->
             assertThat(context).hasSingleBean(FsmBeanRegistry::class.java)
                 .hasSingleBean(SpringFsmJsonSerializer::class.java)
+                .hasSingleBean(FlowLoader::class.java)
+                .doesNotHaveBean(FlowService::class.java)
             val table = ExTransitionTable.Builder<String, String>().add("NEW", "GO", "DONE").build()
             val serializer = context.getBean(SpringFsmJsonSerializer::class.java)
             assertThat(serializer.toDto(serializer.deserialize(serializer.serialize(table), { it }, { it })))
                 .isEqualTo(serializer.toDto(table))
+        }
+    }
+
+    @Test
+    fun `flow service is registered when an application provides a store`() {
+        runner.withBean(FlowStore::class.java, { org.mockito.Mockito.mock(FlowStore::class.java) }).run { context ->
+            assertThat(context).hasSingleBean(FlowService::class.java)
         }
     }
 

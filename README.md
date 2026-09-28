@@ -30,6 +30,13 @@ The library contains several implementations for common use cases:
 
 You can also use the `io.github.ngirchev.fsm.impl` package with basic implementations.
 
+## Repository Modules
+
+- `fsm` - the Kotlin/JVM library published as `io.github.ngirchev:fsm`.
+- `fsm-spring-boot-starter` - Spring Boot integration for resolving named FSM handlers.
+- `fsm-spring-boot-example` - one executable order example with versioned dynamic flows.
+- `fsm-visual-editor` - a Vite/React editor for designing FSM flows and generating Java/Kotlin factories.
+
 ## Installation
 
 The root project aggregates the JVM modules. Library sources and tests live in
@@ -71,6 +78,9 @@ which provides automatic registration of a bean registry and JSON serializer.
 It saves ordinary Spring `Action` / `Guard` handlers by bean name and restores them
 from the application context. The core library remains independent of Spring.
 See [the Spring Boot example](fsm-spring-boot-example/README.md) for versioned database persistence.
+The same starter includes an opt-in [administration panel](fsm-spring-boot-starter/README.md#optional-administration-panel)
+with version management and the visual editor. Enable `fsm.admin.enabled=true`, provide `FlowStore`
+and flow registrations, and protect `/fsm-admin/**` using the application's security configuration.
 
 ## Usage Examples
 ### We have these initial data:
@@ -216,67 +226,20 @@ Summary:
 - `TypedEvent<T>` implemented -> compare by `eventType`
 - `TypedEvent<T>` not implemented -> compare by ordinary `equals`
 
-### Deferred auto transitions after transaction commit
+### Auto transitions and durable continuations
 
-Auto transitions are synchronous by default. If a domain state must be saved before the auto transition action runs, provide an `AutoTransitionScheduler`.
+Auto transitions run synchronously. Use them for immediate, in-memory state progression where all
+steps belong to the same call.
 
 Immediate auto-transition chains are unlimited by default. Configure
 `.maxImmediateAutoTransitions(limit)` with a positive value to enable a per-run runtime guard;
-`0` keeps the guard disabled. Deferred schedulers are not subject to this limit.
+`0` keeps the guard disabled.
 
-```kotlin
-class SpringAfterCommitAutoTransitionScheduler<STATE>(
-    transactionManager: PlatformTransactionManager
-) : AutoTransitionScheduler<STATE> {
-    private val transactionTemplate = TransactionTemplate(transactionManager).apply {
-        propagationBehavior = TransactionDefinition.PROPAGATION_REQUIRES_NEW
-    }
-
-    override fun schedule(
-        context: StateContext<STATE>,
-        transition: Transition<STATE>,
-        runTransition: () -> Unit
-    ) {
-        TransactionSynchronizationManager.registerSynchronization(
-            object : TransactionSynchronization {
-                override fun afterCommit() {
-                    transactionTemplate.executeWithoutResult {
-                        runTransition()
-                    }
-                }
-            }
-        )
-    }
-}
-
-val scheduler = SpringAfterCommitAutoTransitionScheduler<DocumentState>(transactionManager)
-
-val fsm = ExTransitionTable.Builder<DocumentState, String>()
-    .autoTransitionEnabled(true)
-    .autoTransitionScheduler(scheduler)
-    .add(from = NEW, onEvent = "APPROVE", to = READY_FOR_SIGN)
-    .add(
-        from = READY_FOR_SIGN,
-        to = SIGNED,
-        action = {
-            // External call or another action that may fail.
-            signatureClient.sendForSignature((it as Document).id)
-        }
-    )
-    .build()
-    .createDomainFsm<Document>()
-
-fsm.addStateChangeListener { context, _, _ ->
-    documentRepository.save(context as Document)
-}
-
-@Transactional
-fun approve(document: Document) {
-    fsm.handle(document, "APPROVE")
-}
-```
-
-With this setup, `approve` commits `NEW -> READY_FOR_SIGN` first. After commit, the scheduler opens a new `PROPAGATION_REQUIRES_NEW` transaction and runs the auto transition `READY_FOR_SIGN -> SIGNED`. If that action fails, the document remains in `READY_FOR_SIGN` and the auto transition can be retried.
+For work that must happen after a transaction commits, survive process restarts, or be retried,
+persist a durable task in the same transaction as the state change. A worker claims that task and
+sends an ordinary event to the FSM. The Spring Boot starter provides `FsmTaskProcessor`,
+`FsmTaskStore`, and `FsmTaskHandler` for this pattern. The PostgreSQL example uses
+`FOR UPDATE SKIP LOCKED`; see [`fsm-spring-boot-example`](fsm-spring-boot-example/README.md).
 
 ### Example with fluent builder
 
@@ -293,12 +256,12 @@ fun main() {
             .endMultiple()
 
             .from(SIGNED).onEvent("TO_END").toMultiple()
-            .to(AUTO_SENT).condition { document.signRequired }.end()
-            .to(DONE).condition { !document.signRequired }.end()
+            .to(AUTO_SENT).onCondition { document.signRequired }.end()
+            .to(DONE).onCondition { !document.signRequired }.end()
             .to(CANCELED).end()
             .endMultiple()
 
-            .from(AUTO_SENT).onEvent("TO_END").to(DONE).end()
+            .from(AUTO_SENT).to(DONE).onEvent("TO_END").end()
             .build().createDomainFsm<Document>()
     try {
         fsm.handle(document, "FAILED_EVENT")
@@ -320,58 +283,12 @@ fun main() {
 }
 ```
 
-### Example with timers — traffic light
+### Timers and cyclic workflows
 
-A traffic light is an intentionally cyclic FSM. Run its timed auto transitions through a deferred
-scheduler so `onEvent("RUN")` can return while the cycle continues on the executor thread.
-
-```kotlin
-fun main() {
-    val executor = Executors.newSingleThreadExecutor()
-    val scheduler = AutoTransitionScheduler<String> { _, _, runTransition ->
-        executor.execute(runTransition)
-    }
-    val transitionTable = ExTransitionTable.Builder<String, String>()
-        .autoTransitionEnabled(true)
-        .autoTransitionScheduler(scheduler)
-        .add(ExTransition(from = "INITIAL", to = "GREEN", onEvent = "RUN"))
-        .add(ExTransition(from = "RED", to = To("GREEN", timeout = Timeout(3), action = { println(it) })))
-        .add(ExTransition(from = "GREEN", to = To("YELLOW", timeout = Timeout(3), action = { println(it) })))
-        .add(ExTransition(from = "YELLOW", to = To("RED", timeout = Timeout(3), action = { println(it) })))
-        .build()
-    val fsm = transitionTable.createFsm("INITIAL")
-
-    fsm.onEvent("RUN")
-}
-```
-
-OR
-
-```kotlin
-fun main() {
-    val executor = Executors.newSingleThreadExecutor()
-    val scheduler = AutoTransitionScheduler<String> { _, _, runTransition ->
-        executor.execute(runTransition)
-    }
-    val fsm = FsmFactory.statesWithEvents<String, String>()
-        .autoTransitionEnabled(true)
-        .autoTransitionScheduler(scheduler)
-        .from("INITIAL").to("GREEN").onEvent("RUN").end()
-        .from("RED").to("GREEN").timeout(Timeout(3)).action { println(it) }.end()
-        .from("GREEN").to("YELLOW").timeout(Timeout(3)).action { println(it) }.end()
-        .from("YELLOW").to("RED").timeout(Timeout(3)).action { println(it) }.end()
-        .build()
-        .createFsm("INITIAL")
-
-    fsm.onEvent("RUN")
-}
-```
-
-The immediate runtime limit does not apply to deferred schedulers: every callback performs one
-transition and schedules the next one. The dynamic Spring Boot example uses the core JSON format.
-Because it executes auto transitions synchronously, enabling them requires a positive
-`maxImmediateAutoTransitions`; see
-[`fsm-spring-boot-example`](fsm-spring-boot-example/README.md).
+Do not model an endless timed cycle as synchronous auto transitions. Let an application timer,
+job runner, or durable task send an explicit event for each step. This keeps the FSM deterministic
+and puts persistence, retries and cancellation at the application boundary. The Spring Boot starter
+can automatically execute durable task processors declared by the application.
 
 ## FSM Diagram Visualization
 
@@ -563,6 +480,15 @@ To run the automated test suite:
 ./gradlew test
 ```
 
+Run the editor's Playwright browser tests against an isolated PostgreSQL and application:
+
+```bash
+./gradlew playwrightTest
+```
+
+Requires Docker, Node.js 22+, Java 17+ and Chromium installed for Playwright.
+See [browser test setup](fsm-visual-editor/README.md#browser-regression-tests).
+
 This is the **standard Gradle command** for running tests. The command will:
 
 1. Compile the source code
@@ -596,10 +522,12 @@ JaCoCo is:
 
 **Coverage requirements:**
 
-* Minimum line coverage: 80%
-* Minimum branch coverage: 70%
+* Required line coverage: 100% for `fsm` and `fsm-spring-boot-starter`
+* Required branch coverage: 100% for both library modules
 
 Coverage reports are generated automatically during the build and can be viewed at `fsm/build/reports/jacoco/test/html/index.html` after running `./gradlew test jacocoTestReport`.
+The starter report is at `fsm-spring-boot-starter/build/reports/jacoco/test/html/index.html`.
+The executable Spring Boot examples are tested but do not have a coverage gate.
 
 To check coverage thresholds:
 

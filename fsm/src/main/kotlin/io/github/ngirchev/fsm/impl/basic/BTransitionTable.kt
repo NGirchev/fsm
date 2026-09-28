@@ -1,9 +1,7 @@
 package io.github.ngirchev.fsm.impl.basic
 
 import io.github.ngirchev.fsm.Action
-import io.github.ngirchev.fsm.AutoTransitionScheduler
 import io.github.ngirchev.fsm.Guard
-import io.github.ngirchev.fsm.ImmediateAutoTransitionScheduler
 import io.github.ngirchev.fsm.StateContext
 import io.github.ngirchev.fsm.To
 import io.github.ngirchev.fsm.exception.DuplicateTransitionException
@@ -15,7 +13,6 @@ fun interface BTransitionTableFactory<STATE, TABLE : BTransitionTable<STATE>> {
     fun create(
         transitions: Map<STATE, @JvmSuppressWildcards LinkedHashSet<BTransition<STATE>>>,
         autoTransitionEnabled: Boolean,
-        autoTransitionScheduler: AutoTransitionScheduler<STATE>,
     ): TABLE
 }
 
@@ -23,21 +20,18 @@ fun interface BDomainFsmFactory<DOMAIN : StateContext<STATE>, STATE, FSM : BDoma
     fun create(
         transitionTable: BTransitionTable<STATE>,
         autoTransitionEnabled: Boolean,
-        autoTransitionScheduler: AutoTransitionScheduler<STATE>,
     ): FSM
 }
 
 open class BTransitionTable<STATE>(
     transitions: Map<STATE, LinkedHashSet<BTransition<STATE>>>,
     override var autoTransitionEnabled: Boolean,
-    protected val autoTransitionScheduler: AutoTransitionScheduler<STATE>,
 ) : AbstractTransitionTable<STATE, BTransition<STATE>>(transitions, autoTransitionEnabled) {
 
     class Builder<STATE> {
 
         private val transitions: MutableMap<STATE, LinkedHashSet<BTransition<STATE>>> = hashMapOf()
         private var autoTransitionEnabled: Boolean = false
-        private var autoTransitionScheduler: AutoTransitionScheduler<STATE> = ImmediateAutoTransitionScheduler()
         private var maxImmediateAutoTransitions: Int = 0
 
         /**
@@ -49,17 +43,15 @@ open class BTransitionTable<STATE>(
             return this
         }
 
-        fun autoTransitionScheduler(scheduler: AutoTransitionScheduler<STATE>): Builder<STATE> {
-            this.autoTransitionScheduler = scheduler
-            return this
-        }
-
         fun maxImmediateAutoTransitions(limit: Int): Builder<STATE> {
             require(limit >= 0) { "maxImmediateAutoTransitions must not be negative" }
             maxImmediateAutoTransitions = limit
             return this
         }
 
+        /**
+         * Simplified add for state-only transitions (no conditions or actions).
+         */
         fun add(from: STATE, vararg to: STATE): Builder<STATE> {
             val list: List<BTransition<STATE>> = to.map { BTransition(from, To(it)) }
             transitions.putIfAbsent(from, LinkedHashSet())
@@ -92,6 +84,7 @@ open class BTransitionTable<STATE>(
                         actions = t.actions.toList(),
                         postActions = t.postActions.toList(),
                         timeout = t.timeout,
+                        autoTransitionEnabled = t.autoTransitionEnabled,
                     )
                 )
                 if (!transitions[from]!!.add(transition)) {
@@ -108,7 +101,7 @@ open class BTransitionTable<STATE>(
         fun build(): BTransitionTable<STATE> {
             val snapshot = snapshotTransitions()
             warnOnAmbiguousTransitions(snapshot)
-            return BTransitionTable(snapshot, autoTransitionEnabled, autoTransitionScheduler)
+            return BTransitionTable(snapshot, autoTransitionEnabled)
                 .also { it.maxImmediateAutoTransitions = maxImmediateAutoTransitions }
         }
 
@@ -117,7 +110,7 @@ open class BTransitionTable<STATE>(
         ): TABLE {
             val snapshot = snapshotTransitions()
             warnOnAmbiguousTransitions(snapshot)
-            return factory.create(snapshot, autoTransitionEnabled, autoTransitionScheduler)
+            return factory.create(snapshot, autoTransitionEnabled)
                 .also { it.maxImmediateAutoTransitions = maxImmediateAutoTransitions }
         }
 
@@ -138,23 +131,31 @@ open class BTransitionTable<STATE>(
     }
 
     override fun createFsm(initialState: STATE): BFsm<STATE> {
-        return BFsm(initialState, this, autoTransitionEnabled, autoTransitionScheduler)
+        return BFsm(initialState, this, autoTransitionEnabled)
     }
 
     override fun <DOMAIN : StateContext<STATE>> createDomainFsm(): BDomainFsm<DOMAIN, STATE> {
-        return BDomainFsm(this, autoTransitionEnabled, autoTransitionScheduler)
+        return BDomainFsm(this, autoTransitionEnabled)
     }
 
     fun <DOMAIN : StateContext<STATE>, FSM : BDomainFsm<DOMAIN, STATE>> createDomainFsm(
         factory: BDomainFsmFactory<DOMAIN, STATE, FSM>,
     ): FSM {
-        return factory.create(this, autoTransitionEnabled, autoTransitionScheduler)
+        return factory.create(this, autoTransitionEnabled)
     }
 
-    override fun getAutoTransition(context: StateContext<STATE>): BTransition<STATE>? {
+    override fun getAutoTransition(
+        context: StateContext<STATE>,
+    ): BTransition<STATE>? = getAutoTransition(context, autoTransitionEnabled)
+
+    override fun getAutoTransition(
+        context: StateContext<STATE>,
+        autoTransitionEnabled: Boolean,
+    ): BTransition<STATE>? {
         return transitions[context.state]
             ?.firstOrNull {
-                it.to.conditions.all { condition -> condition.invoke(context) }
+                (autoTransitionEnabled || it.to.autoTransitionEnabled) &&
+                    it.to.conditions.all { condition -> condition.invoke(context) }
             }
     }
 }
@@ -180,6 +181,7 @@ class ToBuilder<STATE>(
     private val conditions: MutableList<Guard<in StateContext<STATE>>> = mutableListOf()
     private val actions: MutableList<Action<in StateContext<STATE>>> = mutableListOf()
     private val postActions: MutableList<Action<in StateContext<STATE>>> = mutableListOf()
+    private var autoTransitionEnabled: Boolean = false
 
     fun condition(condition: Guard<in StateContext<STATE>>): ToBuilder<STATE> {
         this.conditions.add(condition)
@@ -196,8 +198,47 @@ class ToBuilder<STATE>(
         return this
     }
 
+    fun auto(): AutoToBuilder<STATE> {
+        this.autoTransitionEnabled = true
+        return AutoToBuilder(this)
+    }
+
     fun end(): BTransitionTable.Builder<STATE> {
-        return rootBuilder.add(BTransition(from, To(to, conditions.toList(), actions.toList(), postActions.toList())))
+        return rootBuilder.add(
+            BTransition(
+                from,
+                To(
+                    to,
+                    conditions.toList(),
+                    actions.toList(),
+                    postActions.toList(),
+                    autoTransitionEnabled = autoTransitionEnabled,
+                ),
+            )
+        )
+    }
+}
+
+class AutoToBuilder<STATE> internal constructor(
+    private val delegate: ToBuilder<STATE>
+) {
+    fun condition(condition: Guard<in StateContext<STATE>>): AutoToBuilder<STATE> {
+        delegate.condition(condition)
+        return this
+    }
+
+    fun action(action: Action<in StateContext<STATE>>): AutoToBuilder<STATE> {
+        delegate.action(action)
+        return this
+    }
+
+    fun postAction(postAction: Action<in StateContext<STATE>>): AutoToBuilder<STATE> {
+        delegate.postAction(postAction)
+        return this
+    }
+
+    fun end(): BTransitionTable.Builder<STATE> {
+        return delegate.end()
     }
 }
 
@@ -232,6 +273,7 @@ class ToMultipleTransitionBuilder<STATE>(
     private val conditions: MutableList<Guard<in StateContext<STATE>>> = mutableListOf()
     private val actions: MutableList<Action<in StateContext<STATE>>> = mutableListOf()
     private val postActions: MutableList<Action<in StateContext<STATE>>> = mutableListOf()
+    private var autoTransitionEnabled: Boolean = false
 
     fun condition(condition: Guard<in StateContext<STATE>>): ToMultipleTransitionBuilder<STATE> {
         this.conditions.add(condition)
@@ -248,9 +290,46 @@ class ToMultipleTransitionBuilder<STATE>(
         return this
     }
 
+    fun auto(): AutoToMultipleTransitionBuilder<STATE> {
+        this.autoTransitionEnabled = true
+        return AutoToMultipleTransitionBuilder(this)
+    }
+
     fun end(): ToMultipleBuilder<STATE> {
         return multipleBuilder.addTransition(
-            BTransition(from, To(to, conditions.toList(), actions.toList(), postActions.toList()))
+            BTransition(
+                from,
+                To(
+                    to,
+                    conditions.toList(),
+                    actions.toList(),
+                    postActions.toList(),
+                    autoTransitionEnabled = autoTransitionEnabled,
+                )
+            )
         )
+    }
+}
+
+class AutoToMultipleTransitionBuilder<STATE> internal constructor(
+    private val delegate: ToMultipleTransitionBuilder<STATE>
+) {
+    fun condition(condition: Guard<in StateContext<STATE>>): AutoToMultipleTransitionBuilder<STATE> {
+        delegate.condition(condition)
+        return this
+    }
+
+    fun action(action: Action<in StateContext<STATE>>): AutoToMultipleTransitionBuilder<STATE> {
+        delegate.action(action)
+        return this
+    }
+
+    fun postAction(postAction: Action<in StateContext<STATE>>): AutoToMultipleTransitionBuilder<STATE> {
+        delegate.postAction(postAction)
+        return this
+    }
+
+    fun end(): ToMultipleBuilder<STATE> {
+        return delegate.end()
     }
 }

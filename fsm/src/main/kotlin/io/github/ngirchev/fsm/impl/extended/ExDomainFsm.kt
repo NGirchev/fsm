@@ -1,7 +1,5 @@
 package io.github.ngirchev.fsm.impl.extended
 
-import io.github.ngirchev.fsm.AutoTransitionScheduler
-import io.github.ngirchev.fsm.ImmediateAutoTransitionScheduler
 import io.github.ngirchev.fsm.StateChangeListener
 import io.github.ngirchev.fsm.StateContext
 import io.github.ngirchev.fsm.impl.AbstractDomainFsm
@@ -12,21 +10,13 @@ open class ExDomainFsm<DOMAIN : StateContext<STATE>, STATE, EVENT> :
     StateChangeListener<STATE> {
     final override val transitionTable: ExTransitionTable<STATE, EVENT>
     protected val autoTransitionEnabled: Boolean?
-    protected val autoTransitionScheduler: AutoTransitionScheduler<STATE>
 
     constructor(
         transitionTable: ExTransitionTable<STATE, EVENT>,
         autoTransitionEnabled: Boolean? = null,
-    ) : this(transitionTable, autoTransitionEnabled, ImmediateAutoTransitionScheduler())
-
-    constructor(
-        transitionTable: ExTransitionTable<STATE, EVENT>,
-        autoTransitionEnabled: Boolean? = null,
-        autoTransitionScheduler: AutoTransitionScheduler<STATE>,
     ) : super(transitionTable) {
         this.transitionTable = transitionTable
         this.autoTransitionEnabled = autoTransitionEnabled
-        this.autoTransitionScheduler = autoTransitionScheduler
     }
 
     private val stateChangeListeners = CopyOnWriteArrayList<StateChangeListener<STATE>>()
@@ -56,7 +46,7 @@ open class ExDomainFsm<DOMAIN : StateContext<STATE>, STATE, EVENT> :
     protected open fun createFsm(
         domain: DOMAIN,
         autoTransitionEnabled: Boolean,
-    ): ExFsm<STATE, EVENT> = ExFsm(domain, transitionTable, autoTransitionEnabled, autoTransitionScheduler)
+    ): ExFsm<STATE, EVENT> = ExFsm(domain, transitionTable, autoTransitionEnabled)
 
     /**
      * handle event for passed document.

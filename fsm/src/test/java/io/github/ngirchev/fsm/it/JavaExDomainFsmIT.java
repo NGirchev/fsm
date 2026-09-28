@@ -36,7 +36,7 @@ class JavaExDomainFsmIT {
                         .to(CANCELED).end()
                         .endMultiple()
 
-                        .from(AUTO_SENT).onEvent("TO_END").to(DONE).end()
+                        .from(AUTO_SENT).to(DONE).onEvent("TO_END").end()
                         .build()
                         .createDomainFsm();
 

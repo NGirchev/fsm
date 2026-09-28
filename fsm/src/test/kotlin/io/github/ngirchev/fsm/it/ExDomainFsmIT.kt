@@ -8,7 +8,6 @@ import org.junit.jupiter.api.TestInstance
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.Arguments
 import org.junit.jupiter.params.provider.MethodSource
-import io.github.ngirchev.fsm.AutoTransitionScheduler
 import io.github.ngirchev.fsm.impl.extended.ExDomainFsm
 import io.github.ngirchev.fsm.impl.extended.ExTransitionTable
 import io.github.ngirchev.fsm.StateContext
@@ -62,12 +61,12 @@ internal class ExDomainFsmIT {
             .from(READY_FOR_SIGN).toMultiple()
             .to(SIGNED).onEvent("USER_SIGN").timeout(Timeout(1)).end()
             .to(CANCELED).onEvent("FAILED_EVENT").end().endMultiple()
-            .from(SIGNED).onEvent("FAILED_EVENT").to(CANCELED).end()
+            .from(SIGNED).to(CANCELED).onEvent("FAILED_EVENT").end()
             .from(SIGNED).onEvent("TO_END").toMultiple()                  // switch case example
             .to(AUTO_SENT).onCondition(signRequiredGuard).end()            // first
             .to(DONE).onCondition(notSignRequiredGuard).end()             // second
             .to(CANCELED).end().endMultiple()                           // else
-            .from(AUTO_SENT).onEvent("TO_END").to(DONE).end()
+            .from(AUTO_SENT).to(DONE).onEvent("TO_END").end()
             .build()
         
         val guardFactory = GuardFactory<DocumentState> { id ->
@@ -301,59 +300,6 @@ internal class ExDomainFsmIT {
                 Instant.ofEpochMilli(end)
             ).seconds >= 4
         )
-    }
-
-    @Test
-    fun shouldScheduleAutoTransitionAfterIntermediateStateIsPersistedSoItCanBeRetried() {
-        var autoTransitionAttempts = 0
-        val persistedStates = mutableListOf<DocumentState>()
-        val afterCommitCallbacks = mutableListOf<() -> Unit>()
-        val afterCommitScheduler = AutoTransitionScheduler<DocumentState> { _, _, runTransition ->
-            afterCommitCallbacks.add(runTransition)
-        }
-
-        val fsm = ExTransitionTable.Builder<DocumentState, String>()
-            .autoTransitionEnabled(true)
-            .autoTransitionScheduler(afterCommitScheduler)
-            .add(from = NEW, onEvent = "APPROVE", to = READY_FOR_SIGN)
-            .add(
-                from = READY_FOR_SIGN,
-                to = SIGNED,
-                action = {
-                    autoTransitionAttempts++
-                    if (autoTransitionAttempts == 1) {
-                        throw IllegalStateException("External call failed")
-                    }
-                }
-            )
-            .build()
-            .createDomainFsm<Document>()
-        // Spring version of this scheduler would register runTransition with
-        // TransactionSynchronizationManager.registerSynchronization(... afterCommit { runTransition() }).
-        fsm.addStateChangeListener { _, _, newState -> persistedStates.add(newState) }
-
-        document = Document(state = NEW)
-
-        fsm.handle(document, "APPROVE")
-
-        assertEquals(READY_FOR_SIGN, document.state)
-        assertEquals(listOf(READY_FOR_SIGN), persistedStates)
-        assertEquals(0, autoTransitionAttempts)
-        assertEquals(1, afterCommitCallbacks.size)
-
-        Assertions.assertThrows(IllegalStateException::class.java) {
-            afterCommitCallbacks.single().invoke()
-        }
-
-        assertEquals(READY_FOR_SIGN, document.state)
-        assertEquals(listOf(READY_FOR_SIGN), persistedStates)
-        assertEquals(1, autoTransitionAttempts)
-
-        afterCommitCallbacks.single().invoke()
-
-        assertEquals(SIGNED, document.state)
-        assertEquals(listOf(READY_FOR_SIGN, SIGNED), persistedStates)
-        assertEquals(2, autoTransitionAttempts)
     }
 
     private fun prt(stateContext: StateContext<DocumentState>) {

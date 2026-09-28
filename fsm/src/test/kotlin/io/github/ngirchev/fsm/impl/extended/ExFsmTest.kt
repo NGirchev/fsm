@@ -160,6 +160,23 @@ class ExFsmTest {
     }
 
     @Test
+    fun onEventWithLocalAutoTransitionShouldPerformAutoTransitionWhenGlobalAutoIsDisabled() {
+        val table = ExTransitionTable.Builder<String, String>()
+            .autoTransitionEnabled(false)
+            .add("from", "event", "intermediate")
+            .from("intermediate")
+            .to("to")
+            .auto()
+            .end()
+            .build()
+
+        val fsm = ExFsm("from", table, autoTransitionEnabled = false)
+        fsm.onEvent("event")
+
+        assertEquals("to", fsm.getState())
+    }
+
+    @Test
     fun toStateWithAutoTransitionEnabledShouldPerformAutoTransitions() {
         val table = ExTransitionTable.Builder<String, String>()
             .autoTransitionEnabled(true)
@@ -282,23 +299,6 @@ class ExFsmTest {
     }
 
     @Test
-    fun defaultAutoTransitionSchedulerShouldHandleLongAutoTransitionChainWithoutStackOverflow() {
-        val transitionCount = 10_000
-        val builder = ExTransitionTable.Builder<Int, String>()
-            .autoTransitionEnabled(true)
-            .add(0, null, 1)
-
-        for (state in 1 until transitionCount) {
-            builder.add(state, null, state + 1)
-        }
-
-        val fsm = ExFsm(0, builder.build(), autoTransitionEnabled = true)
-        fsm.toState(1)
-
-        assertEquals(transitionCount, fsm.getState())
-    }
-
-    @Test
     fun immediateAutoTransitionsShouldStopAtConfiguredRuntimeLimit() {
         val table = ExTransitionTable.Builder<String, String>()
             .autoTransitionEnabled(true)
@@ -332,6 +332,23 @@ class ExFsmTest {
         fsm.onEvent("START")
 
         assertEquals("done", fsm.getState())
+    }
+
+    @Test
+    fun autoTransitionsShouldHandleLongChainWithoutStackOverflow() {
+        val transitionCount = 10_000
+        val builder = ExTransitionTable.Builder<Int, String>()
+            .autoTransitionEnabled(true)
+            .add(0, null, 1)
+
+        for (state in 1 until transitionCount) {
+            builder.add(state, null, state + 1)
+        }
+
+        val fsm = ExFsm(0, builder.build(), autoTransitionEnabled = true)
+        fsm.toState(1)
+
+        assertEquals(transitionCount, fsm.getState())
     }
 
     @Test

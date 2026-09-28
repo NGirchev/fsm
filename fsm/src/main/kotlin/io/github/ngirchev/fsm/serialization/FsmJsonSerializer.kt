@@ -57,7 +57,7 @@ class FsmJsonSerializer(
         val dto = deserializeDto(json)
         return dto.toExTransitionTable(stateParser, eventParser, actionFactory, guardFactory)
     }
-    
+
     /**
      * Deserializes JSON from InputStream to ExTransitionTable
      */
@@ -71,4 +71,5 @@ class FsmJsonSerializer(
         val dto = deserializeDto(input)
         return dto.toExTransitionTable(stateParser, eventParser, actionFactory, guardFactory)
     }
+
 }

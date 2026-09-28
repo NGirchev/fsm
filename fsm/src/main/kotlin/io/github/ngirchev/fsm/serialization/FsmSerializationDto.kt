@@ -53,13 +53,57 @@ data class TransitionDto(
  * Data Transfer Object for To serialization
  * STATE is stored as string for JSON compatibility
  */
-data class ToDto(
+class ToDto(
     val state: String,
     val conditions: List<String>,
     val actions: List<String>,
     val postActions: List<String>,
-    val timeout: TimeoutDto?
-)
+    val timeout: TimeoutDto?,
+) {
+    var autoTransitionEnabled: Boolean = false
+
+    constructor(
+        state: String,
+        conditions: List<String>,
+        actions: List<String>,
+        postActions: List<String>,
+        timeout: TimeoutDto?,
+        autoTransitionEnabled: Boolean,
+    ) : this(state, conditions, actions, postActions, timeout) {
+        this.autoTransitionEnabled = autoTransitionEnabled
+    }
+
+    fun copy(
+        state: String = this.state,
+        conditions: List<String> = this.conditions,
+        actions: List<String> = this.actions,
+        postActions: List<String> = this.postActions,
+        timeout: TimeoutDto? = this.timeout,
+    ): ToDto = ToDto(state, conditions, actions, postActions, timeout).also {
+        it.autoTransitionEnabled = autoTransitionEnabled
+    }
+
+    operator fun component1(): String = state
+    operator fun component2(): List<String> = conditions
+    operator fun component3(): List<String> = actions
+    operator fun component4(): List<String> = postActions
+    operator fun component5(): TimeoutDto? = timeout
+
+    override fun equals(other: Any?): Boolean =
+        this === other || other is ToDto && state == other.state && conditions == other.conditions &&
+            actions == other.actions && postActions == other.postActions && timeout == other.timeout
+
+    override fun hashCode(): Int {
+        var result = state.hashCode()
+        result = 31 * result + conditions.hashCode()
+        result = 31 * result + actions.hashCode()
+        result = 31 * result + postActions.hashCode()
+        return 31 * result + (timeout?.hashCode() ?: 0)
+    }
+
+    override fun toString(): String =
+        "ToDto(state=$state, conditions=$conditions, actions=$actions, postActions=$postActions, timeout=$timeout)"
+}
 
 /**
  * Data Transfer Object for Timeout serialization
@@ -122,7 +166,8 @@ private fun <STATE> To<STATE>.toDto(): ToDto {
         conditions = conditionIds,
         actions = actionIds,
         postActions = postActionIds,
-        timeout = timeout?.toDto()
+        timeout = timeout?.toDto(),
+        autoTransitionEnabled = autoTransitionEnabled,
     )
 }
 
@@ -152,7 +197,8 @@ fun interface GuardFactory<STATE> {
 
 /**
  * Converts DTO back to To
- * Requires state parser and factories to recreate actions and guards by ID
+ * Action and guard factories are optional and best-effort: missing factories or unknown IDs
+ * simply drop the corresponding conditions/actions.
  */
 fun <STATE> ToDto.toTo(
     stateParser: (String) -> STATE,
@@ -160,28 +206,41 @@ fun <STATE> ToDto.toTo(
     guardFactory: GuardFactory<STATE>? = null
 ): To<STATE> {
     val state = stateParser(this.state)
-    
-    val conditions = this.conditions.mapNotNull { id ->
-        guardFactory?.createGuard(id)
-    }
-    
-    val actions = this.actions.mapNotNull { id ->
-        actionFactory?.createAction(id)
-    }
-    
-    val postActions = this.postActions.mapNotNull { id ->
-        actionFactory?.createAction(id)
-    }
-    
+
+    val conditions = restoreGuards(this.conditions, guardFactory)
+    val actions = restoreActions(this.actions, actionFactory)
+    val postActions = restoreActions(this.postActions, actionFactory)
+
     val timeout = this.timeout?.toTimeout()
-    
+
     return To(
         state = state,
         conditions = conditions,
         actions = actions,
         postActions = postActions,
-        timeout = timeout
+        timeout = timeout,
+        autoTransitionEnabled = autoTransitionEnabled,
     )
+}
+
+private fun <STATE> restoreGuards(
+    guardIds: List<String>,
+    guardFactory: GuardFactory<STATE>?,
+): List<Guard<in StateContext<STATE>>> {
+    val factory = guardFactory ?: return emptyList()
+    return guardIds.mapNotNull { id ->
+        factory.createGuard(id)
+    }
+}
+
+private fun <STATE> restoreActions(
+    actionIds: List<String>,
+    actionFactory: ActionFactory<STATE>?,
+): List<Action<in StateContext<STATE>>> {
+    val factory = actionFactory ?: return emptyList()
+    return actionIds.mapNotNull { id ->
+        factory.createAction(id)
+    }
 }
 
 /**
@@ -198,7 +257,7 @@ private fun TimeoutDto.toTimeout(): Timeout {
 
 /**
  * Converts DTO back to ExTransitionTable
- * Requires state and event parsers and optional factories for actions/guards
+ * Action and guard factories are optional best-effort helpers.
  */
 fun <STATE, EVENT> FsmDto.toExTransitionTable(
     stateParser: (String) -> STATE,

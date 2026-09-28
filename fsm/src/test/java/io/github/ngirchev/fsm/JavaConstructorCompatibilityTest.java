@@ -12,6 +12,14 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 class JavaConstructorCompatibilityTest {
 
     @Test
+    void originalSevenArgumentBuilderAddRemainsAvailableToJava() {
+        ExTransitionTable<String, String> table = new ExTransitionTable.Builder<String, String>()
+                .add("from", "event", "to", null, null, null, null)
+                .build();
+        assertNotNull(table);
+    }
+
+    @Test
     void oldNullableBooleanNullConstructorsShouldCompileWithoutAmbiguousOverloads() {
         BTransitionTable<String> basicTable = new BTransitionTable.Builder<String>().build();
         StateContext<String> context = new TestStateContext("initial");

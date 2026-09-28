@@ -1,10 +1,11 @@
 package io.github.ngirchev.fsm.impl.extended;
 
-import io.github.ngirchev.fsm.AutoTransitionScheduler;
 import io.github.ngirchev.fsm.StateContext;
+import io.github.ngirchev.fsm.To;
 import io.github.ngirchev.fsm.Transition;
 import org.junit.jupiter.api.Test;
 
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Objects;
@@ -12,6 +13,19 @@ import java.util.Objects;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class JavaDomainFsmExtensibilityTest {
+
+    @Test
+    void javaCanUseToConstructorWithoutScheduler() {
+        To<OrderState> to = new To<>(
+            OrderState.SUBMITTED,
+            Collections.emptyList(),
+            Collections.emptyList(),
+            Collections.emptyList(),
+            null
+        );
+
+        assertEquals(OrderState.SUBMITTED, to.getState());
+    }
 
     @Test
     void javaDomainFsmCanHideGenericTypesAndOverrideEventMatching() {
@@ -27,10 +41,9 @@ class JavaDomainFsmExtensibilityTest {
 
         private OrderFsm(
             ExTransitionTable<OrderState, OrderEvent> transitionTable,
-            boolean autoTransitionEnabled,
-            AutoTransitionScheduler<OrderState> autoTransitionScheduler
+            boolean autoTransitionEnabled
         ) {
-            super(transitionTable, autoTransitionEnabled, autoTransitionScheduler);
+            super(transitionTable, autoTransitionEnabled);
         }
 
         static OrderFsm create() {
@@ -59,10 +72,9 @@ class JavaDomainFsmExtensibilityTest {
 
         private OrderTransitionTable(
             Map<OrderState, LinkedHashSet<ExTransition<OrderState, OrderEvent>>> transitions,
-            boolean autoTransitionEnabled,
-            AutoTransitionScheduler<OrderState> autoTransitionScheduler
+            boolean autoTransitionEnabled
         ) {
-            super(transitions, autoTransitionEnabled, autoTransitionScheduler);
+            super(transitions, autoTransitionEnabled);
         }
 
         @Override
