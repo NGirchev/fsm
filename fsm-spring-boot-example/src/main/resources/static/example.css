@@ -8,7 +8,7 @@ button:hover:not(:disabled):not([aria-selected="true"]) { background: #e8f0fb; }
 button[aria-selected="true"] { background: #245d9e; color: white; }
 header { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 12px 24px; background: white; border-bottom: 1px solid #d6dde5; }
 h1 { margin: 0; font-size: 21px; }
-nav, .flow-toolbar, .order-forms { display: flex; flex-wrap: wrap; gap: 12px; }
+nav, .order-forms { display: flex; flex-wrap: wrap; gap: 12px; }
 #orders-panel { padding: 24px; max-width: 1200px; margin: auto; }
 form, #order-detail { background: white; padding: 20px; border: 1px solid #d6dde5; border-radius: 8px; }
 form { flex: 1; min-width: 260px; }
@@ -17,10 +17,7 @@ h2 { margin-top: 0; }
 dl { display: grid; grid-template-columns: 180px 1fr; gap: 8px; }
 dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
 #editor-panel { height: calc(100vh - 65px); display: flex; flex-direction: column; }
-#flow-message, .flow-toolbar { padding: 8px 18px; }
-#flow-message { background: #e8f0fb; overflow-wrap: anywhere; }
-.flow-toolbar { align-items: center; }
-#flow-editor { width: 100%; flex: 1; min-height: 450px; border: 0; }
+#fsm-admin { width: 100%; flex: 1; min-height: 450px; border: 0; }
 [hidden] { display: none !important; }
 .table-scroll { overflow-x: auto; }
 table { border-collapse: collapse; width: 100%; }

@@ -19,10 +19,10 @@ public class OrderExecution {
     private final Map<String, StateChangeListener<String>> stateListeners;
     private final Map<String, Consumer<Order>> completionListeners;
     private final FsmBeanRegistry registry;
-    private final OrderBehaviorCatalog behaviorCatalog;
+    private final OrderFlowValidator flowValidator;
 
     public void run(Order order, FlowDefinition definition, OrderEvent event) {
-        behaviorCatalog.validate(definition);
+        flowValidator.validate(definition);
         order.setEvent(event);
         order.getTrace().clear();
         var table = loader.load(definition, name -> new OrderEvent(name, null, null));

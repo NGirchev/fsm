@@ -81,6 +81,6 @@ open class FlowService(
     }
 
     private companion object {
-        val FLOW_KEY = Regex("[A-Za-z0-9._-]{1,120}")
+        private val FLOW_KEY = Regex("[A-Za-z0-9._-]{1,120}")
     }
 }

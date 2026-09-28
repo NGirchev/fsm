@@ -10,7 +10,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.NoSuchElementException;
 
 // Spring maps controller/service exceptions to HTTP responses through these handlers.
-@RestControllerAdvice
+@RestControllerAdvice(basePackageClasses = io.github.ngirchev.fsm.example.order.OrderController.class)
 public class ApiExceptionHandler {
     public record ApiError(String message) {
     }

@@ -64,7 +64,7 @@ class OrderFlowJourneyIT {
         var branched = event(order.path("id").asLong(), "FINISH");
         assertThat(branched.path("state").asText()).isEqualTo("COMPLETED");
         assertThat(branched.path("trace").get(0).path("to").asText()).isEqualTo("COMMISSION_2_PERCENT");
-        post("/api/flows/order/versions/1/activate", null, 200);
+        post("/fsm-admin/api/flows/order/versions/1/activate", null, 200);
         var direct = create("1000.00");
         assertThat(direct.path("flowVersion").asInt()).isEqualTo(1);
         event(direct.path("id").asLong(), "SUBMIT");
@@ -73,7 +73,7 @@ class OrderFlowJourneyIT {
         assertThat(paid.path("commission").decimalValue()).isEqualByComparingTo("20.00");
         assertThat(paid.path("trace").size()).isEqualTo(1);
         assertThat(paid.path("trace").get(0).path("conditions")).isEmpty();
-        post("/api/flows/order/versions/2/activate", null, 200);
+        post("/fsm-admin/api/flows/order/versions/2/activate", null, 200);
         assertThat(get("/api/orders/" + direct.path("id").asLong()).path("flowVersion").asInt()).isEqualTo(1);
         post("/api/orders", null, 400);
         post("/api/orders", Map.of(), 400);
@@ -188,28 +188,28 @@ class OrderFlowJourneyIT {
         delete(next, 204);
         delete(higher, 204);
         delete(firstVersion, 409);
-        assertThat(http.getForEntity("/api/flows/order/versions/" + higher, JsonNode.class).getStatusCode().value()).isEqualTo(404);
+        assertThat(http.getForEntity("/fsm-admin/api/flows/order/versions/" + higher, JsonNode.class).getStatusCode().value()).isEqualTo(404);
     }
 
     @Test @org.junit.jupiter.api.Order(7)
     void publicationValidationAndConcurrentDraftsPreserveActiveVersion() {
-        var active = get("/api/flows/order/versions");
+        var active = get("/fsm-admin/api/flows/order/versions");
         int activeVersion = 0;
         for (var item : active) if (item.path("status").asText().equals("ACTIVE")) activeVersion = item.path("version").asInt();
         var invalid = fees("commissionTwoPercent", "commissionOnePercent", false);
         invalid.putObject("execution").putArray("stateListeners").add("unknownListener");
         int broken = draft(invalid);
-        post("/api/flows/order/versions/" + broken + "/publish", null, 400);
+        post("/fsm-admin/api/flows/order/versions/" + broken + "/publish", null, 400);
         assertThat(create("100.00").path("flowVersion").asInt()).isEqualTo(activeVersion);
         delete(activeVersion, 409);
-        var update = http.exchange("/api/flows/order/versions/" + activeVersion, HttpMethod.PUT,
+        var update = http.exchange("/fsm-admin/api/flows/order/versions/" + activeVersion, HttpMethod.PUT,
                 new HttpEntity<>(invalid), JsonNode.class);
         assertThat(update.getStatusCode().value()).isEqualTo(409);
         var definition = fees("commissionTwoPercent", "commissionOnePercent", false);
         var a = CompletableFuture.supplyAsync(() -> draft(definition));
         var b = CompletableFuture.supplyAsync(() -> draft(definition));
         assertThat(a.join()).isNotEqualTo(b.join());
-        var behaviors = get("/api/flows/order/behaviors");
+        var behaviors = get("/fsm-admin/api/flows/order/behaviors");
         assertThat(behaviors.findValuesAsText("id")).contains(
                 "amountAbove10000", "commissionTwoPercent", "failOrderAction", "beforeOrderState", "afterOrderState");
         for (var behavior : behaviors) {
@@ -224,15 +224,15 @@ class OrderFlowJourneyIT {
     void controllersRejectInvalidEventsWithoutChangingDraftsOrOrders() {
         var definition = fees("commissionTwoPercent", "commissionOnePercent", false);
         int version = draft(definition);
-        var original = get("/api/flows/order/versions/" + version);
-        int versionCount = get("/api/flows/order/versions").size();
+        var original = get("/fsm-admin/api/flows/order/versions/" + version);
+        int versionCount = get("/fsm-admin/api/flows/order/versions").size();
         var order = create("100.00");
         long id = order.path("id").asLong();
         for (String name : List.of("", "   ", "E".repeat(121), "😀".repeat(61))) {
             ((ObjectNode) definition.path("table").path("transitions").path("NEW").get(0)).put("event", name);
-            assertThat(post("/api/flows/order/versions", definition, 400).path("message").asText())
+            assertThat(post("/fsm-admin/api/flows/order/versions", definition, 400).path("message").asText())
                     .contains("event must contain 1 to 120 characters");
-            var updated = http.exchange("/api/flows/order/versions/" + version, HttpMethod.PUT,
+            var updated = http.exchange("/fsm-admin/api/flows/order/versions/" + version, HttpMethod.PUT,
                     new HttpEntity<>(definition), JsonNode.class);
             assertThat(updated.getStatusCode().value()).isEqualTo(400);
             post("/api/orders/" + id + "/events", Map.of("event", name), 400);
@@ -240,8 +240,8 @@ class OrderFlowJourneyIT {
         for (String field : List.of("source", "requestId")) {
             post("/api/orders/" + id + "/events", Map.of("event", "SUBMIT", field, "X".repeat(121)), 400);
         }
-        assertThat(get("/api/flows/order/versions/" + version)).isEqualTo(original);
-        assertThat(get("/api/flows/order/versions").size()).isEqualTo(versionCount);
+        assertThat(get("/fsm-admin/api/flows/order/versions/" + version)).isEqualTo(original);
+        assertThat(get("/fsm-admin/api/flows/order/versions").size()).isEqualTo(versionCount);
         assertThat(get("/api/orders/" + id).path("state")).isEqualTo(order.path("state"));
     }
 
@@ -249,7 +249,7 @@ class OrderFlowJourneyIT {
     void invalidStoredEventsCannotReplaceActiveFlowAndBoundaryEventsExecute() {
         var definition = fees("commissionTwoPercent", "commissionOnePercent", false);
         int active = create("100.00").path("flowVersion").asInt();
-        var activeVersion = get("/api/flows/order/versions/" + active);
+        var activeVersion = get("/fsm-admin/api/flows/order/versions/" + active);
         for (String status : List.of("DRAFT", "ARCHIVED")) {
             int version = draft(definition);
             var invalid = definition.deepCopy();
@@ -258,9 +258,9 @@ class OrderFlowJourneyIT {
             // Simulate a definition stored before event validation existed, in this test's disposable DB.
             jdbc.update("update fsm_flow_version set definition=cast(? as jsonb), status=? where flow_key='order' and version=?",
                     invalid.toString(), status, version);
-            post("/api/flows/order/versions/" + version + (status.equals("DRAFT") ? "/publish" : "/activate"), null, 400);
-            assertThat(get("/api/flows/order/versions/" + version).path("status").asText()).isEqualTo(status);
-            assertThat(get("/api/flows/order/versions/" + active)).isEqualTo(activeVersion);
+            post("/fsm-admin/api/flows/order/versions/" + version + (status.equals("DRAFT") ? "/publish" : "/activate"), null, 400);
+            assertThat(get("/fsm-admin/api/flows/order/versions/" + version).path("status").asText()).isEqualTo(status);
+            assertThat(get("/fsm-admin/api/flows/order/versions/" + active)).isEqualTo(activeVersion);
             assertThat(create("100.00").path("flowVersion").asInt()).isEqualTo(active);
         }
         for (String name : List.of("E".repeat(120), "😀".repeat(60))) {
@@ -296,14 +296,14 @@ class OrderFlowJourneyIT {
         target.set("postActions", mapper.valueToTree(postActions));
         return transition;
     }
-    private int draft(JsonNode definition) { return post("/api/flows/order/versions", definition, 201).path("version").asInt(); }
+    private int draft(JsonNode definition) { return post("/fsm-admin/api/flows/order/versions", definition, 201).path("version").asInt(); }
     private int publish(JsonNode definition) {
         int version = draft(definition);
-        post("/api/flows/order/versions/" + version + "/publish", null, 200);
+        post("/fsm-admin/api/flows/order/versions/" + version + "/publish", null, 200);
         return version;
     }
     private void delete(int version, int status) {
-        assertThat(http.exchange("/api/flows/order/versions/" + version, HttpMethod.DELETE, HttpEntity.EMPTY, String.class)
+        assertThat(http.exchange("/fsm-admin/api/flows/order/versions/" + version, HttpMethod.DELETE, HttpEntity.EMPTY, String.class)
                 .getStatusCode().value()).isEqualTo(status);
     }
     private JsonNode create(String amount) {

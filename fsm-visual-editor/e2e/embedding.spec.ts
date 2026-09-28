@@ -1,7 +1,7 @@
 import { expect } from '@playwright/test';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { test, fixture, embedded, api, editor, exportDocument } from './helpers';
+import { test, fixture, embedded, api, editor, exportDocument, admin } from './helpers';
 
 const staticEditor = `http://127.0.0.1:${process.env.E2E_STATIC_PORT}/`;
 
@@ -66,17 +66,17 @@ test('example edits, saves and reloads through the cross-origin static editor', 
     observer.observe(document, { childList: true, subtree: true });
   }, staticEditor);
   await page.goto(`${embedded}/#flow`);
-  await page.getByRole('button', { name: 'Create draft', exact: true }).click();
-  await expect(page.locator('#flow-message')).toContainText('Draft created');
+  await admin(page).getByRole('button', { name: 'Create draft', exact: true }).click();
+  await expect(admin(page).locator('#flow-message')).toContainText('Draft created');
   await editor(page).getByLabel('Name', { exact: true }).fill('Cross origin');
-  await page.getByRole('button', { name: 'Save draft', exact: true }).click();
-  await expect(page.locator('#flow-message')).toHaveText('Draft and layout saved.');
-  const version = await page.getByLabel('Order version').inputValue();
+  await admin(page).getByRole('button', { name: 'Save draft', exact: true }).click();
+  await expect(admin(page).locator('#flow-message')).toHaveText('Draft and layout saved.');
+  const version = await admin(page).getByLabel('Version').inputValue();
   await page.reload();
-  await page.getByLabel('Order version').selectOption(version);
+  await admin(page).getByLabel('Version').selectOption(version);
   expect((await exportDocument(page)).name).toBe('Cross origin');
-  await page.getByRole('button', { name: 'Publish', exact: true }).click();
-  await expect(page.locator('#flow-message')).toContainText('Published');
+  await admin(page).getByRole('button', { name: 'Publish', exact: true }).click();
+  await expect(admin(page).locator('#flow-message')).toContainText('Published');
   await expect(editor(page).getByLabel('Name', { exact: true })).toBeDisabled();
 });
 
@@ -95,13 +95,13 @@ test('orders tab runs the published flow and preserves an unsaved editor draft',
   await expect(page.locator('[data-field="State"]')).toHaveText('COMPLETED');
   await expect(page.locator('#order-history')).toContainText('SUBMIT');
   await page.getByRole('tab', { name: 'Flow editor', exact: true }).click();
-  await page.getByRole('button', { name: 'Create draft', exact: true }).click();
-  await expect(page.locator('#flow-message')).toContainText('Draft created');
+  await admin(page).getByRole('button', { name: 'Create draft', exact: true }).click();
+  await expect(admin(page).locator('#flow-message')).toContainText('Draft created');
   await editor(page).getByLabel('Name', { exact: true }).fill('Keep draft across tabs');
   await page.getByRole('tab', { name: 'Orders', exact: true }).click();
   await page.screenshot({ path: testInfo.outputPath('orders.png'), fullPage: true });
   await page.getByRole('tab', { name: 'Flow editor', exact: true }).click();
   await expect(editor(page).getByLabel('Name', { exact: true })).toHaveValue('Keep draft across tabs');
-  await expect(page.locator('#flow-message')).toContainText('Unsaved changes');
+  await expect(admin(page).locator('#flow-message')).toContainText('Unsaved changes');
   await page.screenshot({ path: testInfo.outputPath('embedded-editor.png'), fullPage: true });
 });

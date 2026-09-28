@@ -41,9 +41,8 @@ tasks.test {
     useJUnitPlatform()
 }
 
-// Package the same portable static editor used on GitHub Pages, without a domain build mode.
+// Run browser tests against the example and the editor packaged by the starter.
 val editorDirectory = rootProject.layout.projectDirectory.dir("fsm-visual-editor")
-val editorOutput = layout.buildDirectory.dir("editor")
 
 // GUI-launched IDEs on macOS may omit Homebrew from PATH. npm also needs node on PATH.
 fun Exec.editorNpm(vararg arguments: String) {
@@ -63,30 +62,6 @@ fun Exec.editorNpm(vararg arguments: String) {
     val npm = File(nodeDirectory, npmName).absolutePath
     if (windows) commandLine("cmd", "/c", npm, *arguments)
     else commandLine(npm, *arguments)
-}
-
-val installEditorDependencies by tasks.registering(Exec::class) {
-    description = "Install dependencies for the universal FSM editor."
-    workingDir(editorDirectory)
-    doFirst { editorNpm("ci", "--no-audit", "--no-fund") }
-    inputs.files(editorDirectory.file("package.json"), editorDirectory.file("package-lock.json"))
-    outputs.file(editorDirectory.file("node_modules/.package-lock.json"))
-}
-val buildEditor by tasks.registering(Exec::class) {
-    description = "Build the universal FSM editor for the example application."
-    dependsOn(installEditorDependencies)
-    workingDir(editorDirectory)
-    doFirst {
-        editorNpm("run", "build", "--", "--outDir", editorOutput.get().asFile.absolutePath, "--emptyOutDir")
-    }
-    inputs.dir(editorDirectory.dir("src"))
-    inputs.files(editorDirectory.file("index.html"), editorDirectory.file("vite.config.ts"),
-        editorDirectory.file("tsconfig.json"), editorDirectory.file("package-lock.json"))
-    outputs.dir(editorOutput)
-}
-tasks.processResources {
-    dependsOn(buildEditor)
-    from(editorOutput) { into("static/fsm-editor") }
 }
 
 val exampleJar = tasks.named<org.springframework.boot.gradle.tasks.bundling.BootJar>("bootJar")

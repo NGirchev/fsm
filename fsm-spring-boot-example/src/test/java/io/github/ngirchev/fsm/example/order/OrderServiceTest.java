@@ -27,7 +27,7 @@ class OrderServiceTest {
     private final FlowLoader loader = mock(FlowLoader.class);
     private final OrderService service = new OrderService(orders, flows,
             new OrderExecution(loader, Map.of(), Map.of(), new io.github.ngirchev.fsm.spring.FsmBeanRegistry(Map.of(), Map.of()),
-                    mock(OrderBehaviorCatalog.class)), mock(OrderHistoryRepository.class));
+                    mock(OrderFlowValidator.class)), mock(OrderHistoryRepository.class));
 
     @Test
     void creationExecutesInitialAutomaticTransition() {

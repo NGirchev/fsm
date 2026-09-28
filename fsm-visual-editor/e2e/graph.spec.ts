@@ -1,5 +1,5 @@
 import { expect } from '@playwright/test';
-import { test, editor, connect, exportDocument, fixture, importDocument, openDraft, selectEdge, standalone, expandSection } from './helpers';
+import { test, editor, connect, exportDocument, fixture, importDocument, openDraft, selectEdge, standalone, expandSection, admin } from './helpers';
 
 for (const mode of ['standalone', 'embedded'] as const) {
   test.describe(`${mode} graph`, () => {
@@ -137,8 +137,8 @@ for (const mode of ['standalone', 'embedded'] as const) {
         await expect(editor(page).getByRole('button', { name: 'JAVA', exact: true })).toBeDisabled();
         await expect(editor(page).getByRole('button', { name: 'KT', exact: true })).toBeDisabled();
       } else {
-        await page.getByRole('button', { name: 'Save draft', exact: true }).click();
-        await expect(page.getByRole('status').first()).toContainText('Only eventless transitions');
+        await admin(page).getByRole('button', { name: 'Save draft', exact: true }).click();
+        await expect(admin(page).getByRole('status').first()).toContainText('Only eventless transitions');
       }
       await selectEdge(page);
       await editor(page).locator('.selected-panel').getByRole('button', { name: 'Event', exact: true }).click();

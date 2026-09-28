@@ -75,7 +75,7 @@ try {
   const deadline = Date.now() + 90000;
   while (true) {
     if (app.exitCode !== null || Date.now() > deadline) throw new Error('Example failed to start; see e2e-server.log');
-    if (await fetch(`${embeddedUrl}/api/flows/order/versions`).then((r) => r.ok).catch(() => false)) break;
+    if (await fetch(`${embeddedUrl}/fsm-admin/api/flows/order/versions`).then((r) => r.ok).catch(() => false)) break;
     await new Promise((done) => setTimeout(done, 500));
   }
   tests = spawn(process.execPath, [resolve(editor, 'node_modules/@playwright/test/cli.js'), 'test', ...process.argv.slice(2)], {

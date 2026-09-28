@@ -4,10 +4,16 @@ Local visual finite state machine editor for building `.fsm.json` projects and g
 
 ## Run
 
+Run these commands from the repository root (`fsm`), including when using the Run button
+on this code block in the IDE:
+
 ```bash
-npm install
-npm run dev
+npm --prefix fsm-visual-editor install
+npm --prefix fsm-visual-editor run dev
 ```
+
+Open the local URL printed by Vite. This starts the standalone editor; the Spring example
+and PostgreSQL are not required.
 
 ## Embedding the universal editor
 
@@ -47,8 +53,9 @@ Use an explicit target origin, never `*`. The editor applies the equivalent chec
 After saving or an error, send `configure` to restore the appropriate read-only state. On timeout,
 report the failure and unlock; do not claim the document was saved.
 
-The [Spring example](../fsm-spring-boot-example/README.md#visual-order-editor) implements this
-contract in its own static UI: the editor receives only documents and generic configuration.
+The [Spring starter admin panel](../fsm-spring-boot-starter/README.md#optional-administration-panel)
+implements this contract and is embedded by the Spring example. The editor receives only documents
+and generic configuration; its standalone build remains independent of the admin API.
 
 ## Browser regression tests
 

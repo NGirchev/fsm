@@ -1,5 +1,5 @@
 import { expect, type Page, type APIRequestContext } from '@playwright/test';
-import { test, editor, embedded, api, exportDocument, connect, selectEdge } from './helpers';
+import { test, editor, embedded, api, exportDocument, connect, selectEdge, admin } from './helpers';
 
 async function prepareBasicActive(request: APIRequestContext) {
   const seed = await (await request.get(`${api}/1`)).json();
@@ -38,15 +38,15 @@ async function addBranch(page: Page, from: string, to: string, event: string) {
 }
 
 async function publish(page: Page) {
-  await page.getByRole('button', { name: 'Save draft', exact: true }).click();
-  await expect(page.getByRole('status').first()).toHaveText('Draft and layout saved.');
-  const version = await page.getByLabel('Order version').inputValue();
+  await admin(page).getByRole('button', { name: 'Save draft', exact: true }).click();
+  await expect(admin(page).getByRole('status').first()).toHaveText('Draft and layout saved.');
+  const version = await admin(page).getByLabel('Version').inputValue();
   const expected = await exportDocument(page);
   await page.reload();
-  await page.getByLabel('Order version').selectOption(version);
+  await admin(page).getByLabel('Version').selectOption(version);
   expect(await exportDocument(page)).toEqual(expected);
-  await page.getByRole('button', { name: 'Publish', exact: true }).click();
-  await expect(page.getByRole('status').first()).toContainText('Published');
+  await admin(page).getByRole('button', { name: 'Publish', exact: true }).click();
+  await expect(admin(page).getByRole('status').first()).toContainText('Published');
   return Number(version);
 }
 
@@ -68,8 +68,8 @@ test('replace commission beans in UI, preserve pinned orders and record history'
   test.setTimeout(90000);
   await prepareBasicActive(request);
   await page.goto(`${embedded}/#flow`);
-  await page.getByRole('button', { name: 'Create draft', exact: true }).click();
-  await expect(page.getByRole('status').first()).toContainText('Draft created');
+  await admin(page).getByRole('button', { name: 'Create draft', exact: true }).click();
+  await expect(admin(page).getByRole('status').first()).toContainText('Draft created');
   await editor(page).locator('.react-flow__node').filter({ hasText: /^COMPLETED$/ }).click();
   await editor(page).getByLabel('Label', { exact: true }).fill('DONE');
   await addState(page, 'DISCOUNTED');
@@ -94,8 +94,8 @@ test('replace commission beans in UI, preserve pinned orders and record history'
   const pinned = await order(request, '100.00');
   await event(request, pinned.id, 'SUBMIT');
 
-  await page.getByRole('button', { name: 'Create draft', exact: true }).click();
-  await expect(page.getByRole('status').first()).toContainText('Draft created');
+  await admin(page).getByRole('button', { name: 'Create draft', exact: true }).click();
+  await expect(admin(page).getByRole('status').first()).toContainText('Draft created');
   for (const [id, oldBean, newBean] of [[belowThreshold, 'commissionTwoPercent', 'commissionOnePercent'],
     [atLeastThreshold, 'commissionOnePercent', 'commissionTwoPercent']]) {
     await selectEdge(page, id);
@@ -113,11 +113,11 @@ test('replace commission beans in UI, preserve pinned orders and record history'
     expect(history).toEqual(expect.arrayContaining([expect.objectContaining({ event: 'FINISH', source: 'browser-test', requestId: `${created.id}-FINISH` })]));
     expect(history.filter((item: { kind: string }) => item.kind === 'STATE_CHANGED')).toHaveLength(2);
   }
-  await page.getByLabel('Order version').selectOption(String(first));
+  await admin(page).getByLabel('Version').selectOption(String(first));
   expect((await exportDocument(page)).transitions.find((item) => item.id === belowThreshold)?.actions).toEqual(['commissionTwoPercent']);
   await selectEdge(page, belowThreshold);
   await expect(editor(page).getByLabel('Add Guards', { exact: true })).toBeDisabled();
-  await page.getByLabel('Order version').selectOption(String(second));
+  await admin(page).getByLabel('Version').selectOption(String(second));
   await expect(editor(page).getByLabel('State listeners 1', { exact: true })).toHaveValue('recordOrderHistory');
   await page.screenshot({ path: testInfo.outputPath('order-components.png'), fullPage: true });
   expect((await (await request.get(`${api}/${second}`)).json()).definition.execution.stateListeners).toContain('recordOrderHistory');
@@ -126,8 +126,8 @@ test('replace commission beans in UI, preserve pinned orders and record history'
 test('branch priority changes the first matching result and survives reload', async ({ page, request }) => {
   await prepareBasicActive(request);
   await page.goto(`${embedded}/#flow`);
-  await page.getByRole('button', { name: 'Create draft', exact: true }).click();
-  await expect(page.getByRole('status').first()).toContainText('Draft created');
+  await admin(page).getByRole('button', { name: 'Create draft', exact: true }).click();
+  await expect(admin(page).getByRole('status').first()).toContainText('Draft created');
   await addState(page, 'ALTERNATIVE');
   const document = await exportDocument(page);
   await selectEdge(page, document.transitions.find((item) => item.trigger.kind === 'event' && item.trigger.event === 'FINISH')!.id);

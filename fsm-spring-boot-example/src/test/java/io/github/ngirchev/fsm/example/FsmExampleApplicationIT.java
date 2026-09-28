@@ -31,6 +31,7 @@ import static io.github.ngirchev.fsm.example.order.OrderController.*;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @Testcontainers
+@org.springframework.context.annotation.Import(FsmExampleApplicationIT.AdminRegistrations.class)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class FsmExampleApplicationIT {
     @Container
@@ -83,7 +84,7 @@ class FsmExampleApplicationIT {
 
     @Test
     void editorPageAndVersionApiPersistVisualLayout() throws Exception {
-        var page = rest.getForEntity(url("/fsm-editor/"), String.class);
+        var page = rest.getForEntity(url("/fsm-admin/editor/index.html"), String.class);
         assertThat(page.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(page.getBody()).contains("<title>FSM Visual Editor</title>", "./assets/");
         var original = flowService.active("order").definition();
@@ -92,7 +93,7 @@ class FsmExampleApplicationIT {
                 "position":{"x":-120.5,"y":450.25}}]}
                 """);
         var definition = new FlowDefinition(original.initialState(), original.table(), editor);
-        String path = "/api/flows/editor-layout/versions";
+        String path = "/fsm-admin/api/flows/editor-layout/versions";
         var draft = post(path, definition, FlowVersion.class);
         editor.withObject("/states/0/position").put("x", 987.25);
         var updated = rest.exchange(url(path + "/" + draft.version()), HttpMethod.PUT,
@@ -161,9 +162,9 @@ class FsmExampleApplicationIT {
                     new OrderEventRequest("SUBMIT"), OrderResponse.class);
             assertThat(inProgressPending.state()).isEqualTo("IN_PROGRESS");
 
-            var draft = post("/api/flows/order/versions", fastDefinition(List.of()), FlowVersion.class);
+            var draft = post("/fsm-admin/api/flows/order/versions", fastDefinition(List.of()), FlowVersion.class);
             assertThat(draft.status()).isEqualTo(FlowVersionStatus.DRAFT);
-            var published = post("/api/flows/order/versions/" + draft.version() + "/publish", null, FlowVersion.class);
+            var published = post("/fsm-admin/api/flows/order/versions/" + draft.version() + "/publish", null, FlowVersion.class);
             assertThat(published.status()).isEqualTo(FlowVersionStatus.ACTIVE);
 
             var inProgressCompleted = post("/api/orders/" + inProgress.id() + "/events",
@@ -177,10 +178,11 @@ class FsmExampleApplicationIT {
                     new OrderEventRequest("FAST_COMPLETE"), OrderResponse.class);
             assertThat(completed.state()).isEqualTo("COMPLETED");
 
-            var invalidDraft = post("/api/flows/order/versions", fastDefinition(List.of("missingBean")), FlowVersion.class);
+            var invalidDraft = post("/fsm-admin/api/flows/order/versions", fastDefinition(List.of("missingBean")), FlowVersion.class);
             var invalidPublish = rest.postForEntity(
-                    url("/api/flows/order/versions/" + invalidDraft.version() + "/publish"), null, ApiError.class);
+                    url("/fsm-admin/api/flows/order/versions/" + invalidDraft.version() + "/publish"), null, ApiError.class);
             assertThat(invalidPublish.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+            assertThat(invalidPublish.getBody()).isNotNull();
             assertThat(invalidPublish.getBody().message()).contains("missingBean");
 
             var stillWorks = post("/api/orders", new CreateOrderRequest(new BigDecimal("100.00")), OrderResponse.class);
@@ -194,7 +196,7 @@ class FsmExampleApplicationIT {
 
     @Test
     void activeVersionCannotBeOverwritten() {
-        var response = rest.exchange(url("/api/flows/order/versions/1"), HttpMethod.PUT,
+        var response = rest.exchange(url("/fsm-admin/api/flows/order/versions/1"), HttpMethod.PUT,
                 new HttpEntity<>(fastDefinition(List.of())), ApiError.class);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
     }
@@ -206,8 +208,8 @@ class FsmExampleApplicationIT {
                 "NEW", List.of(new TransitionDto("NEW", new ToDto("A".repeat(121),
                         List.of(), List.of(), List.of(), null), "GO"))
         )));
-        var draft = post("/api/flows/order/versions", tooLong, FlowVersion.class);
-        var response = rest.postForEntity(url("/api/flows/order/versions/" + draft.version() + "/publish"),
+        var draft = post("/fsm-admin/api/flows/order/versions", tooLong, FlowVersion.class);
+        var response = rest.postForEntity(url("/fsm-admin/api/flows/order/versions/" + draft.version() + "/publish"),
                 null, ApiError.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
@@ -217,7 +219,7 @@ class FsmExampleApplicationIT {
 
     @Test
     void onlyDraftsCanBeEditedOrPublished() throws Exception {
-        String path = "/api/flows/flow-store-errors/versions";
+        String path = "/fsm-admin/api/flows/flow-store-errors/versions";
         var definition = fastDefinition(List.of());
         var draft = post(path, definition, FlowVersion.class);
 
@@ -266,7 +268,7 @@ class FsmExampleApplicationIT {
 
     @Test
     void newFlowDraftCanBeEditedAndPublished() throws Exception {
-        String path = "/api/flows/jpa-example/versions";
+        String path = "/fsm-admin/api/flows/jpa-example/versions";
         var draft = post(path, fastDefinition(List.of()), FlowVersion.class);
         assertThat(draft.version()).isEqualTo(1);
         assertThat(draft.status()).isEqualTo(FlowVersionStatus.DRAFT);
@@ -278,6 +280,7 @@ class FsmExampleApplicationIT {
         var updated = rest.exchange(url(path + "/1"), HttpMethod.PUT,
                 new HttpEntity<>(updatedDefinition), FlowVersion.class);
         assertThat(updated.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(updated.getBody()).isNotNull();
         assertThat(updated.getBody().definition()).isEqualTo(updatedDefinition);
 
         var published = post(path + "/1/publish", null, FlowVersion.class);
@@ -315,7 +318,7 @@ class FsmExampleApplicationIT {
     void missingOrderAndFlowReturnNotFound() {
         assertThat(rest.getForEntity(url("/api/orders/999999"), ApiError.class).getStatusCode())
                 .isEqualTo(HttpStatus.NOT_FOUND);
-        assertThat(rest.getForEntity(url("/api/flows/missing/versions/1"), ApiError.class).getStatusCode())
+        assertThat(rest.getForEntity(url("/fsm-admin/api/flows/missing/versions/1"), ApiError.class).getStatusCode())
                 .isEqualTo(HttpStatus.NOT_FOUND);
     }
 
@@ -326,7 +329,7 @@ class FsmExampleApplicationIT {
         headers.setContentType(MediaType.APPLICATION_JSON);
         for (String json : List.of("{}", "{\"initialState\":\"NEW\",\"table\":null}",
                 "{\"initialState\":null,\"table\":{\"autoTransitionEnabled\":false,\"transitions\":{}}}")) {
-            var response = rest.postForEntity(url("/api/flows/order/versions"), new HttpEntity<>(json, headers), ApiError.class);
+            var response = rest.postForEntity(url("/fsm-admin/api/flows/order/versions"), new HttpEntity<>(json, headers), ApiError.class);
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         }
     }
@@ -339,8 +342,8 @@ class FsmExampleApplicationIT {
     }
 
     private FlowVersion publish(FlowDefinition definition) throws Exception {
-        var draft = post("/api/flows/order/versions", definition, FlowVersion.class);
-        return post("/api/flows/order/versions/" + draft.version() + "/publish", null, FlowVersion.class);
+        var draft = post("/fsm-admin/api/flows/order/versions", definition, FlowVersion.class);
+        return post("/fsm-admin/api/flows/order/versions/" + draft.version() + "/publish", null, FlowVersion.class);
     }
 
     private <T> T post(String path, Object body, Class<T> responseType) throws Exception {
@@ -352,5 +355,26 @@ class FsmExampleApplicationIT {
 
     private String url(String path) {
         return "http://localhost:" + port + path;
+    }
+
+    @org.springframework.boot.test.context.TestConfiguration(proxyBeanMethods = false)
+    static class AdminRegistrations {
+        @org.springframework.context.annotation.Bean
+        io.github.ngirchev.fsm.spring.admin.FsmAdminRegistration editorLayout() {
+            return registration("editor-layout");
+        }
+        @org.springframework.context.annotation.Bean
+        io.github.ngirchev.fsm.spring.admin.FsmAdminRegistration storeErrors() {
+            return registration("flow-store-errors");
+        }
+        @org.springframework.context.annotation.Bean
+        io.github.ngirchev.fsm.spring.admin.FsmAdminRegistration jpaExample() {
+            return registration("jpa-example");
+        }
+        private io.github.ngirchev.fsm.spring.admin.FsmAdminRegistration registration(String key) {
+            return new io.github.ngirchev.fsm.spring.admin.FsmAdminRegistration(key, key,
+                    new FlowDefinition("NEW", new FsmDto(false, Map.of("NEW", List.of()))),
+                    definition -> {}, definition -> {});
+        }
     }
 }

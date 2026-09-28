@@ -19,7 +19,7 @@ public class JpaFlowStore implements FlowStore {
     private final FlowVersionRepository versions;
     private final ObjectMapper objectMapper;
     private final EntityManager entityManager;
-    private final io.github.ngirchev.fsm.example.order.OrderBehaviorCatalog behaviorCatalog;
+    private final io.github.ngirchev.fsm.example.order.OrderFlowValidator flowValidator;
 
     @Override
     public void lock(@NonNull String flowKey) {
@@ -65,7 +65,7 @@ public class JpaFlowStore implements FlowStore {
         if (version.status() == FlowVersionStatus.ACTIVE) {
             validateStateBounds(version.definition());
             if (version.flowKey().equals("order")) {
-                behaviorCatalog.validate(version.definition());
+                flowValidator.validate(version.definition());
             }
         }
         var stored = versions.findByFlowKeyAndVersion(version.flowKey(), version.version())

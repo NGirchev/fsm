@@ -1,21 +1,10 @@
-const channel = 'fsm-editor/v1';
 const element = (id) => document.getElementById(id);
-const frame = /** @type {HTMLIFrameElement} */ (element('flow-editor'));
-const versionSelect = /** @type {HTMLSelectElement} */ (element('flow-version'));
+const ordersUrl = new URL('./api/orders', window.location.href).pathname;
+const versionsUrl = new URL('./fsm-admin/api/flows/order/versions', window.location.href).pathname;
+let catalog = [];
 /** @typedef {{ state: string, commission: number }} OrderSnapshot */
 /** @typedef {{ from: string, to: string, event?: string, conditions: string[], actions: string[], postActions: string[], before: OrderSnapshot, after: OrderSnapshot }} TraceStep */
 /** @typedef {{ id: number, state: string, flowVersion: number, amount: number, commission: number, trace: TraceStep[] }} OrderResult */
-/** @typedef {{ version: number, status: string, definition: { editor?: {name?: string}, table: { transitions: Record<string, {event: string | null}[]> } } }} FlowVersion */
-// A host can point this at the same editor deployed on GitHub Pages.
-const editorUrl = new URL(frame.dataset.editorUrl || './fsm-editor/', window.location.href);
-editorUrl.searchParams.set('parentOrigin', window.location.origin);
-const versionsUrl = new URL('./api/flows/order/versions', window.location.href).pathname;
-const ordersUrl = new URL('./api/orders', window.location.href).pathname;
-let versions = [], catalog = [], selected, currentDocument, savedDocument;
-let session = '', ready = false, loaded = false, busy = false, dirty = false;
-let flowMessage = 'Loading order flow…';
-let pendingSnapshot;
-
 async function request(url, method = 'GET', body) {
   const response = await fetch(url, { method,
     headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
@@ -27,163 +16,29 @@ async function request(url, method = 'GET', body) {
   return response.status === 204 ? undefined : response.json();
 }
 
-function send(message) {
-  frame.contentWindow?.postMessage({ channel, session, ...message }, editorUrl.origin);
-}
 
-function renderFlow() {
-  const active = versions.find((version) => version.status === 'ACTIVE');
-  element('active-flow').textContent = active ? `${active.definition.editor?.name ?? 'Order flow'} · v${active.version}` : 'No active flow loaded';
-  element('flow-message').textContent = flowMessage + (dirty ? ' Unsaved changes.' : '');
-  element('flow-version').replaceChildren(...versions.map((version) =>
-    new Option(`${version.definition.editor?.name ?? 'Order flow'} · v${version.version} · ${version.status}`, String(version.version))));
-  if (selected) element('flow-version').value = String(selected.version);
-  const unavailable = busy || !loaded || !selected;
-  element('flow-version').disabled = unavailable || dirty;
-  element('create-draft').disabled = unavailable || dirty;
-  element('save-draft').disabled = unavailable || selected?.status !== 'DRAFT' || !dirty;
-  element('publish').disabled = unavailable || selected?.status !== 'DRAFT' || dirty;
-  element('activate').disabled = unavailable || selected?.status !== 'ARCHIVED' || dirty;
-  element('delete-draft').disabled = unavailable || selected?.status !== 'DRAFT';
-  element('discard').hidden = !dirty;
-  element('discard').disabled = unavailable;
-  element('retry').hidden = Boolean(selected && loaded);
-  element('retry').disabled = busy;
-  if (ready && loaded) send({ type: 'configure', readOnly: busy || selected?.status !== 'DRAFT' });
-}
-
-function loadEditor() {
-  if (!ready || !selected) return;
-  send({ type: 'load', ...(currentDocument ? { document: currentDocument } : { definition: selected.definition }),
-    catalog, readOnly: busy || selected.status !== 'DRAFT' });
-}
-
-function openVersion(version) {
-  selected = version;
-  currentDocument = undefined;
-  savedDocument = undefined;
-  dirty = false;
-  loaded = false;
-  session = crypto.randomUUID();
-  loadEditor();
-  renderFlow();
-}
-
-async function reloadVersions() {
-  busy = true;
-  renderFlow();
+async function refreshFlow() {
   try {
-    [versions, catalog] = await Promise.all([request(versionsUrl), request(versionsUrl.replace(/versions$/, 'behaviors'))]);
-    const active = versions.find((item) => item.status === 'ACTIVE') ?? versions[0];
-    if (!active) { flowMessage = 'No order flow exists. Initialize the example database first.'; return; }
-    openVersion(active);
-    flowMessage = 'Order flow loaded. Create a draft to edit.';
-  } catch (error) { flowMessage = error.message; }
-  finally { busy = false; renderFlow(); }
+    const [versions, behaviors] = await Promise.all([request(versionsUrl), request(versionsUrl.replace(/versions$/, 'behaviors'))]);
+    catalog = behaviors;
+    const active = versions.find((version) => version.status === 'ACTIVE');
+    element('active-flow').textContent = active ? `${active.definition.editor?.name ?? 'Order flow'} · v${active.version}` : 'No active flow';
+  } catch (error) { element('active-flow').textContent = error.message; }
 }
-
-function snapshot() {
-  return new Promise((resolve, reject) => {
-    const requestId = crypto.randomUUID();
-    const timeout = setTimeout(() => {
-      pendingSnapshot = undefined;
-      reject(new Error('Editor did not respond. Retry the operation.'));
-    }, 5000);
-    pendingSnapshot = { requestId, resolve, reject, timeout };
-    send({ type: 'snapshot', requestId });
-  });
-}
-
-window.addEventListener('message', (event) => {
-  if (event.source !== frame.contentWindow || event.origin !== editorUrl.origin || event.data?.channel !== channel) return;
-  const message = event.data;
-  if (message.type === 'ready') {
-    ready = true;
-    loaded = false;
-    loadEditor();
-    renderFlow();
-    return;
-  }
-  if (message.session !== session) return;
-  if (message.type === 'loaded' || message.type === 'change') {
-    if (!message.document || message.document.formatVersion !== 2) return;
-    currentDocument = message.document;
-    if (savedDocument === undefined) savedDocument = JSON.stringify(currentDocument);
-    dirty = JSON.stringify(currentDocument) !== savedDocument;
-    loaded = true;
-    renderFlow();
-  } else if (message.type === 'snapshot' && pendingSnapshot?.requestId === message.requestId) {
-    clearTimeout(pendingSnapshot.timeout);
-    if (message.error) pendingSnapshot.reject(new Error(message.error));
-    else pendingSnapshot.resolve(message);
-    pendingSnapshot = undefined;
-  } else if (message.type === 'error') {
-    flowMessage = message.error;
-    renderFlow();
-  }
-});
-window.addEventListener('beforeunload', (event) => { if (dirty) event.preventDefault(); });
-
-async function mutate(action) {
-  if (busy || !loaded || !selected) return;
-  busy = true;
-  renderFlow();
-  try {
-    const captured = action === 'publish' || action === 'activate' ? undefined : await snapshot();
-    const path = action === 'create' ? versionsUrl : `${versionsUrl}/${selected.version}${action === 'publish' ? '/publish' : action === 'activate' ? '/activate' : ''}`;
-    const result = /** @type {FlowVersion} */ (await request(path, action === 'save' ? 'PUT' : 'POST', captured?.definition));
-    versions = [result, ...versions.filter((item) => item.version !== result.version)]
-      .map((item) => (action === 'publish' || action === 'activate') && item.version !== result.version && item.status === 'ACTIVE'
-        ? { ...item, status: 'ARCHIVED' } : item).sort((left, right) => right.version - left.version);
-    if (action === 'save') {
-      selected = result;
-      savedDocument = JSON.stringify(captured.document);
-      dirty = JSON.stringify(currentDocument) !== savedDocument;
-    } else openVersion(result);
-    flowMessage = action === 'publish' ? 'Published. New orders use this version.' :
-      action === 'activate' ? 'Active flow changed. New orders use this version.' :
-      action === 'save' ? 'Draft and layout saved.' : 'Draft created. You can edit the graph.';
-  } catch (error) { flowMessage = error.message; }
-  finally { busy = false; renderFlow(); }
-}
-
-element('create-draft').onclick = () => void mutate('create');
-element('save-draft').onclick = () => void mutate('save');
-element('publish').onclick = () => void mutate('publish');
-element('activate').onclick = () => void mutate('activate');
-element('retry').onclick = () => void reloadVersions();
-versionSelect.onchange = () => {
-  const version = versions.find((item) => item.version === Number(versionSelect.value));
-  if (version) { openVersion(version); flowMessage = `Opened version ${version.version} (${version.status}).`; renderFlow(); }
-};
-element('discard').onclick = () => { openVersion(selected); flowMessage = 'Local changes discarded.'; renderFlow(); };
-element('delete-draft').onclick = async () => {
-  if (busy || selected?.status !== 'DRAFT' || !confirm(`Delete draft v${selected.version}?${dirty ? ' Unsaved changes will also be lost.' : ''}`)) return;
-  busy = true;
-  renderFlow();
-  try {
-    await request(`${versionsUrl}/${selected.version}`, 'DELETE');
-    versions = versions.filter((item) => item.version !== selected.version);
-    openVersion(versions.find((item) => item.status === 'ACTIVE') ?? versions[0]);
-    flowMessage = 'Draft deleted.';
-  } catch (error) { flowMessage = error.message; }
-  finally { busy = false; renderFlow(); }
-};
-
 function showTab() {
   const editor = location.hash === '#flow';
   element('orders-panel').hidden = editor;
   element('editor-panel').hidden = !editor;
   element('orders-tab').setAttribute('aria-selected', String(!editor));
   element('editor-tab').setAttribute('aria-selected', String(editor));
-  if (editor && !frame.getAttribute('src')) frame.src = editorUrl.href;
+  const panel = element('fsm-admin');
+  if (editor && !panel.getAttribute('src')) panel.src = './fsm-admin/';
+  if (!editor) void refreshFlow();
 }
 element('orders-tab').onclick = () => { location.hash = 'orders'; };
 element('editor-tab').onclick = () => { location.hash = 'flow'; };
 window.addEventListener('hashchange', showTab);
 showTab();
-void reloadVersions();
-
 let orderBusy = false;
 function setOrderBusy(value) {
   orderBusy = value;

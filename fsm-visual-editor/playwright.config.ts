@@ -16,7 +16,7 @@ export default defineConfig({
   webServer: [
     { command: `npm run dev -- --host 127.0.0.1 --port ${port} --strictPort`,
       url: `http://127.0.0.1:${port}`, reuseExistingServer: false },
-    { command: `npm run preview -- --outDir ../fsm-spring-boot-example/build/editor --host 127.0.0.1 --port ${staticPort} --strictPort`,
+    { command: `npm run preview -- --outDir ../fsm-spring-boot-starter/build/editor --host 127.0.0.1 --port ${staticPort} --strictPort`,
       url: `http://127.0.0.1:${staticPort}`, reuseExistingServer: false },
   ],
 });

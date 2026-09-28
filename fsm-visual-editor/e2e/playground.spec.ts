@@ -1,5 +1,5 @@
 import { expect } from '@playwright/test';
-import { test, api, embedded } from './helpers';
+import { test, api, embedded, admin } from './helpers';
 
 test.beforeEach(async ({ request }) => {
   const seed = await (await request.get(`${api}/2`)).json();
@@ -10,10 +10,10 @@ test.beforeEach(async ({ request }) => {
 
 test('flow editor switches the active scenario while orders stay pinned to their version', async ({ page, request }) => {
   await page.goto(`${embedded}/#flow`);
-  await page.getByLabel('Order version').selectOption('1');
-  await expect(page.getByRole('button', { name: 'Make active', exact: true })).toBeEnabled();
-  await page.getByRole('button', { name: 'Make active', exact: true }).click();
-  await expect(page.locator('#flow-message')).toContainText('Active flow changed');
+  await admin(page).getByLabel('Version').selectOption('1');
+  await expect(admin(page).getByRole('button', { name: 'Make active', exact: true })).toBeEnabled();
+  await admin(page).getByRole('button', { name: 'Make active', exact: true }).click();
+  await expect(admin(page).locator('#flow-message')).toContainText('Active flow changed');
   await page.getByRole('tab', { name: 'Orders', exact: true }).click();
   await page.getByLabel('Amount', { exact: true }).fill('1000');
   await page.getByRole('button', { name: 'Run flow', exact: true }).click();
@@ -22,9 +22,9 @@ test('flow editor switches the active scenario while orders stay pinned to their
   await expect(page.locator('#test-steps li')).toHaveCount(3);
   const directId = Number((await page.locator('#order-title').textContent())!.match(/\d+/)![0]);
   await page.getByRole('tab', { name: 'Flow editor', exact: true }).click();
-  await page.getByLabel('Order version').selectOption('2');
-  await page.getByRole('button', { name: 'Make active', exact: true }).click();
-  await expect(page.locator('#flow-message')).toContainText('Active flow changed');
+  await admin(page).getByLabel('Version').selectOption('2');
+  await admin(page).getByRole('button', { name: 'Make active', exact: true }).click();
+  await expect(admin(page).locator('#flow-message')).toContainText('Active flow changed');
   await page.getByRole('tab', { name: 'Orders', exact: true }).click();
   await page.getByRole('button', { name: 'Run flow', exact: true }).click();
   await expect(page.locator('#test-summary')).toContainText('Commission: 10');

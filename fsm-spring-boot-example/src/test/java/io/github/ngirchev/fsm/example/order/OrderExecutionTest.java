@@ -39,7 +39,7 @@ class OrderExecutionTest {
                 .add("NEW", new OrderEvent("GO", null, null), "READY", belowThreshold, commission, null, null)
                 .add("READY", null, "DONE", null, null, notify, null).build();
         doReturn(table).when(loader).load(eq(definition), any());
-        var execution = new OrderExecution(loader, Map.of(), Map.of(), registry, mock(OrderBehaviorCatalog.class));
+        var execution = new OrderExecution(loader, Map.of(), Map.of(), registry, mock(OrderFlowValidator.class));
         var order = new Order("NEW", 1, new BigDecimal("100.00"));
         execution.run(order, definition, new OrderEvent("GO", null, null));
         assertThat(order.getTrace()).hasSize(2);

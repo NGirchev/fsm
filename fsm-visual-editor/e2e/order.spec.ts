@@ -1,5 +1,5 @@
 import { expect } from '@playwright/test';
-import { test, editor, api, embedded, connect, exportDocument, fixture, importDocument, openDraft, selectEdge, expandSection } from './helpers';
+import { test, editor, api, embedded, connect, exportDocument, fixture, importDocument, openDraft, selectEdge, expandSection, admin } from './helpers';
 
 test.beforeEach(async ({ request }) => {
   // Every case starts from the seeded runtime definition, regardless of execution order.
@@ -11,17 +11,18 @@ test.beforeEach(async ({ request }) => {
 test('load failure can be retried', async ({ page }) => {
   await page.route(api, (route) => route.fulfill({ status: 503, json: { message: 'Temporarily unavailable' } }));
   await page.goto(`${embedded}/#flow`);
-  await expect(page.getByRole('status')).toHaveText('Temporarily unavailable');
+  await expect(admin(page).getByRole('status')).toHaveText('Temporarily unavailable');
+  await expect(admin(page).getByRole('button', { name: 'Create draft', exact: true })).toBeDisabled();
   await page.unroute(api);
-  await page.getByRole('button', { name: 'Retry', exact: true }).click();
-  await expect(page.getByLabel('Order version')).toBeVisible();
+  await admin(page).getByRole('button', { name: 'Retry', exact: true }).click();
+  await expect(admin(page).getByLabel('Version')).toBeVisible();
 });
 
 test('active version is read only, including keyboard and graph interaction lock', async ({ page }) => {
   await page.goto(`${embedded}/#flow`);
-  await expect(page.getByLabel('Order version')).toBeVisible();
+  await expect(admin(page).getByLabel('Version')).toBeVisible();
   for (const name of ['Save draft', 'Publish', 'Delete draft', 'Add state', 'Import JSON']) {
-    await expect((['Save draft', 'Create draft', 'Publish', 'Delete draft', 'Discard changes'].includes(name) ? page : editor(page)).getByRole('button', { name, exact: true })).toBeDisabled();
+    await expect((['Save draft', 'Create draft', 'Publish', 'Delete draft', 'Discard changes'].includes(name) ? admin(page) : editor(page)).getByRole('button', { name, exact: true })).toBeDisabled();
   }
   await expect(editor(page).getByLabel('Name', { exact: true })).toBeDisabled();
   const before = await exportDocument(page);
@@ -40,9 +41,9 @@ test('active version is read only, including keyboard and graph interaction lock
 
 test('build amount branches and add two condition beans through the editor', async ({ page, request }) => {
   await page.goto(`${embedded}/#flow`);
-  await page.getByLabel('Order version').selectOption('1');
-  await page.getByRole('button', { name: 'Create draft', exact: true }).click();
-  await expect(page.getByRole('status').first()).toContainText('Draft created');
+  await admin(page).getByLabel('Version').selectOption('1');
+  await admin(page).getByRole('button', { name: 'Create draft', exact: true }).click();
+  await expect(admin(page).getByRole('status').first()).toContainText('Draft created');
   await editor(page).locator('.react-flow__node').filter({ hasText: /^COMPLETED$/ }).click();
   await editor(page).getByLabel('Label', { exact: true }).fill('SENT');
   await editor(page).getByRole('button', { name: 'Add state', exact: true }).click();
@@ -64,7 +65,7 @@ test('build amount branches and add two condition beans through the editor', asy
   await expect(editor(page).getByRole('button', { name: 'Add selected bean', exact: true })).toHaveCount(0);
   await expect(editor(page).getByRole('button', { name: 'Add guard', exact: true })).toHaveCount(0);
   const catalog: { id: string; kind: string; description: string }[] =
-    await (await request.get(`${embedded}/api/flows/order/behaviors`)).json();
+    await (await request.get(`${embedded}/fsm-admin/api/flows/order/behaviors`)).json();
   await expandSection(page, 'Execution settings');
   for (const [group, kind] of [['Guards', 'guard'], ['Actions', 'action'], ['Post actions', 'action'],
     ['State listeners', 'stateListener'], ['Completion listeners', 'completionListener']]) {
@@ -95,13 +96,13 @@ test('build amount branches and add two condition beans through the editor', asy
   await editor(page).locator('.selected-panel').getByRole('combobox', { name: 'Event', exact: true }).selectOption('FINISH');
   await editor(page).getByLabel('Add Guards', { exact: true }).selectOption('amountAtLeastCommissionThreshold');
   await editor(page).getByLabel('Add Actions', { exact: true }).selectOption('commissionOnePercent');
-  await page.getByRole('button', { name: 'Save draft', exact: true }).click();
-  await expect(page.getByRole('status').first()).toHaveText('Draft and layout saved.');
-  const version = await page.getByLabel('Order version').inputValue();
+  await admin(page).getByRole('button', { name: 'Save draft', exact: true }).click();
+  await expect(admin(page).getByRole('status').first()).toHaveText('Draft and layout saved.');
+  const version = await admin(page).getByLabel('Version').inputValue();
   await page.reload();
-  await page.getByLabel('Order version').selectOption(version);
-  await page.getByRole('button', { name: 'Publish', exact: true }).click();
-  await expect(page.getByRole('status').first()).toContainText('Published');
+  await admin(page).getByLabel('Version').selectOption(version);
+  await admin(page).getByRole('button', { name: 'Publish', exact: true }).click();
+  await expect(admin(page).getByRole('status').first()).toContainText('Published');
   for (const [amount, state, commission] of [
     ['100.00', 'SENT', 2], ['1000.00', 'FAILED', 10],
   ] as const) {
@@ -119,10 +120,10 @@ test('create, discard, save and reload preserve coordinates and multiline descri
   const version = await openDraft(page);
   const original = await exportDocument(page);
   await editor(page).getByLabel('Name', { exact: true }).fill('Discard me');
-  await expect(page.getByLabel('Order version')).toBeDisabled();
-  await expect(page.getByRole('button', { name: 'Publish', exact: true })).toBeDisabled();
-  await expect(page.getByRole('button', { name: 'Create draft', exact: true })).toBeDisabled();
-  await page.getByRole('button', { name: 'Discard changes' }).click();
+  await expect(admin(page).getByLabel('Version')).toBeDisabled();
+  await expect(admin(page).getByRole('button', { name: 'Publish', exact: true })).toBeDisabled();
+  await expect(admin(page).getByRole('button', { name: 'Create draft', exact: true })).toBeDisabled();
+  await admin(page).getByRole('button', { name: 'Discard changes' }).click();
   expect(await exportDocument(page)).toEqual(original);
   await editor(page).locator('.react-flow__node').first().click();
   await editor(page).getByLabel('Description').fill('Order\n    retain indentation');
@@ -133,10 +134,10 @@ test('create, discard, save and reload preserve coordinates and multiline descri
   await page.mouse.up();
   const edited = await exportDocument(page);
   expect(edited.states[0].position).not.toEqual(original.states[0].position);
-  await page.getByRole('button', { name: 'Save draft', exact: true }).click();
-  await expect(page.getByRole('status').first()).toHaveText('Draft and layout saved.');
+  await admin(page).getByRole('button', { name: 'Save draft', exact: true }).click();
+  await expect(admin(page).getByRole('status').first()).toHaveText('Draft and layout saved.');
   await page.reload();
-  await page.getByLabel('Order version').selectOption(String(version));
+  await admin(page).getByLabel('Version').selectOption(String(version));
   expect(await exportDocument(page)).toEqual(edited);
   const stored = await (await request.get(`${api}/${version}`)).json();
   expect(stored.definition.editor.states).toEqual(edited.states);
@@ -146,24 +147,24 @@ test('delete draft can be cancelled, removes dirty draft and reuses its highest 
   const version = await openDraft(page);
   await editor(page).getByLabel('Name', { exact: true }).fill('Unsaved name');
   page.once('dialog', (dialog) => dialog.dismiss());
-  await page.getByRole('button', { name: 'Delete draft', exact: true }).click();
+  await admin(page).getByRole('button', { name: 'Delete draft', exact: true }).click();
   await expect(editor(page).getByLabel('Name', { exact: true })).toHaveValue('Unsaved name');
   page.once('dialog', async (dialog) => {
     expect(dialog.message()).toContain('Unsaved changes');
     await dialog.accept();
   });
-  await page.getByRole('button', { name: 'Delete draft', exact: true }).click();
-  await expect(page.getByRole('status').first()).toHaveText('Draft deleted.');
-  await expect(page.getByLabel('Order version').locator(`option[value="${version}"]`)).toHaveCount(0);
+  await admin(page).getByRole('button', { name: 'Delete draft', exact: true }).click();
+  await expect(admin(page).getByRole('status').first()).toHaveText('Draft deleted.');
+  await expect(admin(page).getByLabel('Version').locator(`option[value="${version}"]`)).toHaveCount(0);
   expect((await request.get(`${api}/${version}`)).status()).toBe(404);
   expect((await request.delete(`${api}/${version}`)).status()).toBe(404);
   expect((await request.post(`${api}/${version}/publish`)).status()).toBe(404);
   expect((await request.put(`${api}/${version}`, { data: (await (await request.get(`${api}/1`)).json()).definition })).status()).toBe(409);
   await page.reload();
-  await expect(page.getByLabel('Order version').locator(`option[value="${version}"]`)).toHaveCount(0);
-  await page.getByRole('button', { name: 'Create draft', exact: true }).click();
-  await expect(page.getByRole('status').first()).toContainText('Draft created');
-  expect(Number(await page.getByLabel('Order version').inputValue())).toBe(version);
+  await expect(admin(page).getByLabel('Version').locator(`option[value="${version}"]`)).toHaveCount(0);
+  await admin(page).getByRole('button', { name: 'Create draft', exact: true }).click();
+  await expect(admin(page).getByRole('status').first()).toContainText('Draft created');
+  expect(Number(await admin(page).getByLabel('Version').inputValue())).toBe(version);
 });
 
 test('save, publish, create and delete API failures retain the editable draft', async ({ page }) => {
@@ -171,24 +172,26 @@ test('save, publish, create and delete API failures retain the editable draft', 
   const fail = async (route: import('@playwright/test').Route) => route.fulfill({ status: 409, json: { message: 'Test conflict' } });
   await editor(page).getByLabel('Name', { exact: true }).fill('Keep my edit');
   await page.route(`${api}/${version}`, fail);
-  await page.getByRole('button', { name: 'Save draft', exact: true }).click();
-  await expect(page.getByRole('status').first()).toContainText('Test conflict');
+  await admin(page).getByRole('button', { name: 'Save draft', exact: true }).click();
+  await expect(admin(page).getByRole('status').first()).toContainText('Test conflict');
   await expect(editor(page).getByLabel('Name', { exact: true })).toHaveValue('Keep my edit');
   page.once('dialog', (dialog) => dialog.accept());
-  await page.getByRole('button', { name: 'Delete draft', exact: true }).click();
-  await expect(page.getByRole('status').first()).toContainText('Test conflict');
+  const deletion = page.waitForResponse((response) => response.url() === `${api}/${version}` && response.request().method() === 'DELETE');
+  await admin(page).getByRole('button', { name: 'Delete draft', exact: true }).click();
+  expect((await deletion).status()).toBe(409);
+  await expect(admin(page).getByRole('status').first()).toContainText('Test conflict');
   await expect(editor(page).getByLabel('Name', { exact: true })).toHaveValue('Keep my edit');
   await page.unroute(`${api}/${version}`);
-  await page.getByRole('button', { name: 'Save draft', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Save draft', exact: true })).toBeDisabled();
+  await admin(page).getByRole('button', { name: 'Save draft', exact: true }).click();
+  await expect(admin(page).getByRole('button', { name: 'Save draft', exact: true })).toBeDisabled();
   await page.route(`${api}/${version}/publish`, fail);
-  await page.getByRole('button', { name: 'Publish', exact: true }).click();
-  await expect(page.getByRole('status').first()).toContainText('Test conflict');
-  await expect(page.getByRole('button', { name: 'Publish', exact: true })).toBeEnabled();
+  await admin(page).getByRole('button', { name: 'Publish', exact: true }).click();
+  await expect(admin(page).getByRole('status').first()).toContainText('Test conflict');
+  await expect(admin(page).getByRole('button', { name: 'Publish', exact: true })).toBeEnabled();
   await page.route(api, fail);
-  await page.getByRole('button', { name: 'Create draft', exact: true }).click();
-  await expect(page.getByRole('status').first()).toContainText('Test conflict');
-  await expect(page.getByLabel('Order version')).toHaveValue(String(version));
+  await admin(page).getByRole('button', { name: 'Create draft', exact: true }).click();
+  await expect(admin(page).getByRole('status').first()).toContainText('Test conflict');
+  await expect(admin(page).getByLabel('Version')).toHaveValue(String(version));
 });
 
 test('publication validates Spring bean references', async ({ page }) => {
@@ -200,11 +203,11 @@ test('publication validates Spring bean references', async ({ page }) => {
   await selectEdge(page, document.transitions[0].id);
   await expect(editor(page).getByLabel('Guards 1', { exact: true })).toHaveValue('nonexistentGuard');
   await expect(editor(page).getByLabel('Guards 1', { exact: true })).toHaveAttribute('title', 'Unavailable bean: nonexistentGuard');
-  await page.getByRole('button', { name: 'Save draft', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Publish', exact: true })).toBeEnabled();
-  await page.getByRole('button', { name: 'Publish', exact: true }).click();
-  await expect(page.getByRole('status').first()).toContainText(/nonexistentGuard|bean/i);
-  await expect(page.getByRole('button', { name: 'Delete draft', exact: true })).toBeEnabled();
+  await admin(page).getByRole('button', { name: 'Save draft', exact: true }).click();
+  await expect(admin(page).getByRole('button', { name: 'Publish', exact: true })).toBeEnabled();
+  await admin(page).getByRole('button', { name: 'Publish', exact: true }).click();
+  await expect(admin(page).getByRole('status').first()).toContainText(/nonexistentGuard|bean/i);
+  await expect(admin(page).getByRole('button', { name: 'Delete draft', exact: true })).toBeEnabled();
 });
 
 test('pending save prevents duplicate operations and editing', async ({ page }) => {
@@ -214,14 +217,14 @@ test('pending save prevents duplicate operations and editing', async ({ page }) 
   const pending = new Promise<void>((done) => { release = done; });
   await page.route(`${api}/${version}`, async (route) => { await pending; await route.continue(); });
   try {
-    await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+    await admin(page).getByRole('button', { name: 'Save draft', exact: true }).click();
     for (const name of ['Save draft', 'Create draft', 'Publish', 'Delete draft', 'Discard changes', 'Add state', 'Import JSON']) {
-      await expect((['Save draft', 'Create draft', 'Publish', 'Delete draft', 'Discard changes'].includes(name) ? page : editor(page)).getByRole('button', { name, exact: true })).toBeDisabled();
+      await expect((['Save draft', 'Create draft', 'Publish', 'Delete draft', 'Discard changes'].includes(name) ? admin(page) : editor(page)).getByRole('button', { name, exact: true })).toBeDisabled();
     }
     await expect(editor(page).getByLabel('Name', { exact: true })).toBeDisabled();
-    await expect(page.getByLabel('Order version')).toBeDisabled();
+    await expect(admin(page).getByLabel('Version')).toBeDisabled();
   } finally { release(); }
-  await expect(page.getByRole('status').first()).toHaveText('Draft and layout saved.');
+  await expect(admin(page).getByRole('status').first()).toHaveText('Draft and layout saved.');
   await expect(editor(page).getByLabel('Name', { exact: true })).toBeEnabled();
 });
 
@@ -230,14 +233,14 @@ test('invalid graph and negative automatic limit are rejected before saving', as
   const original = await (await request.get(`${api}/${version}`)).json();
   await editor(page).getByLabel('Auto transitions', { exact: true }).check();
   await editor(page).getByLabel('Automatic transition limit').fill('-1');
-  await page.getByRole('button', { name: 'Save draft', exact: true }).click();
-  await expect(page.getByRole('status').first()).toContainText('Automatic transition limit');
+  await admin(page).getByRole('button', { name: 'Save draft', exact: true }).click();
+  await expect(admin(page).getByRole('status').first()).toContainText('Automatic transition limit');
   expect(await (await request.get(`${api}/${version}`)).json()).toEqual(original);
-  await page.getByRole('button', { name: 'Discard changes' }).click();
+  await admin(page).getByRole('button', { name: 'Discard changes' }).click();
   await editor(page).locator('.node-name').filter({ hasText: /^NEW$/ }).click();
   await editor(page).getByLabel('Label', { exact: true }).fill('COMPLETED');
-  await page.getByRole('button', { name: 'Save draft', exact: true }).click();
-  await expect(page.getByRole('status').first()).toContainText('Duplicate state label');
+  await admin(page).getByRole('button', { name: 'Save draft', exact: true }).click();
+  await expect(admin(page).getByRole('status').first()).toContainText('Duplicate state label');
   expect(await (await request.get(`${api}/${version}`)).json()).toEqual(original);
 });
 
@@ -247,15 +250,15 @@ test('event length validation blocks saving and accepts the 120-character bounda
   const input = editor(page).getByLabel('Event ID 1', { exact: true });
   await input.fill('E'.repeat(121));
   await expect(editor(page).locator('.validation-panel')).toContainText('Event ID must contain at most 120 characters.');
-  await page.getByRole('button', { name: 'Save draft', exact: true }).click();
-  await expect(page.locator('#flow-message')).toContainText('Event ID must contain at most 120 characters.');
+  await admin(page).getByRole('button', { name: 'Save draft', exact: true }).click();
+  await expect(admin(page).locator('#flow-message')).toContainText('Event ID must contain at most 120 characters.');
   expect(await (await request.get(`${api}/${version}`)).json()).toEqual(original);
-  await expect(page.getByRole('button', { name: 'Publish', exact: true })).toBeDisabled();
+  await expect(admin(page).getByRole('button', { name: 'Publish', exact: true })).toBeDisabled();
   await input.fill('E'.repeat(120));
-  await page.getByRole('button', { name: 'Save draft', exact: true }).click();
-  await expect(page.locator('#flow-message')).toHaveText('Draft and layout saved.');
-  await page.getByRole('button', { name: 'Publish', exact: true }).click();
-  await expect(page.locator('#flow-message')).toContainText('Published');
+  await admin(page).getByRole('button', { name: 'Save draft', exact: true }).click();
+  await expect(admin(page).locator('#flow-message')).toHaveText('Draft and layout saved.');
+  await admin(page).getByRole('button', { name: 'Publish', exact: true }).click();
+  await expect(admin(page).locator('#flow-message')).toContainText('Published');
   const created = await request.post(`${embedded}/api/orders`, { data: { amount: 100 } });
   expect(created.status()).toBe(201);
   const order = await created.json();
@@ -271,23 +274,23 @@ test('local auto executes the eventless transition and switching to Event remain
   await editor(page).locator('.selected-panel').getByRole('button', { name: 'Auto', exact: true }).click();
   await editor(page).getByLabel('Run this transition automatically even when global auto transitions are disabled').check();
   await editor(page).getByLabel('Automatic transition limit').fill('0');
-  await page.getByRole('button', { name: 'Save draft', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Publish', exact: true })).toBeEnabled();
-  await page.getByRole('button', { name: 'Publish', exact: true }).click();
-  await expect(page.getByRole('status').first()).toContainText('Published');
+  await admin(page).getByRole('button', { name: 'Save draft', exact: true }).click();
+  await expect(admin(page).getByRole('button', { name: 'Publish', exact: true })).toBeEnabled();
+  await admin(page).getByRole('button', { name: 'Publish', exact: true }).click();
+  await expect(admin(page).getByRole('status').first()).toContainText('Published');
   const automaticOrder = await request.post(`${embedded}/api/orders`, { data: { amount: '100.00' } });
   expect(automaticOrder.ok()).toBe(true);
   expect(await automaticOrder.json()).toMatchObject({ state: 'B' });
 
-  await page.getByRole('button', { name: 'Create draft', exact: true }).click();
-  await expect(page.getByRole('status').first()).toContainText('Draft created');
+  await admin(page).getByRole('button', { name: 'Create draft', exact: true }).click();
+  await expect(admin(page).getByRole('status').first()).toContainText('Draft created');
   await selectEdge(page);
   await editor(page).locator('.selected-panel').getByRole('button', { name: 'Event', exact: true }).click();
   expect((await exportDocument(page)).transitions[0].autoTransitionEnabled).toBe(false);
-  await page.getByRole('button', { name: 'Save draft', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Publish', exact: true })).toBeEnabled();
-  await page.getByRole('button', { name: 'Publish', exact: true }).click();
-  await expect(page.getByRole('status').first()).toContainText('Published');
+  await admin(page).getByRole('button', { name: 'Save draft', exact: true }).click();
+  await expect(admin(page).getByRole('button', { name: 'Publish', exact: true })).toBeEnabled();
+  await admin(page).getByRole('button', { name: 'Publish', exact: true }).click();
+  await expect(admin(page).getByRole('status').first()).toContainText('Published');
   const order = await (await request.post(`${embedded}/api/orders`, { data: { amount: '100.00' } })).json();
   expect(order.state).toBe('A');
   const handled = await request.post(`${embedded}/api/orders/${order.id}/events`, { data: { event: 'GO' } });
@@ -304,18 +307,18 @@ test('new Auto transition stays automatic after saving and reloading the example
   expect(created.trigger).toEqual({ kind: 'auto' });
   expect(created.autoTransitionEnabled).toBe(true);
 
-  await page.getByRole('button', { name: 'Save draft', exact: true }).click();
-  await expect(page.getByRole('status').first()).toHaveText('Draft and layout saved.');
+  await admin(page).getByRole('button', { name: 'Save draft', exact: true }).click();
+  await expect(admin(page).getByRole('status').first()).toHaveText('Draft and layout saved.');
   const saved = await (await request.get(`${api}/${version}`)).json();
   expect(saved.definition.table.transitions.B[0].event ?? null).toBeNull();
   expect(saved.definition.table.transitions.B[0].to).toMatchObject({ state: 'C', autoTransitionEnabled: true });
 
   await page.reload();
-  await page.getByLabel('Order version').selectOption(String(version));
+  await admin(page).getByLabel('Version').selectOption(String(version));
   expect((await exportDocument(page)).transitions.find((transition) => transition.from === 'b')?.autoTransitionEnabled).toBe(true);
 
-  await page.getByRole('button', { name: 'Publish', exact: true }).click();
-  await expect(page.getByRole('status').first()).toContainText('Published');
+  await admin(page).getByRole('button', { name: 'Publish', exact: true }).click();
+  await expect(admin(page).getByRole('status').first()).toContainText('Published');
   const order = await (await request.post(`${embedded}/api/orders`, { data: { amount: '100.00' } })).json();
   expect(order.state).toBe('A');
   const result = await request.post(`${embedded}/api/orders/${order.id}/events`, { data: { event: 'GO' } });
@@ -343,16 +346,16 @@ test('publish changes new orders while existing orders retain their version; arc
   const version = await openDraft(page);
   await editor(page).locator('.node-name').filter({ hasText: /^NEW$/ }).click();
   await editor(page).getByLabel('Label', { exact: true }).fill('NEW_VISUAL');
-  await page.getByRole('button', { name: 'Save draft', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Publish', exact: true })).toBeEnabled();
-  await page.getByRole('button', { name: 'Publish', exact: true }).click();
-  await expect(page.getByRole('status').first()).toContainText('Published');
+  await admin(page).getByRole('button', { name: 'Save draft', exact: true }).click();
+  await expect(admin(page).getByRole('button', { name: 'Publish', exact: true })).toBeEnabled();
+  await admin(page).getByRole('button', { name: 'Publish', exact: true }).click();
+  await expect(admin(page).getByRole('status').first()).toContainText('Published');
   const newOrder = await (await request.post(`${embedded}/api/orders`, { data: { amount: '100.00' } })).json();
   expect(newOrder).toMatchObject({ state: 'NEW_VISUAL', flowVersion: version });
   expect(await (await request.get(`${embedded}/api/orders/${oldOrder.id}`)).json()).toMatchObject(oldOrder);
   expect((await request.delete(`${api}/${version}`)).status()).toBe(409);
   expect((await request.delete(`${api}/${oldOrder.flowVersion}`)).status()).toBe(409);
-  await page.getByLabel('Order version').selectOption(String(oldOrder.flowVersion));
+  await admin(page).getByLabel('Version').selectOption(String(oldOrder.flowVersion));
   await expect(editor(page).getByLabel('Name', { exact: true })).toBeDisabled();
-  await expect(page.getByRole('button', { name: 'Delete draft', exact: true })).toBeDisabled();
+  await expect(admin(page).getByRole('button', { name: 'Delete draft', exact: true })).toBeDisabled();
 });

@@ -49,8 +49,9 @@ The example owns a web application with two tabs:
   remembered in the browser, so reloading restores its persisted history from the server. A failed
   request stops the run at the last confirmed state. Order responses include a request-local `trace`;
   `GET /api/orders/{id}/history` is the durable history.
-- **Flow editor** owns version selection, activation, saving and publishing, and embeds the independent
-  universal editor in an iframe. Switching tabs preserves the order and unsaved draft.
+- **Flow editor** embeds the starter's ready-made administration panel at `/fsm-admin/`.
+  Switching tabs preserves the order and unsaved draft. The example registers `order` through
+  `OrderAdminConfiguration`; the starter owns the version API and editor integration.
 
 The second tab loads the real `order` flow from the version API. Use **Create draft**, edit the graph,
 then **Save draft** and **Publish**. The version selector also opens existing drafts and archived
@@ -73,6 +74,8 @@ The API and stored order require an amount; the entity and database column have 
 Guards select a 2% commission below `1000.00`
 or a 1% commission from `1000.00`. Amounts must be non-negative with at most two decimal digits. Commission actions
 set, rather than increment, the amount using decimal arithmetic and `HALF_UP` rounding.
+The starter discovers the catalog directly from Spring beans; the application supplies no catalog DTOs.
+`OrderFlowValidator` retains domain validation for publication and execution.
 The catalog includes amount-threshold guards, 1% and 2% commission actions,
 `recordOrderHistory`, and `logOrderNotification`. The latter only writes a demo message
 to the application log; there is no notification client, queue, worker or delivery state.
@@ -103,20 +106,19 @@ from another browser. Definitions without metadata receive an initial layout. Th
 remains authoritative when definitions are changed through the API. Guard/action IDs refer to
 existing Spring beans; publication rejects unknown names.
 
-Gradle builds the existing universal `fsm-visual-editor` and packages its static assets with
-the application. Node.js/npm are required to build the example, but not to run the packaged JAR.
+Gradle builds the existing universal `fsm-visual-editor` and packages its static assets in the
+starter JAR. Node.js/npm are required to build the starter from this checkout, but not for an
+application consuming the published starter or for running the packaged example.
 The Gradle editor tasks use Node/npm from `PATH`; on macOS they also check the standard Homebrew
 locations (`/opt/homebrew/bin` and `/usr/local/bin`) for IDE launches without a shell environment.
 For other installations, include the directory containing both Node and npm in the IDE's Gradle
 process `PATH`. Node must be available to npm's build scripts as well.
 The independent editor still supports local projects and Java/Kotlin export via `npm run dev`.
-Opening `/fsm-editor/` directly opens that standalone editor. All order-specific UI lives in
-`src/main/resources/static/example.js` and communicates using the editor's documented iframe
-contract. To embed an externally hosted build, set `data-editor-url` on `#flow-editor` in
-`index.html` to its HTTPS URL (for example the editor's GitHub Pages URL). No editor rebuild,
-API URL configuration inside the editor, or cross-origin API requests are required.
-No extra editor starter or server is required. The example's existing API is unauthenticated and
-intended for local demonstration.
+Opening `/fsm-admin/editor/index.html` directly opens the standalone editor; `/fsm-admin/` opens
+the complete administration panel. All order-specific UI lives in `src/main/resources/static/example.js`.
+The example no longer implements the iframe protocol or version controls itself. No extra editor
+starter or server is required. The example's API is unauthenticated and intended for local demonstration.
+For a secured application, follow the starter's [admin integration and security instructions](../fsm-spring-boot-starter/README.md#optional-administration-panel).
 
 ## Order execution
 
@@ -137,9 +139,10 @@ curl -X POST http://localhost:18089/api/orders/1/events \
   -d '{"event":"FINISH"}'
 ```
 
-Flow management endpoints are under `/api/flows/{flowKey}/versions`. A draft is editable until
-`POST /api/flows/{flowKey}/versions/{version}/publish` validates it and atomically makes it active.
-`DELETE /api/flows/{flowKey}/versions/{version}` removes a draft with `204`; missing versions return
+Flow management endpoints are under `/fsm-admin/api/flows/{flowKey}/versions`. Only registered keys
+are exposed. A draft is editable until
+`POST /fsm-admin/api/flows/{flowKey}/versions/{version}/publish` validates it and atomically makes it active.
+`DELETE /fsm-admin/api/flows/{flowKey}/versions/{version}` removes a draft with `204`; missing versions return
 `404`, and active/archived versions return `409`.
 
 ## JSON format

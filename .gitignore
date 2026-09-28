@@ -1,5 +1,7 @@
 /build/
 **/build/
+# Accidental npm install from the Gradle repository root.
+/package-lock.json
 /fsm-visual-editor/node_modules/
 /fsm-visual-editor/dist/
 /fsm-visual-editor/coverage/
