@@ -5,13 +5,13 @@ import org.springframework.transaction.annotation.Transactional
 
 /**
  * Claims, handles and completes one task in a single transaction.
- * A handler failure skips completion and rolls back the transaction.
+ * A handler failure, including a checked exception, skips completion and rolls back the transaction.
  */
 open class FsmTaskProcessor<T>(
     private val store: FsmTaskStore<T>,
     private val handler: FsmTaskHandler<T>,
 ) {
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = [Exception::class])
     open fun processNext(): Boolean {
         val task = store.claimNextPending().orElse(null) ?: return false
         handler.handle(task)

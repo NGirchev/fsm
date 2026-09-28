@@ -6,13 +6,54 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
-- Added an optional runtime limit for immediate auto-transition chains.
-- Added local auto-transition configuration via `.auto()`.
-- Changed eventless transitions to support local auto opt-in while preserving global `autoTransitionEnabled(true)` behavior for all eventless transitions.
-- Removed `AutoTransitionScheduler`, deferred auto-transition DSL methods, and scheduler serialization.
-  Durable asynchronous progression is now modeled with persisted tasks and ordinary FSM events.
-- Added automatic Spring Boot processing for declared `FsmTaskProcessor` beans, with configurable
-  polling, bounded queue draining, and an opt-out for externally managed workers.
+
+Changes since the published 1.2.0 release. This section describes the unreleased development version.
+
+### Added
+- Per-transition `.auto()` opt-in for synchronous eventless transitions and an optional
+  `maxImmediateAutoTransitions` runtime limit. The default limit of `0` leaves chains unlimited.
+- A Spring Boot starter with automatic bean registration and JSON serialization that restores
+  guards, actions and post-actions by Spring bean name, including their proxies and dependencies.
+- Database-independent versioned flow management: draft creation, editing and deletion, validation,
+  publication and activation of archived versions through an application-provided `FlowStore`.
+- An optional Spring administration panel with a packaged visual editor, flow version controls,
+  typed Spring bean catalogs and configurable URL prefix. Authentication and authorization remain
+  the host application's responsibility; the panel integrates with its CSRF protection.
+- Automatic background processing for declared `FsmTaskProcessor` beans, with a separate transaction
+  per task, configurable polling, bounded queue draining and an opt-out for external job runners.
+  Applications supply task handlers and storage through `FsmTaskHandler` and `FsmTaskStore`.
+- A Java Spring Boot example using JPA, PostgreSQL and versioned JSONB flow definitions. Orders retain
+  their flow version, persist transition history and demonstrate guarded commission branches.
+- A reusable iframe protocol for embedding the visual editor, with origin/session checks,
+  read-only mode and typed behavior catalogs. Saved flow definitions retain layout and state colors.
+
+### Changed
+- Split the build into the reusable `fsm` core, `fsm-spring-boot-starter` and executable
+  `fsm-spring-boot-example`. Core Maven coordinates remain `io.github.ngirchev:fsm` and its JVM target
+  remains Java 11; Spring modules require Java 17+ and target Spring Boot 3.5.
+- Preserved global `autoTransitionEnabled(true)` behavior for all eventless transitions while
+  allowing individual `.auto()` transitions when global automatic execution is disabled.
+- Updated the visual editor and Java/Kotlin generators for local automatic transitions and chain
+  limits. The editor also supports explicit branch/handler ordering, execution listeners and
+  persisted editor metadata.
+
+### Fixed
+- Spring task processing now rolls back checked handler exceptions such as `IOException` as well
+  as runtime exceptions. A failed processor no longer prevents other processors from running;
+  it is retried on the next poll.
+- Generated factories preserve transition priority while placing transitions reachable from the
+  configured initial state first.
+
+### Removed / migration from 1.2.0
+- **Breaking change:** removed `AutoTransitionScheduler`, builder `autoTransitionScheduler`
+  configuration, scheduler-bearing constructors, deferred auto-transition DSL methods and scheduler
+  serialization. Code using these APIs must be migrated before upgrading.
+- Keep `.auto()` for synchronous progression. For durable asynchronous work, persist a task together
+  with domain state and resume the FSM with an ordinary event from a task handler. The starter
+  supplies the processing lifecycle; the application owns task persistence and locking.
+
+See the [starter integration guide](fsm-spring-boot-starter/README.md) and
+[runnable example](fsm-spring-boot-example/README.md) for the storage and transaction contracts.
 
 ## [1.2.0] - 2026-06-08
 

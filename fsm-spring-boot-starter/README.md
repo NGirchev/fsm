@@ -47,7 +47,8 @@ one or more processor beans, the starter automatically creates a background work
 the worker calls `processNext()` until that processor's queue is empty or its per-poll limit is
 reached. Every call starts a new Spring transaction, claims one pending task from an `FsmTaskStore`,
 delegates it to an `FsmTaskHandler`, and completes it in that transaction. An exception from the
-handler skips completion, rolls the transaction back, and leaves that processor for the next poll.
+handler, including a checked exception, skips completion, rolls the transaction back, and leaves
+that processor for the next poll. The worker continues processing the other processors.
 
 Applications provide the task type and store implementation. The store contract requires an
 exclusive claim for the duration of the transaction but does not prescribe JPA, SQL, table names,

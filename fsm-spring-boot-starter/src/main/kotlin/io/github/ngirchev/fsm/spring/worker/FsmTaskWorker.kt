@@ -27,7 +27,7 @@ class FsmTaskWorker(
         for (processor in processors) {
             try {
                 processAvailableTasks(processor)
-            } catch (exception: RuntimeException) {
+            } catch (exception: Exception) {
                 logger.error("FSM task processing failed; the processor will be retried on the next poll", exception)
             }
         }

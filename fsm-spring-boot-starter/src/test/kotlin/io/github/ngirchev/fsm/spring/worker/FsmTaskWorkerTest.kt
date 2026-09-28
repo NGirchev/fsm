@@ -8,11 +8,14 @@ import org.mockito.Mockito.mock
 import org.mockito.ArgumentMatchers.any
 import org.mockito.ArgumentMatchers.eq
 import org.mockito.Mockito.times
+import org.mockito.Mockito.never
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.verifyNoMoreInteractions
 import org.mockito.Mockito.`when`
 import org.springframework.scheduling.TaskScheduler
 import java.time.Duration
+import java.io.IOException
+import java.util.Optional
 import java.util.concurrent.ScheduledFuture
 
 class FsmTaskWorkerTest {
@@ -59,6 +62,31 @@ class FsmTaskWorkerTest {
         verify(failed).processNext()
         verify(healthy).processNext()
         verifyNoMoreInteractions(failed, healthy)
+    }
+
+    @Test
+    fun `checked failure allows other processors and retries on the next poll`() {
+        val store = mock<FsmTaskStore<String>>()
+        `when`(store.claimNextPending()).thenReturn(Optional.of("task"), Optional.of("task"), Optional.empty())
+        var attempts = 0
+        val retried = FsmTaskProcessor(store) {
+            attempts++
+            if (attempts == 1) throw IOException("Task input could not be read")
+        }
+        val healthy = processor()
+        val worker = FsmTaskWorker(listOf(retried, healthy), scheduler, properties)
+
+        worker.runOnce()
+
+        assertThat(attempts).isEqualTo(1)
+        verify(store, never()).complete("task")
+        verify(healthy).processNext()
+
+        worker.runOnce()
+
+        assertThat(attempts).isEqualTo(2)
+        verify(store).complete("task")
+        verify(healthy, times(2)).processNext()
     }
 
     @Test
