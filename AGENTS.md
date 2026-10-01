@@ -26,7 +26,7 @@
 
 ## Tools And Verification
 
-- Use tools actually available in this session. Batch independent reads through the available execution interface; `multi_tool_use.parallel` is not a required tool. If a preferred navigation tool is unavailable, use local search rather than blocking on setup. Delegate only when the user requests it.
+- Use tools actually available in this session. Batch independent tool calls in one step where the agent supports it (in Claude Code, several calls in one message; in Codex, `multi_tool_use.parallel` is optional). If a preferred navigation tool is unavailable, use local search rather than blocking on setup. Delegate to subagents or workflows (Claude Code: Agent/Workflow) only when the user requests it.
 - Select checks by the changed behavior. For core or starter code, start with `./gradlew :fsm:test` or `./gradlew :fsm-spring-boot-starter:test` (optionally `--tests <TestClass>`), then run the affected module's `check` for its quality/coverage gates. For the example use `./gradlew :fsm-spring-boot-example:test`; its integration tests require Docker.
 - For editor changes, run `npm test` and `npm run build` in `fsm-visual-editor`. For browser or editor-to-backend behavior, exercise the requested flow with the existing `npm run test:e2e` setup or a focused live check. Compilation alone does not prove saving, publishing, reloading, or layout behavior.
 - Repair failures caused by the requested change and rerun affected checks. Do not call a partial pass, skipped suite, started process, or missing test dependency a success. Separate pre-existing failures from regressions using evidence. Once relevant checks pass, repeat or broaden them only for a concrete remaining risk.
