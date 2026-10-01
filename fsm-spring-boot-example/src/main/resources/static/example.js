@@ -31,9 +31,16 @@ function showTab() {
   element('editor-panel').hidden = !editor;
   element('orders-tab').setAttribute('aria-selected', String(!editor));
   element('editor-tab').setAttribute('aria-selected', String(editor));
-  const panel = element('fsm-admin');
-  if (editor && !panel.getAttribute('src')) panel.src = './fsm-admin/';
-  if (!editor) void refreshFlow();
+  if (editor) openEditor();
+  else void refreshFlow();
+}
+function openEditor() {
+  const frame = element('fsm-editor');
+  if (frame.getAttribute('src')) return;
+  // The editor runs on its own server (Compose service `editor`) and calls this application's admin API directly.
+  const editor = new URL('http://localhost:18090/');
+  editor.searchParams.set('backend', new URL('./fsm-admin', window.location.href).href);
+  frame.src = editor.href;
 }
 element('orders-tab').onclick = () => { location.hash = 'orders'; };
 element('editor-tab').onclick = () => { location.hash = 'flow'; };

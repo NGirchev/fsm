@@ -17,6 +17,10 @@ docker compose --env-file .env -f fsm-spring-boot-example/compose.yml up -d --wa
 ./gradlew :fsm-spring-boot-example:bootRun
 ```
 
+Compose also builds and starts the visual editor as a separate static server on
+`localhost:18090`, as it would run in its own pod. To work on the editor itself, stop that service
+and run `npm --prefix fsm-visual-editor run dev -- --port 18090` instead.
+
 The example database is available on `localhost:55439`, leaving the usual PostgreSQL port `5432`
 available for other projects. Both Compose and the application use `POSTGRES_PORT` to override
 this port; `DB_URL` can override the application's complete JDBC URL. With the defaults above,
@@ -49,9 +53,11 @@ The example owns a web application with two tabs:
   remembered in the browser, so reloading restores its persisted history from the server. A failed
   request stops the run at the last confirmed state. Order responses include a request-local `trace`;
   `GET /api/orders/{id}/history` is the durable history.
-- **Flow editor** embeds the starter's ready-made administration panel at `/fsm-admin/`.
-  Switching tabs preserves the order and unsaved draft. The example registers `order` through
-  `OrderAdminConfiguration`; the starter owns the version API and editor integration.
+- **Flow editor** embeds the separately served editor in an iframe and connects it back to this
+  application: `http://localhost:18090/?backend=<this application>/fsm-admin`. The demo editor
+  address is fixed in `example.js`, and `FsmExampleApplication` allows that origin to call the admin
+  API (CORS with credentials). Switching tabs preserves the order and unsaved draft. The example registers `order` through
+  `OrderAdminConfiguration`; the starter owns the version API.
 
 The second tab loads the real `order` flow from the version API. Use **Create draft**, edit the graph,
 then **Save draft** and **Publish**. The version selector also opens existing drafts and archived
@@ -106,19 +112,11 @@ from another browser. Definitions without metadata receive an initial layout. Th
 remains authoritative when definitions are changed through the API. Guard/action IDs refer to
 existing Spring beans; publication rejects unknown names.
 
-Gradle builds the existing universal `fsm-visual-editor` and packages its static assets in the
-starter JAR. Node.js/npm are required to build the starter from this checkout, but not for an
-application consuming the published starter or for running the packaged example.
-The Gradle editor tasks use Node/npm from `PATH`; on macOS they also check the standard Homebrew
-locations (`/opt/homebrew/bin` and `/usr/local/bin`) for IDE launches without a shell environment.
-For other installations, include the directory containing both Node and npm in the IDE's Gradle
-process `PATH`. Node must be available to npm's build scripts as well.
-The independent editor still supports local projects and Java/Kotlin export via `npm run dev`.
-Opening `/fsm-admin/editor/index.html` directly opens the standalone editor; `/fsm-admin/` opens
-the complete administration panel. All order-specific UI lives in `src/main/resources/static/example.js`.
-The example no longer implements the iframe protocol or version controls itself. No extra editor
-starter or server is required. The example's API is unauthenticated and intended for local demonstration.
-For a secured application, follow the starter's [admin integration and security instructions](../fsm-spring-boot-starter/README.md#optional-administration-panel).
+The editor is not packaged in the application or the starter, so building the example does not
+require Node.js. The independent editor still supports local projects and Java/Kotlin export.
+All order-specific UI lives in `src/main/resources/static/example.js`; it neither implements the
+editor protocol nor version controls. The example's API is unauthenticated and intended for local demonstration.
+For a secured application, follow the starter's [admin integration and security instructions](../fsm-spring-boot-starter/README.md#optional-administration-api).
 
 ## Order execution
 

@@ -23,6 +23,7 @@ import {
   GitBranch,
   GitBranchPlus,
   MousePointerClick,
+  Plug,
   Plus,
   Play,
   CircleDot,
@@ -340,6 +341,11 @@ export function App({ embedded }: { embedded?: EmbeddedEditor }) {
     downloadText(`${document.codegen.className}.kt`, generateKotlinFactory(document), 'text/x-kotlin;charset=utf-8');
   };
 
+  const connectBackend = () => {
+    const url = window.prompt('Backend FSM admin URL, for example https://orders.example.com/fsm-admin');
+    if (url?.trim()) window.location.search = new URLSearchParams({ backend: url.trim() }).toString();
+  };
+
   const createNewFlow = () => {
     const nextDocument = createEmptyDocument();
     setDocument(withStateColors(nextDocument));
@@ -442,6 +448,10 @@ export function App({ embedded }: { embedded?: EmbeddedEditor }) {
             disabled={currentProjectId === SAMPLE_PROJECT_ID}
           >
             <Trash2 size={18} />
+          </button>
+          <button type="button" className="icon-button" onClick={connectBackend}
+            title="Connect to a backend" aria-label="Connect to a backend">
+            <Plug size={18} />
           </button>
           </div>
           <span className="toolbar-divider" aria-hidden />

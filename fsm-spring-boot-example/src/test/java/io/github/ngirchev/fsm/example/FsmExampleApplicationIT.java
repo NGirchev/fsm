@@ -36,6 +36,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class FsmExampleApplicationIT {
     @Container
     static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:17-alpine");
+    private static final String EDITOR_ORIGIN = "http://localhost:18090";
 
     @DynamicPropertySource
     static void databaseProperties(DynamicPropertyRegistry registry) {
@@ -43,6 +44,7 @@ class FsmExampleApplicationIT {
         registry.add("spring.datasource.username", POSTGRES::getUsername);
         registry.add("spring.datasource.password", POSTGRES::getPassword);
     }
+
 
     @LocalServerPort
     private int port;
@@ -83,10 +85,20 @@ class FsmExampleApplicationIT {
     }
 
     @Test
-    void editorPageAndVersionApiPersistVisualLayout() throws Exception {
-        var page = rest.getForEntity(url("/fsm-admin/editor/index.html"), String.class);
-        assertThat(page.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(page.getBody()).contains("<title>FSM Visual Editor</title>", "./assets/");
+    void separatelyDeployedEditorIsAllowedToCallTheApi() {
+        assertThat(rest.getForEntity(url("/fsm-admin/"), String.class).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        var headers = new HttpHeaders();
+        headers.setOrigin(EDITOR_ORIGIN);
+        headers.setAccessControlRequestMethod(HttpMethod.PUT);
+        var preflight = rest.exchange(url("/fsm-admin/api/flows/order/versions/1"), HttpMethod.OPTIONS,
+                new HttpEntity<>(headers), String.class);
+        assertThat(preflight.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(preflight.getHeaders().getAccessControlAllowOrigin()).isEqualTo(EDITOR_ORIGIN);
+        assertThat(preflight.getHeaders().getAccessControlAllowCredentials()).isTrue();
+    }
+
+    @Test
+    void versionApiPersistsVisualLayout() throws Exception {
         var original = flowService.active("order").definition();
         var editor = objectMapper.readTree("""
                 {"name":"Order", "states":[{"id":"new","label":"NEW",

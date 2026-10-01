@@ -15,6 +15,63 @@ npm --prefix fsm-visual-editor run dev
 Open the local URL printed by Vite. This starts the standalone editor; the Spring example
 and PostgreSQL are not required.
 
+## Connecting to a backend
+
+The editor is deployed on its own (GitHub Pages, a static server, a separate pod) and can connect to
+any application that enables the [starter's administration API](../fsm-spring-boot-starter/README.md#optional-administration-api).
+Open it with the API's base URL, including the application's context path:
+
+```text
+https://fsm-editor.example.com/?backend=https%3A%2F%2Forders.example.com%2Ffsm-admin
+```
+
+The **Connect to a backend** toolbar button asks for the same URL. When connected, the editor lists
+the application's registered flows and versions, and offers **Create draft**, **Save draft**,
+**Publish**, **Make active**, **Delete draft** and **Discard changes**. Transition dropdowns use the
+application's Spring bean catalog. **Local editor** returns to local projects.
+
+On another origin, the backend must allow the editor's origin with CORS, including credentials
+([starter instructions](../fsm-spring-boot-starter/README.md#optional-administration-api)). Embed the
+connected editor in an application page with an ordinary iframe; no messaging code is needed:
+
+```html
+<iframe title="FSM editor" src="https://fsm-editor.example.com/?backend=https%3A%2F%2Forders.example.com%2Ffsm-admin"></iframe>
+```
+
+Authentication and CSRF protection belong to the deployment and the backend. By default every
+request includes cookies (`credentials: 'include'`), so the application's own session applies; the
+editor adds no other credentials. To send a token or CSRF header, replace `config.js` next to
+`index.html` (for example, mount it from a ConfigMap). It runs before the editor:
+
+```js
+window.fsmEditorConfig = {
+  // Used when the page URL has no ?backend= parameter; relative URLs resolve against the editor page.
+  backendUrl: 'https://orders.example.com/fsm-admin',
+  // Replaces the request function for every backend call.
+  fetch: (input, init) => {
+    const headers = new Headers(init?.headers);
+    headers.set('Authorization', `Bearer ${sessionStorage.getItem('token')}`);
+    return fetch(input, { ...init, headers });
+  },
+};
+```
+
+Serving the editor and the API under one origin (for example, one ingress routing `/fsm-editor/`
+to the editor and `/fsm-admin/` to the application) needs no CORS and avoids third-party cookie
+restrictions. The editor uses relative asset URLs, so it can be served under any path.
+
+The [Dockerfile](Dockerfile) builds an nginx image with the static editor:
+
+```bash
+docker build -t fsm-visual-editor fsm-visual-editor
+```
+
+```bash
+docker run --rm -p 18090:80 fsm-visual-editor
+```
+
+Replace `/usr/share/nginx/html/config.js` in the container to preconfigure the backend or requests.
+
 ## Embedding the universal editor
 
 State colors are assigned randomly from the 12-color palette on creation or import if missing.
@@ -24,9 +81,9 @@ palette's hex color in editor JSON and in the host's `editor.states` metadata; i
 execution or generated code. Save the document to retain assigned colors. Read-only flows also lock
 the color selector. Event colors continue to be assigned automatically by event ID.
 
-One static application runs on GitHub Pages, locally, or in an iframe. There is no domain-specific
-entry point or build mode. The editor does not know about orders, flow versions, application APIs
-or publication. The host application owns those operations, its catalogs and event type choices.
+A host page can also own storage itself and exchange documents with the editor instead of
+connecting it to a backend. In this mode the editor does not know about flow versions, application
+APIs or publication; the host owns those operations, its catalogs and event type choices.
 
 Use the deployed editor URL with `?parentOrigin=` set to the exact, URL-encoded host origin
 (scheme, hostname and port; no trailing slash). Without that parameter the editor opens local
@@ -53,9 +110,7 @@ Use an explicit target origin, never `*`. The editor applies the equivalent chec
 After saving or an error, send `configure` to restore the appropriate read-only state. On timeout,
 report the failure and unlock; do not claim the document was saved.
 
-The [Spring starter admin panel](../fsm-spring-boot-starter/README.md#optional-administration-panel)
-implements this contract and is embedded by the Spring example. The editor receives only documents
-and generic configuration; its standalone build remains independent of the admin API.
+`?parentOrigin=` takes precedence over `?backend=`. The same static build serves all three modes.
 
 ## Browser regression tests
 
@@ -85,7 +140,9 @@ It builds the application and frontend dependencies before running the same isol
 It is explicit and does not run as part of the ordinary `check` task.
 
 The runner builds the example, starts a disposable PostgreSQL container and Spring application
-under `/test`, and gives Vite a temporary projects directory. It never uses the development
+under `/test`, and gives Vite a temporary projects directory. The production build is served on a
+separate origin at port `18090`, the address the example's editor tab embeds, and connects back to
+the application. Stop the example's Compose `editor` service first; the runner stops if the port is busy. It never uses the development
 database or `projects/`. Chromium runs headlessly with a fresh context per test. Servers,
 container and temporary files are removed on completion or interruption. On failure, see
 `playwright-report/`, `test-results/` (screenshots and traces) and `e2e-server.log`.
@@ -100,6 +157,8 @@ Pass Playwright options after `--`, for example `npm run test:e2e -- --grep 'del
 | Create/save/discard/delete/cancel, reload/layout persistence, read-only versions, failure/retry paths                                      | `e2e/order.spec.ts`             |
 | Publish validation, new order version and unchanged existing orders, protected active/archive versions                                     | `e2e/order.spec.ts`             |
 | Autosave, browser fallback, project switch/delete, failed project requests, Java/Kotlin exports in both styles                             | `e2e/projects.spec.ts`          |
+| Backend connection, flow switching, request function from `config.js`                                                                      | `e2e/admin.spec.ts`             |
+| `postMessage` host, cross-origin example tab, orders tab with unsaved draft                                                                | `e2e/embedding.spec.ts`         |
 
 Successful order operations use the real HTTP API and database. Failure scenarios deliberately
 intercept only the request whose error handling is being tested. Unit tests remain `npm test`.

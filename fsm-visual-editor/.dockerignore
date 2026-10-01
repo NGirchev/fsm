@@ -1,0 +1,8 @@
+node_modules
+dist
+e2e
+codegen-test
+projects
+playwright-report
+test-results
+*.log

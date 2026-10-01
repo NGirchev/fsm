@@ -15,11 +15,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication
 import org.springframework.context.annotation.Bean
 import org.springframework.context.ApplicationContext
-import org.springframework.core.env.Environment
-import org.springframework.util.ClassUtils
 import org.springframework.web.servlet.DispatcherServlet
-import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry
-import org.springframework.web.servlet.config.annotation.WebMvcConfigurer
 
 @AutoConfiguration(after = [FsmAutoConfiguration::class])
 @ConditionalOnClass(DispatcherServlet::class)
@@ -39,24 +35,14 @@ class FsmAdminAutoConfiguration {
     }
 
     @Bean
-    fun fsmAdminController(admin: FsmAdminService, flows: FlowService, context: ApplicationContext) =
-        FsmAdminController(admin, flows,
-            ClassUtils.isPresent("org.springframework.security.web.csrf.CsrfToken", context.classLoader))
-
-    @Bean
-    fun fsmAdminExceptionHandler() = FsmAdminExceptionHandler()
-
-    @Bean
-    fun fsmAdminResources(environment: Environment): WebMvcConfigurer {
-        val path = environment.getProperty("fsm.admin.base-path", "/fsm-admin")
+    fun fsmAdminController(admin: FsmAdminService, flows: FlowService, context: ApplicationContext): FsmAdminController {
+        val path = context.environment.getProperty("fsm.admin.base-path", "/fsm-admin")
         require(Regex("(/[A-Za-z0-9_-]+)+").matches(path)) {
             "fsm.admin.base-path must contain slash-separated path segments without a trailing slash"
         }
-        return object : WebMvcConfigurer {
-            override fun addResourceHandlers(registry: ResourceHandlerRegistry) {
-                registry.addResourceHandler("$path/ui/**").addResourceLocations("classpath:/fsm-admin/panel/ui/")
-                registry.addResourceHandler("$path/editor/**").addResourceLocations("classpath:/fsm-admin/editor/")
-            }
-        }
+        return FsmAdminController(admin, flows)
     }
+
+    @Bean
+    fun fsmAdminExceptionHandler() = FsmAdminExceptionHandler()
 }

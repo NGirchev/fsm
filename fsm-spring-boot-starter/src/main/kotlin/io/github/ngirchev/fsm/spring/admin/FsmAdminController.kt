@@ -2,31 +2,12 @@ package io.github.ngirchev.fsm.spring.admin
 
 import io.github.ngirchev.fsm.spring.definition.FlowDefinition
 import io.github.ngirchev.fsm.spring.definition.FlowService
-import jakarta.servlet.http.HttpServletRequest
-import org.springframework.core.io.ClassPathResource
 import org.springframework.http.HttpStatus
-import org.springframework.http.CacheControl
-import org.springframework.http.MediaType
-import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 
 @RestController
 @RequestMapping($$"${fsm.admin.base-path:/fsm-admin}")
-class FsmAdminController(private val admin: FsmAdminService, private val flows: FlowService,
-                         private val securityPresent: Boolean) {
-    @GetMapping("")
-    fun redirect(request: HttpServletRequest): ResponseEntity<Void> =
-        ResponseEntity.status(HttpStatus.FOUND).header("Location", request.requestURI + "/").build()
-
-    @GetMapping("/", produces = [MediaType.TEXT_HTML_VALUE])
-    fun page() = ClassPathResource("fsm-admin/panel/index.html")
-
-    @GetMapping("/api/csrf")
-    fun csrf(request: HttpServletRequest): ResponseEntity<Map<String, String>> =
-        ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(if (securityPresent) {
-            FsmAdminCsrf.read(request)
-        } else emptyMap())
-
+class FsmAdminController(private val admin: FsmAdminService, private val flows: FlowService) {
     @GetMapping("/api/flows")
     fun registrations() = admin.list()
 

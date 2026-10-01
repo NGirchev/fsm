@@ -17,7 +17,7 @@ h2 { margin-top: 0; }
 dl { display: grid; grid-template-columns: 180px 1fr; gap: 8px; }
 dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
 #editor-panel { height: calc(100vh - 65px); display: flex; flex-direction: column; }
-#fsm-admin { width: 100%; flex: 1; min-height: 450px; border: 0; }
+#fsm-editor { width: 100%; flex: 1; min-height: 450px; border: 0; }
 [hidden] { display: none !important; }
 .table-scroll { overflow-x: auto; }
 table { border-collapse: collapse; width: 100%; }

@@ -32,6 +32,15 @@ async function freePort() {
   return port;
 }
 
+// The example embeds the editor from a fixed port, so the run serves its own build there.
+async function assertPortFree(port) {
+  const server = createServer();
+  await new Promise((done, reject) => server.once('error', () => reject(new Error(
+    `Port ${port} is in use; stop the example's editor (Compose service \`editor\`) before browser tests`)))
+    .listen(port, '127.0.0.1', done));
+  await new Promise((done) => server.close(done));
+}
+
 async function stop(child) {
   if (!child || child.exitCode !== null || child.signalCode !== null) return;
   await new Promise((done) => {
@@ -60,7 +69,8 @@ try {
   const dbPort = mapping.split(':').at(-1);
   const appPort = await freePort();
   const vitePort = await freePort();
-  const staticPort = await freePort();
+  const staticPort = 18090;
+  await assertPortFree(staticPort);
   const libs = resolve(root, 'fsm-spring-boot-example/build/libs');
   const jar = process.env.E2E_APP_JAR ?? (await readdir(libs))
     .find((name) => name.endsWith('.jar') && !name.endsWith('-plain.jar'));

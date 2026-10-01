@@ -95,21 +95,15 @@ class FsmAdminTest {
     }
 
     @Test
-    fun `custom prefix serves the packaged panel and editor and works without security`() {
+    fun `custom prefix serves only the API and works without security`() {
         enabled().withPropertyValues("fsm.admin.base-path=/management/flows")
             .withClassLoader(FilteredClassLoader("org.springframework.security")).run { context ->
                 val mvc = MockMvcBuilders.webAppContextSetup(context).build()
-                mvc.perform(get("/test/management/flows").contextPath("/test"))
-                    .andExpect(status().isFound).andExpect(header().string("Location", "/test/management/flows/"))
-                mvc.perform(get("/management/flows/")).andExpect(status().isOk)
-                    .andExpect(content().string(org.hamcrest.Matchers.containsString("FSM administration")))
-                mvc.perform(get("/management/flows/ui/admin.js")).andExpect(status().isOk)
-                mvc.perform(get("/management/flows/editor/index.html")).andExpect(status().isOk)
-                    .andExpect(content().string(org.hamcrest.Matchers.containsString("FSM Visual Editor")))
-                mvc.perform(get("/management/flows/api/csrf")).andExpect(status().isOk)
-                    .andExpect(content().json("{}"))
-                mvc.perform(get("/fsm-admin/api/flows")).andExpect(status().isNotFound)
-                mvc.perform(get("/management/flows/ui/../editor/index.html")).andExpect(status().isNotFound)
+                mvc.perform(get("/management/flows/api/flows")).andExpect(status().isOk)
+                listOf("/management/flows", "/management/flows/", "/management/flows/ui/admin.js",
+                    "/management/flows/editor/index.html", "/management/flows/api/csrf", "/fsm-admin/api/flows").forEach {
+                    mvc.perform(get(it)).andExpect { result -> assertThat(result.response.status).describedAs(it).isEqualTo(404) }
+                }
             }
     }
 
@@ -118,7 +112,6 @@ class FsmAdminTest {
         enabled().withBean("second", FsmAdminRegistration::class.java, { registration("second") }).run { context ->
             val mvc = MockMvcBuilders.webAppContextSetup(context).build()
             mvc.perform(get("/fsm-admin/api/flows")).andExpect(status().isOk).andExpect(jsonPath("$.length()").value(2))
-            mvc.perform(get("/fsm-admin/api/csrf")).andExpect(content().json("{}"))
             mvc.perform(get("/fsm-admin/api/flows/sample/behaviors")).andExpect(content().json("[]"))
             val path = "/fsm-admin/api/flows/sample/versions"
             mvc.perform(get(path)).andExpect(content().json("[]"))

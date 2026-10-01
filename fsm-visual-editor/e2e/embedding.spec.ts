@@ -1,9 +1,7 @@
 import { expect } from '@playwright/test';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { test, fixture, embedded, api, editor, exportDocument, admin } from './helpers';
-
-const staticEditor = `http://127.0.0.1:${process.env.E2E_STATIC_PORT}/`;
+import { test, fixture, embedded, api, editor, exportDocument, admin, backend, staticEditor, exampleEditor } from './helpers';
 
 test('one static build runs standalone and in an unrelated cross-origin host without an application API', async ({ page }) => {
   await page.goto(staticEditor);
@@ -57,15 +55,11 @@ test('one static build runs standalone and in an unrelated cross-origin host wit
   } finally { await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve())); }
 });
 
-test('example edits, saves and reloads through the cross-origin static editor', async ({ page }) => {
-  await page.addInitScript((url) => {
-    const observer = new MutationObserver(() => {
-      const frame = document.getElementById('flow-editor');
-      if (frame) { frame.dataset.editorUrl = url; observer.disconnect(); }
-    });
-    observer.observe(document, { childList: true, subtree: true });
-  }, staticEditor);
+test('example tab connects the separately served editor to its own backend', async ({ page }) => {
   await page.goto(`${embedded}/#flow`);
+  const source = new URL((await page.locator('#fsm-editor').getAttribute('src'))!);
+  expect(source.origin).toBe(exampleEditor);
+  expect(source.searchParams.get('backend')).toBe(backend);
   await admin(page).getByRole('button', { name: 'Create draft', exact: true }).click();
   await expect(admin(page).locator('#flow-message')).toContainText('Draft created');
   await editor(page).getByLabel('Name', { exact: true }).fill('Cross origin');

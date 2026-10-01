@@ -16,9 +16,13 @@ Changes since the published 1.2.0 release. This section describes the unreleased
   guards, actions and post-actions by Spring bean name, including their proxies and dependencies.
 - Database-independent versioned flow management: draft creation, editing and deletion, validation,
   publication and activation of archived versions through an application-provided `FlowStore`.
-- An optional Spring administration panel with a packaged visual editor, flow version controls,
-  typed Spring bean catalogs and configurable URL prefix. Authentication and authorization remain
-  the host application's responsibility; the panel integrates with its CSRF protection.
+- An optional Spring administration API for flow versions with typed Spring bean catalogs,
+  and a configurable URL prefix. The starter serves no UI. Authentication, authorization, CSRF and
+  CORS remain the host application's responsibility.
+- Backend connection in the visual editor: `?backend=` or `config.js` points a separately deployed
+  editor at an application's administration API for draft, publish and activation workflows. Requests
+  send cookies by default; `config.js` can replace the request function to add credentials.
+  A Dockerfile packages the static editor with nginx.
 - Automatic background processing for declared `FsmTaskProcessor` beans, with a separate transaction
   per task, configurable polling, bounded queue draining and an opt-out for external job runners.
   Applications supply task handlers and storage through `FsmTaskHandler` and `FsmTaskStore`.

@@ -21,7 +21,6 @@ dependencies {
     implementation("org.springframework:spring-tx")
     compileOnly("org.springframework:spring-webmvc")
     compileOnly("jakarta.servlet:jakarta.servlet-api")
-    compileOnly("org.springframework.security:spring-security-web")
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.boot:spring-boot-starter-web")
     testImplementation("org.springframework.boot:spring-boot-starter-security")
@@ -94,52 +93,4 @@ publishing {
 mavenPublishing {
     publishToMavenCentral(automaticRelease = true)
     signAllPublications()
-}
-
-// Package the same portable static editor used on GitHub Pages, without a domain build mode.
-val editorDirectory = rootProject.layout.projectDirectory.dir("fsm-visual-editor")
-val editorOutput = layout.buildDirectory.dir("editor")
-
-// GUI-launched IDEs on macOS may omit Homebrew from PATH. npm also needs node on PATH.
-fun Exec.editorNpm(vararg arguments: String) {
-    val inheritedPath = System.getenv("PATH").orEmpty()
-    val windows = System.getProperty("os.name").startsWith("Windows")
-    val npmName = if (windows) "npm.cmd" else "npm"
-    val nodeName = if (windows) "node.exe" else "node"
-    val macDirectories = if (System.getProperty("os.name").startsWith("Mac")) {
-        listOf("/opt/homebrew/bin", "/usr/local/bin")
-    } else emptyList()
-    val nodeDirectory = (inheritedPath.split(File.pathSeparator) + macDirectories)
-        .filter { it.isNotBlank() }
-        .map { File(it).absoluteFile }
-        .firstOrNull { File(it, npmName).isFile && File(it, nodeName).isFile }
-        ?: throw GradleException("Node.js and npm are required to build the editor. Add their bin directory to the Gradle process PATH.")
-    environment("PATH", "${nodeDirectory.absolutePath}${File.pathSeparator}$inheritedPath")
-    val npm = File(nodeDirectory, npmName).absolutePath
-    if (windows) commandLine("cmd", "/c", npm, *arguments)
-    else commandLine(npm, *arguments)
-}
-
-val installEditorDependencies by tasks.registering(Exec::class) {
-    description = "Install dependencies for the universal FSM editor."
-    workingDir(editorDirectory)
-    doFirst { editorNpm("ci", "--no-audit", "--no-fund") }
-    inputs.files(editorDirectory.file("package.json"), editorDirectory.file("package-lock.json"))
-    outputs.file(editorDirectory.file("node_modules/.package-lock.json"))
-}
-val buildEditor by tasks.registering(Exec::class) {
-    description = "Build the universal FSM editor for the starter."
-    dependsOn(installEditorDependencies)
-    workingDir(editorDirectory)
-    doFirst {
-        editorNpm("run", "build", "--", "--outDir", editorOutput.get().asFile.absolutePath, "--emptyOutDir")
-    }
-    inputs.dir(editorDirectory.dir("src"))
-    inputs.files(editorDirectory.file("index.html"), editorDirectory.file("vite.config.ts"),
-        editorDirectory.file("tsconfig.json"), editorDirectory.file("package-lock.json"))
-    outputs.dir(editorOutput)
-}
-tasks.processResources {
-    dependsOn(buildEditor)
-    from(editorOutput) { into("fsm-admin/editor") }
 }

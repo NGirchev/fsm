@@ -1,6 +1,10 @@
-import { test as base, expect, type Page } from '@playwright/test';
+import { test as base, expect, type Page, type Route } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import type { FsmEditorDocument } from '../src/domain';
+
+/** The production build on the port the example page embeds (its Compose `editor` service port). */
+export const staticEditor = `http://127.0.0.1:${process.env.E2E_STATIC_PORT}/`;
+export const exampleEditor = `http://localhost:${process.env.E2E_STATIC_PORT}`;
 
 export const test = base.extend<{ noBrowserErrors: void }>({
   noBrowserErrors: [async ({ page }, use) => {
@@ -13,14 +17,20 @@ export const test = base.extend<{ noBrowserErrors: void }>({
 
 export const embedded = process.env.E2E_EMBEDDED_URL!;
 export const standalone = `http://127.0.0.1:${process.env.E2E_VITE_PORT}`;
+/** The example page embeds the editor; a directly opened editor is the page itself. */
 export function admin(page: Page) {
-  return page.url().includes('/fsm-admin/') ? page : page.frameLocator('#fsm-admin');
+  return page.url().startsWith(embedded) ? page.frameLocator('#fsm-editor') : page;
 }
-export function editor(page: Page) {
-  return page.url().startsWith(embedded) ? admin(page).frameLocator('#flow-editor') : page;
-}
+export const editor = admin;
 
-export const api = `${embedded}/fsm-admin/api/flows/order/versions`;
+export const backend = `${embedded}/fsm-admin`;
+export const api = `${backend}/api/flows/order/versions`;
+
+/** Answers a routed cross-origin API call with the CORS headers the backend would send. */
+export function fulfillApi(route: Route, status: number, json: unknown) {
+  return route.fulfill({ status, json, headers: { 'Access-Control-Allow-Origin': new URL(route.request().frame().url()).origin,
+    'Access-Control-Allow-Credentials': 'true' } });
+}
 export const fixture: FsmEditorDocument = {
   formatVersion: 2, name: 'Browser test', autoTransitionEnabled: false,
   codegen: { packageName: 'example', className: 'TestFlow', factoryMethodName: 'create',

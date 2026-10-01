@@ -12,3 +12,8 @@ services:
       interval: 2s
       timeout: 2s
       retries: 20
+  # The editor is a separate static server, as it would be in its own pod.
+  editor:
+    build: ../fsm-visual-editor
+    ports:
+      - "127.0.0.1:18090:80"

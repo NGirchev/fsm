@@ -78,9 +78,11 @@ which provides automatic registration of a bean registry and JSON serializer.
 It saves ordinary Spring `Action` / `Guard` handlers by bean name and restores them
 from the application context. The core library remains independent of Spring.
 See [the Spring Boot example](fsm-spring-boot-example/README.md) for versioned database persistence.
-The same starter includes an opt-in [administration panel](fsm-spring-boot-starter/README.md#optional-administration-panel)
-with version management and the visual editor. Enable `fsm.admin.enabled=true`, provide `FlowStore`
-and flow registrations, and protect `/fsm-admin/**` using the application's security configuration.
+The same starter includes an opt-in [administration API](fsm-spring-boot-starter/README.md#optional-administration-api)
+for flow version management. Enable `fsm.admin.enabled=true`, provide `FlowStore` and flow
+registrations, and protect `/fsm-admin/**` using the application's security configuration.
+The visual editor is deployed separately and [connects to that API](fsm-visual-editor/README.md#connecting-to-a-backend);
+when it runs on another origin, the application allows that origin with CORS.
 
 ## Usage Examples
 ### We have these initial data:

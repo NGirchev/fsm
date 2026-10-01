@@ -1,5 +1,5 @@
 import { expect } from '@playwright/test';
-import { test, editor, api, embedded, connect, exportDocument, fixture, importDocument, openDraft, selectEdge, expandSection, admin } from './helpers';
+import { test, editor, api, embedded, connect, exportDocument, fixture, importDocument, openDraft, selectEdge, expandSection, admin, fulfillApi } from './helpers';
 
 test.beforeEach(async ({ request }) => {
   // Every case starts from the seeded runtime definition, regardless of execution order.
@@ -9,7 +9,7 @@ test.beforeEach(async ({ request }) => {
 });
 
 test('load failure can be retried', async ({ page }) => {
-  await page.route(api, (route) => route.fulfill({ status: 503, json: { message: 'Temporarily unavailable' } }));
+  await page.route(api, (route) => fulfillApi(route, 503, { message: 'Temporarily unavailable' }));
   await page.goto(`${embedded}/#flow`);
   await expect(admin(page).getByRole('status')).toHaveText('Temporarily unavailable');
   await expect(admin(page).getByRole('button', { name: 'Create draft', exact: true })).toBeDisabled();
@@ -169,7 +169,7 @@ test('delete draft can be cancelled, removes dirty draft and reuses its highest 
 
 test('save, publish, create and delete API failures retain the editable draft', async ({ page }) => {
   const version = await openDraft(page);
-  const fail = async (route: import('@playwright/test').Route) => route.fulfill({ status: 409, json: { message: 'Test conflict' } });
+  const fail = async (route: import('@playwright/test').Route) => fulfillApi(route, 409, { message: 'Test conflict' });
   await editor(page).getByLabel('Name', { exact: true }).fill('Keep my edit');
   await page.route(`${api}/${version}`, fail);
   await admin(page).getByRole('button', { name: 'Save draft', exact: true }).click();

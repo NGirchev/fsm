@@ -88,10 +88,10 @@ starter does not choose a database, schema or locking strategy. The
 Create an FSM for each domain object using the restored table. Domain state storage and business
 validation remain application responsibilities.
 
-## Optional administration panel
+## Optional administration API
 
-The same starter includes a ready-made version API, administration page and the universal visual
-editor. They are **disabled by default**. The application must already use Spring MVC (for example,
+The same starter includes a version management API for the separately deployed
+[visual editor](../fsm-visual-editor/README.md#connecting-to-a-backend). It is **disabled by default**. The application must already use Spring MVC (for example,
 `spring-boot-starter-web`); the FSM starter does not transitively install a web server or Spring Security.
 This integration targets servlet applications, not WebFlux.
 
@@ -102,15 +102,32 @@ fsm:
     base-path: /fsm-admin
 ```
 
-Open `/fsm-admin/` under the application's context path. Changing these settings requires a restart.
-The prefix must consist of slash-separated letters, digits, underscores or hyphens, without a trailing
-slash. Disabling admin removes the controllers and resource mappings. Assets are stored outside
-Spring Boot's automatic static locations. The published JAR already includes the built editor;
-consumers do not need Node.js. Building this repository's starter from source requires Node.js 22+ and npm.
+The starter serves no pages or static assets. Connect an editor to the API's base URL, for example
+`https://fsm-editor.example.com/?backend=https://orders.example.com/fsm-admin` (include the
+application's context path). Changing these settings requires a restart. The prefix must consist of
+slash-separated letters, digits, underscores or hyphens, without a trailing slash. Disabling admin
+removes the controllers.
+
+The starter adds no CORS policy. When the editor runs on another origin, the application allows it
+like any other client. The editor sends cookies, so credentials must be allowed, which requires
+exact origins rather than `*`:
+
+```java
+@Bean
+WebMvcConfigurer fsmEditorCors() {
+    return new WebMvcConfigurer() {
+        @Override
+        public void addCorsMappings(CorsRegistry registry) {
+            registry.addMapping("/fsm-admin/api/**").allowedOrigins("https://fsm-editor.example.com")
+                    .allowedMethods("GET", "POST", "PUT", "DELETE").allowCredentials(true);
+        }
+    };
+}
+```
 
 Provide the existing `FlowStore` and transaction manager, and one `FsmAdminRegistration` bean for
-each editable flow. An enabled panel without a store fails startup. Duplicate or invalid keys also
-fail startup. An empty registration list shows an empty panel. Unregistered keys return 404, even
+each editable flow. An enabled API without a store fails startup. Duplicate or invalid keys also
+fail startup. An empty registration list returns no flows. Unregistered keys return 404, even
 if the store contains their definitions.
 
 ```java
@@ -139,9 +156,9 @@ reactivation. Activation validation and the lifecycle change share a transaction
 lock. Callbacks must not mutate their arguments. Storage and runtime invariants should also remain
 enforced by the application's store/runtime when callers bypass the admin API.
 
-The panel supports first drafts from the registration template, subsequent drafts from the selected
-version, saving, deletion, publication and reactivation. Layout and descriptions persist in the same
-definition. The editor retains its `fsm-editor/v1` iframe protocol and standalone export capabilities.
+The API supports first drafts from the registration template, subsequent drafts from a submitted
+definition, saving, deletion, publication and reactivation. Layout and descriptions persist in the same
+definition.
 
 All endpoints are below the configured prefix:
 
@@ -153,7 +170,6 @@ All endpoints are below the configured prefix:
 | GET, PUT, DELETE | `/api/flows/{key}/versions/{version}`          | Read, update or delete a draft                                     |
 | POST             | `/api/flows/{key}/versions/{version}/publish`  | Publish a draft                                                    |
 | POST             | `/api/flows/{key}/versions/{version}/activate` | Reactivate an archived version                                     |
-| GET              | `/api/csrf`                                    | Current CSRF header name and token, or `{}` when CSRF is absent    |
 
 Successful creation returns 201, deletion 204. Invalid input returns 400, missing registrations or
 versions 404, and invalid lifecycle operations 409, using `{ "message": "..." }` errors.
@@ -161,9 +177,9 @@ Error handling is scoped to the admin controllers.
 
 ### Application-owned security
 
-Enabling admin does **not** secure it. The starter creates no `SecurityFilterChain`, users, roles,
-login form or CORS policy. Add rules to the application's existing Spring Security configuration,
-before more general matchers, covering both the exact prefix and everything below it:
+Enabling admin does **not** secure it. The starter creates no `SecurityFilterChain`, users, roles
+or login form. Add rules to the application's existing Spring Security configuration, before more
+general matchers, covering both the exact prefix and everything below it:
 
 ```java
 // Call from the application's existing SecurityFilterChain factory, before http.build().
@@ -172,22 +188,25 @@ void configureAdminAccess(HttpSecurity http) throws Exception {
             .requestMatchers("/fsm-admin", "/fsm-admin/**").hasRole("FSM_ADMIN")
             // Existing application rules follow here.
             .anyRequest().authenticated());
-    http.headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()));
+    // Only for a cross-origin editor: applies the MVC CORS mapping before authentication.
+    http.cors(Customizer.withDefaults());
 }
 ```
 
-The application's filter chain must match these requests, including UI and editor resources; a chain
-restricted to `/api/**` does not protect `/fsm-admin/**`. Adjust the rules when changing `base-path`.
-Keep the application's authentication mechanism. Same-origin framing is needed for the packaged
-editor, and for embedding the whole panel in an application page. An existing CSP must also permit
-the required same-origin scripts, styles and frames. Configure those policies in the host, not by
-disabling Spring Security headers globally.
+A chain restricted to `/api/**` does not protect `/fsm-admin/**`. Adjust the rules when changing
+`base-path`. Keep the application's authentication mechanism.
 
-The panel uses the application's session and fetches a fresh CSRF token before each mutation,
-sending the returned header. The token endpoint is non-cacheable. Missing or denied token requests
-stop the operation and preserve the dirty draft. CSRF is never disabled by the starter. Bearer-token
-acquisition and a separate login UI are not provided. For an application page, embed
-`<iframe src="./fsm-admin/" title="FSM administration"></iframe>` or link to the panel.
+CSRF protection is also the application's: the starter exposes no token endpoint and never disables
+CSRF. With Spring Security's default session CSRF, a POST, PUT or DELETE without a token is rejected
+with 403. Either exempt `/fsm-admin/api/**` when it is authenticated by tokens rather than cookies,
+or make a token available and add it in the editor's request function. A failed request keeps the
+editor's unsaved draft.
+
+The editor sends cookies with every request. Browsers send a session cookie to another origin only when the cookie allows it: an editor on a
+subdomain of the same site works with the default `SameSite=Lax`; an editor on a different site
+needs `SameSite=None; Secure` cookies or a token. Token acquisition and login UI are not provided;
+a deployment can replace the editor's request function to add its own credentials
+(see [editor configuration](../fsm-visual-editor/README.md#connecting-to-a-backend)).
 
 ```bash
 ./gradlew :fsm-spring-boot-starter:test

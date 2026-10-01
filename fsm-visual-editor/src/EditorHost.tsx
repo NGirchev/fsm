@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { App } from './App';
+import { BackendEditor } from './BackendEditor';
 import { normalizeEditorDocument, type CatalogBehavior, type FsmEditorDocument } from './domain';
+import { backendUrl } from './domain/backend';
 import { fromFlowDefinition, toFlowDefinition, type FlowDefinition } from './domain/flowDefinition';
 
 const channel = 'fsm-editor/v1';
@@ -23,6 +25,7 @@ interface HostedDocument {
 
 export function EditorHost() {
   const [origin] = useState(parentOrigin);
+  const [backend] = useState(() => backendUrl());
   const [hosted, setHosted] = useState<HostedDocument>();
   const [readOnly, setReadOnly] = useState(true);
   const [error, setError] = useState('Waiting for a document from the host…');
@@ -77,7 +80,7 @@ export function EditorHost() {
     loaded.current = true;
   }, [send]);
 
-  if (!origin) return <App />;
+  if (!origin) return backend ? <BackendEditor baseUrl={backend} /> : <App />;
   if (!hosted) return <main className="loading-panel"><p role="status">{error}</p></main>;
   return <App key={hosted.session} embedded={{ initialDocument: hosted.document,
     catalog: hosted.catalog, readOnly, onDocumentChange: changed }} />;
