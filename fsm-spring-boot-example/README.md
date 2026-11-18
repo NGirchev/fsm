@@ -4,7 +4,7 @@ This is the repository's single executable Spring Boot example. It demonstrates 
 loaded from versioned PostgreSQL `JSONB` configuration.
 
 Application code and tests are Java. The example uses the Kotlin-based FSM core and starter as
-libraries; Jackson's Kotlin module remains necessary to read their DTOs.
+libraries; the starter supplies the Jackson 3 Kotlin module that reads their DTOs.
 
 ## Run
 

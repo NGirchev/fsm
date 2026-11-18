@@ -1,6 +1,6 @@
 plugins {
     java
-    id("org.springframework.boot") version "3.5.16"
+    id("org.springframework.boot") version "4.1.2"
 }
 
 repositories {
@@ -8,24 +8,25 @@ repositories {
 }
 
 dependencies {
-    implementation(platform("org.springframework.boot:spring-boot-dependencies:3.5.16"))
+    implementation(platform("org.springframework.boot:spring-boot-dependencies:4.1.2"))
     implementation(project(":fsm-spring-boot-starter"))
     implementation("io.github.ngirchev:dotenv:1.0.5")
-    implementation("org.springframework.boot:spring-boot-starter-web")
+    implementation("org.springframework.boot:spring-boot-starter-webmvc")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
-    // Core FSM DTOs are Kotlin classes; the example sources and tests are Java.
-    implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
-    implementation("org.flywaydb:flyway-core")
+    implementation("org.springframework.boot:spring-boot-starter-flyway")
     implementation("org.flywaydb:flyway-database-postgresql")
     compileOnly("org.projectlombok:lombok")
-    annotationProcessor(platform("org.springframework.boot:spring-boot-dependencies:3.5.16"))
+    annotationProcessor(platform("org.springframework.boot:spring-boot-dependencies:4.1.2"))
     annotationProcessor("org.projectlombok:lombok")
     runtimeOnly("org.postgresql:postgresql")
 
-    testImplementation(platform("org.springframework.boot:spring-boot-dependencies:3.5.16"))
+    testImplementation(platform("org.springframework.boot:spring-boot-dependencies:4.1.2"))
     testImplementation("org.springframework.boot:spring-boot-starter-test")
-    testImplementation("org.testcontainers:junit-jupiter")
-    testImplementation("org.testcontainers:postgresql")
+    // TestRestTemplate lives in its own module and builds on RestTemplateBuilder.
+    testImplementation("org.springframework.boot:spring-boot-resttestclient")
+    testImplementation("org.springframework.boot:spring-boot-restclient")
+    testImplementation("org.testcontainers:testcontainers-junit-jupiter")
+    testImplementation("org.testcontainers:testcontainers-postgresql")
 }
 
 java {

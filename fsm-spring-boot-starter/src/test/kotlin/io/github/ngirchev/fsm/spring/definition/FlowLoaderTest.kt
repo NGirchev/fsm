@@ -1,6 +1,6 @@
 package io.github.ngirchev.fsm.spring.definition
 
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import io.github.ngirchev.fsm.Action
 import io.github.ngirchev.fsm.Guard
 import io.github.ngirchev.fsm.IdAction

@@ -1,6 +1,6 @@
 package io.github.ngirchev.fsm.example.definition;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import io.github.ngirchev.fsm.spring.definition.FlowVersionStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

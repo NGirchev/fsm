@@ -1,22 +1,23 @@
 package io.github.ngirchev.fsm.example.order;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import io.github.ngirchev.fsm.Action;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.boot.resttestclient.TestRestTemplate;
+import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.*;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
@@ -26,11 +27,12 @@ import java.util.concurrent.CompletableFuture;
 import static org.assertj.core.api.Assertions.*;
 
 @Testcontainers
+@AutoConfigureTestRestTemplate
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = "fsm.tasks.enabled=false")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @Import(OrderFlowJourneyIT.ProbeConfiguration.class)
 class OrderFlowJourneyIT {
-    @Container static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:17-alpine");
+    @Container static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:17-alpine");
     @DynamicPropertySource static void database(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
         registry.add("spring.datasource.username", POSTGRES::getUsername);
@@ -62,14 +64,14 @@ class OrderFlowJourneyIT {
         assertThat(order.path("flowVersion").asInt()).isEqualTo(2);
         event(order.path("id").asLong(), "SUBMIT");
         var branched = event(order.path("id").asLong(), "FINISH");
-        assertThat(branched.path("state").asText()).isEqualTo("COMPLETED");
-        assertThat(branched.path("trace").get(0).path("to").asText()).isEqualTo("COMMISSION_2_PERCENT");
+        assertThat(branched.path("state").asString()).isEqualTo("COMPLETED");
+        assertThat(branched.path("trace").get(0).path("to").asString()).isEqualTo("COMMISSION_2_PERCENT");
         post("/fsm-admin/api/flows/order/versions/1/activate", null, 200);
         var direct = create("1000.00");
         assertThat(direct.path("flowVersion").asInt()).isEqualTo(1);
         event(direct.path("id").asLong(), "SUBMIT");
         var paid = event(direct.path("id").asLong(), "FINISH");
-        assertThat(paid.path("state").asText()).isEqualTo("COMPLETED");
+        assertThat(paid.path("state").asString()).isEqualTo("COMPLETED");
         assertThat(paid.path("commission").decimalValue()).isEqualByComparingTo("20.00");
         assertThat(paid.path("trace").size()).isEqualTo(1);
         assertThat(paid.path("trace").get(0).path("conditions")).isEmpty();
@@ -96,20 +98,20 @@ class OrderFlowJourneyIT {
         var old = event(pinned, "FINISH");
         assertThat(old.path("flowVersion").asInt()).isEqualTo(firstVersion);
         assertThat(old.path("commission").decimalValue()).isEqualByComparingTo("2.00");
-        assertThat(old.path("state").asText()).isEqualTo("DONE");
+        assertThat(old.path("state").asString()).isEqualTo("DONE");
         for (String amount : List.of("100.00", "1000.00")) {
             var id = create(amount).path("id").asLong();
             event(id, "SUBMIT");
             var done = post("/api/orders/" + id + "/events",
                     Map.of("event", "FINISH", "source", "journey", "requestId", "finish-" + id), 200);
             assertThat(done.path("commission").decimalValue()).isEqualByComparingTo(amount.equals("100.00") ? "1.00" : "20.00");
-            assertThat(done.path("state").asText()).isEqualTo("DONE");
+            assertThat(done.path("state").asString()).isEqualTo("DONE");
             var history = get("/api/orders/" + id + "/history");
             assertThat(history.size()).isEqualTo(2); // one persisted entry for each state change
-            assertThat(history.get(1).path("source").asText()).isEqualTo("journey");
-            assertThat(history.get(1).path("requestId").asText()).isEqualTo("finish-" + id);
-            assertThat(history.get(1).path("fromState").asText()).isEqualTo("IN_PROGRESS");
-            assertThat(history.get(1).path("toState").asText()).isEqualTo("DONE");
+            assertThat(history.get(1).path("source").asString()).isEqualTo("journey");
+            assertThat(history.get(1).path("requestId").asString()).isEqualTo("finish-" + id);
+            assertThat(history.get(1).path("fromState").asString()).isEqualTo("IN_PROGRESS");
+            assertThat(history.get(1).path("toState").asString()).isEqualTo("DONE");
             long previous = 0;
             for (var entry : history) {
                 assertThat(entry.path("id").asLong()).isGreaterThan(previous);
@@ -148,7 +150,7 @@ class OrderFlowJourneyIT {
         long start = System.nanoTime();
         var created = create("1.00");
         assertThat((System.nanoTime() - start) / 1_000_000).isGreaterThanOrEqualTo(50);
-        assertThat(created.path("state").asText()).isEqualTo("DONE");
+        assertThat(created.path("state").asString()).isEqualTo("DONE");
         assertThat(created.path("commission").decimalValue()).isEqualByComparingTo("0.01");
         assertThat(PROBE).containsExactly("before:NEW:0.01", "after:DONE:0.01");
         transitions.putArray("DONE").add(transition("DONE", null, "NEW", List.of(), List.of(), List.of()));
@@ -169,7 +171,7 @@ class OrderFlowJourneyIT {
         var history = get("/api/orders/" + id + "/history");
         post("/api/orders/" + id + "/events", Map.of("event", "FINISH"), 409);
         var unchanged = get("/api/orders/" + id);
-        assertThat(unchanged.path("state").asText()).isEqualTo("IN_PROGRESS");
+        assertThat(unchanged.path("state").asString()).isEqualTo("IN_PROGRESS");
         assertThat(unchanged.path("commission").decimalValue()).isEqualByComparingTo("0.00");
         assertThat(get("/api/orders/" + id + "/history")).isEqualTo(history);
     }
@@ -195,7 +197,7 @@ class OrderFlowJourneyIT {
     void publicationValidationAndConcurrentDraftsPreserveActiveVersion() {
         var active = get("/fsm-admin/api/flows/order/versions");
         int activeVersion = 0;
-        for (var item : active) if (item.path("status").asText().equals("ACTIVE")) activeVersion = item.path("version").asInt();
+        for (var item : active) if (item.path("status").asString().equals("ACTIVE")) activeVersion = item.path("version").asInt();
         var invalid = fees("commissionTwoPercent", "commissionOnePercent", false);
         invalid.putObject("execution").putArray("stateListeners").add("unknownListener");
         int broken = draft(invalid);
@@ -210,12 +212,12 @@ class OrderFlowJourneyIT {
         var b = CompletableFuture.supplyAsync(() -> draft(definition));
         assertThat(a.join()).isNotEqualTo(b.join());
         var behaviors = get("/fsm-admin/api/flows/order/behaviors");
-        assertThat(behaviors.findValuesAsText("id")).contains(
+        assertThat(behaviors.findValuesAsString("id")).contains(
                 "amountAbove10000", "commissionTwoPercent", "failOrderAction", "beforeOrderState", "afterOrderState");
         for (var behavior : behaviors) {
-            if (behavior.path("id").asText().equals("commissionTwoPercent")) {
-                assertThat(behavior.path("kind").asText()).isEqualTo("action");
-                assertThat(behavior.path("description").asText()).isEqualTo("Set commission to 2% of amount");
+            if (behavior.path("id").asString().equals("commissionTwoPercent")) {
+                assertThat(behavior.path("kind").asString()).isEqualTo("action");
+                assertThat(behavior.path("description").asString()).isEqualTo("Set commission to 2% of amount");
             }
         }
     }
@@ -230,7 +232,7 @@ class OrderFlowJourneyIT {
         long id = order.path("id").asLong();
         for (String name : List.of("", "   ", "E".repeat(121), "😀".repeat(61))) {
             ((ObjectNode) definition.path("table").path("transitions").path("NEW").get(0)).put("event", name);
-            assertThat(post("/fsm-admin/api/flows/order/versions", definition, 400).path("message").asText())
+            assertThat(post("/fsm-admin/api/flows/order/versions", definition, 400).path("message").asString())
                     .contains("event must contain 1 to 120 characters");
             var updated = http.exchange("/fsm-admin/api/flows/order/versions/" + version, HttpMethod.PUT,
                     new HttpEntity<>(definition), JsonNode.class);
@@ -259,7 +261,7 @@ class OrderFlowJourneyIT {
             jdbc.update("update fsm_flow_version set definition=cast(? as jsonb), status=? where flow_key='order' and version=?",
                     invalid.toString(), status, version);
             post("/fsm-admin/api/flows/order/versions/" + version + (status.equals("DRAFT") ? "/publish" : "/activate"), null, 400);
-            assertThat(get("/fsm-admin/api/flows/order/versions/" + version).path("status").asText()).isEqualTo(status);
+            assertThat(get("/fsm-admin/api/flows/order/versions/" + version).path("status").asString()).isEqualTo(status);
             assertThat(get("/fsm-admin/api/flows/order/versions/" + active)).isEqualTo(activeVersion);
             assertThat(create("100.00").path("flowVersion").asInt()).isEqualTo(active);
         }
@@ -268,7 +270,7 @@ class OrderFlowJourneyIT {
             int version = publish(definition);
             var order = create("100.00");
             assertThat(order.path("flowVersion").asInt()).isEqualTo(version);
-            assertThat(event(order.path("id").asLong(), name).path("state").asText()).isEqualTo("IN_PROGRESS");
+            assertThat(event(order.path("id").asLong(), name).path("state").asString()).isEqualTo("IN_PROGRESS");
         }
     }
 
@@ -315,7 +317,7 @@ class OrderFlowJourneyIT {
         event(id, "SUBMIT");
         var result = event(id, "FINISH");
         assertThat(result.path("commission").decimalValue()).isEqualByComparingTo(fee);
-        assertThat(result.path("state").asText()).isEqualTo("DONE");
+        assertThat(result.path("state").asString()).isEqualTo("DONE");
     }
     private JsonNode get(String path) {
         var result = http.getForEntity(path, JsonNode.class);

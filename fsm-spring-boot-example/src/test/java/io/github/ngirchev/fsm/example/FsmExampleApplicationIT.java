@@ -1,6 +1,6 @@
 package io.github.ngirchev.fsm.example;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import io.github.ngirchev.fsm.example.ApiExceptionHandler.ApiError;
 import io.github.ngirchev.fsm.spring.definition.FlowDefinition;
 import io.github.ngirchev.fsm.spring.definition.FlowService;
@@ -11,18 +11,20 @@ import io.github.ngirchev.fsm.serialization.*;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.boot.resttestclient.TestRestTemplate;
+import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.*;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -32,10 +34,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @Testcontainers
 @org.springframework.context.annotation.Import(FsmExampleApplicationIT.AdminRegistrations.class)
+@AutoConfigureTestRestTemplate
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class FsmExampleApplicationIT {
     @Container
-    static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:17-alpine");
+    static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:17-alpine");
     private static final String EDITOR_ORIGIN = "http://localhost:18090";
 
     @DynamicPropertySource
@@ -58,7 +61,7 @@ class FsmExampleApplicationIT {
     private OrderRepository orders;
 
     @Test
-    void amountGuardSelectsBranchAndRunsLogAction() throws Exception {
+    void amountGuardSelectsBranchAndRunsLogAction() {
         var original = flowService.active("order").definition();
         try {
             publish(new FlowDefinition("NEW", new FsmDto(false, Map.of(
@@ -75,7 +78,7 @@ class FsmExampleApplicationIT {
                 var result = rest.postForEntity(url("/api/orders/" + order.id() + "/events"),
                         new OrderEventRequest("FINISH"), String.class);
                 assertThat(result.getStatusCode()).isEqualTo(HttpStatus.OK);
-                var stored = rest.getForObject(url("/api/orders/" + order.id()), OrderResponse.class);
+                var stored = Objects.requireNonNull(rest.getForObject(url("/api/orders/" + order.id()), OrderResponse.class));
                 boolean belowThreshold = amount.compareTo(new BigDecimal("1000.00")) < 0;
                 assertThat(stored.state()).isEqualTo(belowThreshold ? "SENT" : "FAILED");
             }
@@ -98,7 +101,7 @@ class FsmExampleApplicationIT {
     }
 
     @Test
-    void versionApiPersistsVisualLayout() throws Exception {
+    void versionApiPersistsVisualLayout() {
         var original = flowService.active("order").definition();
         var editor = objectMapper.readTree("""
                 {"name":"Order", "states":[{"id":"new","label":"NEW",
@@ -111,7 +114,7 @@ class FsmExampleApplicationIT {
         var updated = rest.exchange(url(path + "/" + draft.version()), HttpMethod.PUT,
                 new HttpEntity<>(definition), FlowVersion.class);
         assertThat(updated.getStatusCode()).isEqualTo(HttpStatus.OK);
-        var loaded = rest.getForObject(url(path + "/" + draft.version()), FlowVersion.class);
+        var loaded = Objects.requireNonNull(rest.getForObject(url(path + "/" + draft.version()), FlowVersion.class));
         assertThat(loaded.definition().editor()).isEqualTo(editor);
         var published = post(path + "/" + draft.version() + "/publish", null, FlowVersion.class);
         assertThat(published.definition().editor()).isEqualTo(editor);
@@ -119,7 +122,7 @@ class FsmExampleApplicationIT {
     }
 
     @Test
-    void creationPersistsInitialAutomaticBehaviorAndRollsBackChainExceedingLimit() throws Exception {
+    void creationPersistsInitialAutomaticBehaviorAndRollsBackChainExceedingLimit() {
         var original = flowService.active("order").definition();
         var automatic = new FlowDefinition("NEW", new FsmDto(true, Map.of(
                 "NEW", List.of(new TransitionDto("NEW", new ToDto(
@@ -160,7 +163,7 @@ class FsmExampleApplicationIT {
     }
 
     @Test
-    void runsSeededFlowAndAppliesNewlyPublishedVersionWithoutRestart() throws Exception {
+    void runsSeededFlowAndAppliesNewlyPublishedVersionWithoutRestart() {
         var original = flowService.active("order").definition();
         try {
             var order = post("/api/orders", new CreateOrderRequest(new BigDecimal("100.00")), OrderResponse.class);
@@ -214,7 +217,7 @@ class FsmExampleApplicationIT {
     }
 
     @Test
-    void stateTooLongForOrderColumnCannotReplaceActiveFlow() throws Exception {
+    void stateTooLongForOrderColumnCannotReplaceActiveFlow() {
         var active = flowService.active("order");
         var tooLong = new FlowDefinition("NEW", new FsmDto(false, Map.of(
                 "NEW", List.of(new TransitionDto("NEW", new ToDto("A".repeat(121),
@@ -230,7 +233,7 @@ class FsmExampleApplicationIT {
     }
 
     @Test
-    void onlyDraftsCanBeEditedOrPublished() throws Exception {
+    void onlyDraftsCanBeEditedOrPublished() {
         String path = "/fsm-admin/api/flows/flow-store-errors/versions";
         var definition = fastDefinition(List.of());
         var draft = post(path, definition, FlowVersion.class);
@@ -279,7 +282,7 @@ class FsmExampleApplicationIT {
     }
 
     @Test
-    void newFlowDraftCanBeEditedAndPublished() throws Exception {
+    void newFlowDraftCanBeEditedAndPublished() {
         String path = "/fsm-admin/api/flows/jpa-example/versions";
         var draft = post(path, fastDefinition(List.of()), FlowVersion.class);
         assertThat(draft.version()).isEqualTo(1);
@@ -353,12 +356,12 @@ class FsmExampleApplicationIT {
         )));
     }
 
-    private FlowVersion publish(FlowDefinition definition) throws Exception {
+    private FlowVersion publish(FlowDefinition definition) {
         var draft = post("/fsm-admin/api/flows/order/versions", definition, FlowVersion.class);
         return post("/fsm-admin/api/flows/order/versions/" + draft.version() + "/publish", null, FlowVersion.class);
     }
 
-    private <T> T post(String path, Object body, Class<T> responseType) throws Exception {
+    private <T> T post(String path, Object body, Class<T> responseType) {
         var response = rest.postForEntity(url(path), body, String.class);
         assertThat(response.getStatusCode().is2xxSuccessful())
                 .as("Unexpected response: %s %s", response.getStatusCode(), response.getBody()).isTrue();

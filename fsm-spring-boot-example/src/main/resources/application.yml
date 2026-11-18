@@ -9,6 +9,9 @@ spring:
     open-in-view: false
     hibernate:
       ddl-auto: validate
+    properties:
+      # The core fsm module also brings Jackson 2, which Hibernate would otherwise prefer for JSONB.
+      hibernate.type.json_format_mapper: org.hibernate.type.format.jackson.Jackson3JsonFormatMapper
   jackson:
     default-property-inclusion: non_null
     deserialization:

@@ -1,6 +1,6 @@
 package io.github.ngirchev.fsm.example.definition;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import io.github.ngirchev.fsm.spring.definition.FlowDefinition;
 import io.github.ngirchev.fsm.spring.definition.FlowStore;
 import io.github.ngirchev.fsm.spring.definition.FlowVersion;
@@ -8,7 +8,7 @@ import io.github.ngirchev.fsm.spring.definition.FlowVersionStatus;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.lang.NonNull;
+import org.jspecify.annotations.NonNull;
 
 import java.util.List;
 import java.util.Optional;

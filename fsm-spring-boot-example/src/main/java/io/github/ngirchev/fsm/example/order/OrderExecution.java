@@ -28,7 +28,7 @@ public class OrderExecution {
         var table = loader.load(definition, name -> new OrderEvent(name, null, null));
         var fsm = new ExFsm<>(order, table, table.getAutoTransitionEnabled()) {
             @Override
-            protected void transitionExecution(@org.springframework.lang.NonNull ExTransition<String, OrderEvent> transition) {
+            protected void transitionExecution(@org.jspecify.annotations.NonNull ExTransition<String, OrderEvent> transition) {
                 var before = OrderTrace.Snapshot.of(order);
                 super.transitionExecution(transition);
                 var destination = transition.getTo();

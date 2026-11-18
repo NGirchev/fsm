@@ -1,6 +1,6 @@
 package io.github.ngirchev.fsm.spring
 
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.ObjectMapper
 import io.github.ngirchev.fsm.Action
 import io.github.ngirchev.fsm.Guard
 import io.github.ngirchev.fsm.spring.definition.FlowLoader
@@ -9,7 +9,7 @@ import io.github.ngirchev.fsm.spring.definition.FlowStore
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
-import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration
+import org.springframework.boot.jackson.autoconfigure.JacksonAutoConfiguration
 import org.springframework.context.annotation.Bean
 
 @AutoConfiguration(after = [JacksonAutoConfiguration::class])

@@ -1,14 +1,20 @@
 # FSM Spring Boot Starter
 
 Add `io.github.ngirchev:fsm-spring-boot-starter` using the same version as `fsm`.
-The starter includes the core library and targets Spring Boot 3.5 / Java 17+.
+The starter includes the core library and targets Spring Boot 4.1 / Jackson 3 / Java 17+.
 For this checkout use `implementation(project(":fsm-spring-boot-starter"))`.
 
 Boot automatically registers `FsmBeanRegistry` and `SpringFsmJsonSerializer`.
 It also registers `FlowLoader`, and registers `FlowService` when the application provides a `FlowStore` bean.
 No component scan or explicit import of the starter package is needed.
 Application-defined beans of these types replace the defaults. The serializer uses
-the application's Jackson `ObjectMapper`.
+the application's Jackson 3 `JsonMapper` (`tools.jackson`); the starter adds Jackson 3's Kotlin module
+that reads the core DTOs.
+
+The core `fsm` module still brings Jackson 2 (`com.fasterxml.jackson`) for its own `FsmJsonSerializer`.
+Hibernate prefers Jackson 2 when both are present, so an application that stores `FlowDefinition` or
+its `editor` node in a JSON column sets
+`spring.jpa.properties.hibernate.type.json_format_mapper=org.hibernate.type.format.jackson.Jackson3JsonFormatMapper`.
 
 Declare handlers using the core interfaces:
 

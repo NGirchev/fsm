@@ -1,7 +1,8 @@
 package io.github.ngirchev.fsm.example.definition;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.module.kotlin.KotlinModule;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.module.kotlin.KotlinModule;
 import io.github.ngirchev.fsm.serialization.TransitionDto;
 import io.github.ngirchev.fsm.spring.definition.FlowDefinition;
 import org.junit.jupiter.api.Test;
@@ -12,7 +13,7 @@ import java.util.Objects;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class FlowDefinitionJsonTest {
-    private final ObjectMapper mapper = new ObjectMapper().registerModule(new KotlinModule.Builder().build());
+    private final ObjectMapper mapper = JsonMapper.builder().addModule(new KotlinModule.Builder().build()).build();
 
     @Test
     void seedUsesCoreFormatAndPreservesTransitionOrder() throws Exception {
@@ -39,7 +40,7 @@ class FlowDefinitionJsonTest {
     @Test
     void visualMetadataRoundTripsWithoutChangingTheExecutableTable() throws Exception {
         var original = mapper.readValue(seedJson(), FlowDefinition.class);
-        assertThat(java.util.Objects.requireNonNull(original.editor()).at("/states/0/color").asText()).isEqualTo("#6d28d9");
+        assertThat(java.util.Objects.requireNonNull(original.editor()).at("/states/0/color").asString()).isEqualTo("#6d28d9");
         var layout = mapper.readTree("""
                 {"name":"Order", "states":[{"id":"new","label":"NEW",
                 "position":{"x":-214.75,"y":870.25}}]}

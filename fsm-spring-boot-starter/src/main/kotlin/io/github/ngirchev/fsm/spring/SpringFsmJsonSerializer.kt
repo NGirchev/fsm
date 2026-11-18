@@ -1,16 +1,10 @@
 package io.github.ngirchev.fsm.spring
 
-import com.fasterxml.jackson.databind.ObjectMapper
 import io.github.ngirchev.fsm.To
 import io.github.ngirchev.fsm.impl.extended.ExTransition
 import io.github.ngirchev.fsm.impl.extended.ExTransitionTable
-import io.github.ngirchev.fsm.serialization.ActionFactory
-import io.github.ngirchev.fsm.serialization.FsmDto
-import io.github.ngirchev.fsm.serialization.GuardFactory
-import io.github.ngirchev.fsm.serialization.TimeoutDto
-import io.github.ngirchev.fsm.serialization.ToDto
-import io.github.ngirchev.fsm.serialization.TransitionDto
-import io.github.ngirchev.fsm.serialization.toExTransitionTable
+import io.github.ngirchev.fsm.serialization.*
+import tools.jackson.databind.ObjectMapper
 
 /** Serializes references to Spring beans, never the beans themselves. */
 class SpringFsmJsonSerializer(

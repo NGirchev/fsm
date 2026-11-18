@@ -25,6 +25,6 @@ public record OrderEvent(String eventType, String source, String requestId) impl
     }
 
     @Override
-    @org.springframework.lang.NonNull
+    @org.jspecify.annotations.NonNull
     public String getEventType() { return eventType; }
 }

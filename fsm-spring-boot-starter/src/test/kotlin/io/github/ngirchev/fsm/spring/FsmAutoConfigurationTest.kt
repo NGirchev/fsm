@@ -16,7 +16,7 @@ import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
 import org.springframework.boot.autoconfigure.AutoConfigurations
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration
-import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration
+import org.springframework.boot.jackson.autoconfigure.JacksonAutoConfiguration
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -108,7 +108,7 @@ class FsmAutoConfigurationTest {
     @Test
     fun `user supplied services replace defaults`() {
         val registry = FsmBeanRegistry(emptyMap(), emptyMap())
-        val serializer = SpringFsmJsonSerializer(com.fasterxml.jackson.module.kotlin.jacksonObjectMapper(), registry)
+        val serializer = SpringFsmJsonSerializer(tools.jackson.module.kotlin.jacksonObjectMapper(), registry)
         runner.withBean(FsmBeanRegistry::class.java, { registry })
             .withBean(SpringFsmJsonSerializer::class.java, { serializer }).run { context ->
                 assertThat(context.getBean(FsmBeanRegistry::class.java)).isSameAs(registry)

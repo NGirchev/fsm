@@ -34,7 +34,9 @@ Changes since the published 1.2.0 release. This section describes the unreleased
 ### Changed
 - Split the build into the reusable `fsm` core, `fsm-spring-boot-starter` and executable
   `fsm-spring-boot-example`. Core Maven coordinates remain `io.github.ngirchev:fsm` and its JVM target
-  remains Java 11; Spring modules require Java 17+ and target Spring Boot 3.5.
+  remains Java 11; Spring modules require Java 17+ and target Spring Boot 4.1 with Jackson 3
+  (`tools.jackson`). The core keeps its Jackson 2 serializer, so both Jackson generations are on
+  the classpath of a Spring application.
 - Preserved global `autoTransitionEnabled(true)` behavior for all eventless transitions while
   allowing individual `.auto()` transitions when global automatic execution is disabled.
 - Updated the visual editor and Java/Kotlin generators for local automatic transitions and chain

@@ -1,6 +1,6 @@
 package io.github.ngirchev.fsm.spring.admin
 
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import io.github.ngirchev.fsm.Action
 import io.github.ngirchev.fsm.Guard
 import io.github.ngirchev.fsm.StateContext
@@ -11,9 +11,9 @@ import io.github.ngirchev.fsm.spring.definition.*
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.springframework.boot.autoconfigure.AutoConfigurations
-import org.springframework.boot.autoconfigure.http.HttpMessageConvertersAutoConfiguration
-import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration
-import org.springframework.boot.autoconfigure.web.servlet.WebMvcAutoConfiguration
+import org.springframework.boot.http.converter.autoconfigure.HttpMessageConvertersAutoConfiguration
+import org.springframework.boot.jackson.autoconfigure.JacksonAutoConfiguration
+import org.springframework.boot.webmvc.autoconfigure.WebMvcAutoConfiguration
 import org.springframework.boot.test.context.FilteredClassLoader
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner
