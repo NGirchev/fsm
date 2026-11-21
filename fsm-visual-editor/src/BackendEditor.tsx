@@ -24,8 +24,12 @@ interface FlowForm {
   description: string;
 }
 
+/** Counter of opened versions: the React key that remounts the editor. Not `crypto.randomUUID`, which a page
+ * served over plain HTTP from a non-localhost host does not have. */
+let openedCount = 0;
+
 function open(version?: StoredFlowVersion): OpenedVersion & { error?: string } {
-  const session = crypto.randomUUID();
+  const session = String(++openedCount);
   if (!version) return { session };
   try {
     const document = normalizeEditorDocument(fromFlowDefinition(version.definition));
