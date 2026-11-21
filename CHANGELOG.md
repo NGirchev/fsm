@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Changes since the published 1.2.0 release. This section describes the unreleased development version.
+## [2.0.0] - 2026-11-21
 
 ### Added
 - The backend editor lets you move states of a published version; **Create draft** keeps the new layout.
@@ -173,7 +173,8 @@ See the [starter integration guide](fsm-spring-boot-starter/README.md) and
 - Actions and post-actions
 - Exception handling for invalid transitions
 
-[Unreleased]: https://github.com/NGirchev/fsm/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/NGirchev/fsm/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/NGirchev/fsm/compare/v1.2.0...v2.0.0
 [1.2.0]: https://github.com/NGirchev/fsm/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/NGirchev/fsm/compare/v1.0.2...v1.1.0
 [1.0.2]: https://github.com/NGirchev/fsm/compare/v1.0.1...v1.0.2
