@@ -103,5 +103,6 @@ function isCatalogBehavior(value: unknown): value is CatalogBehavior {
   if (!value || typeof value !== 'object') return false;
   const item = value as Partial<CatalogBehavior>;
   return typeof item.id === 'string' && typeof item.description === 'string' &&
+    (item.flowKind === undefined || typeof item.flowKind === 'string') &&
     ['guard', 'action', 'stateListener', 'completionListener'].includes(item.kind ?? '');
 }

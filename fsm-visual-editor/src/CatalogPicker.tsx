@@ -1,19 +1,21 @@
 import { ChevronDown, ChevronUp, X } from 'lucide-react';
 import type { CatalogBehavior } from './domain';
+import { catalogChoices } from './domain/catalog';
 import { moveItem } from './domain/ordering';
 
-export function CatalogPicker({ title, options, selected, onChange }: {
+export function CatalogPicker({ title, options, selected, onChange, flowKind = '' }: {
   title: string;
   options: CatalogBehavior[];
   selected: string[];
   onChange: (next: string[]) => void;
+  /** Offers only beans of this flow kind; empty offers every kind. */
+  flowKind?: string;
 }) {
   const description = (id: string) => {
     const bean = options.find((item) => item.id === id);
     return bean ? bean.description : `Unavailable bean: ${id}`;
   };
-  const choices = (current?: string) => options
-    .filter((item) => item.id === current || !selected.includes(item.id))
+  const choices = (current?: string) => catalogChoices(options, selected, flowKind, current)
     .map((item) => <option key={item.id} value={item.id} title={description(item.id)}>{item.id}</option>);
   return <fieldset className="check-group">
     <legend>{title}</legend>
@@ -36,7 +38,7 @@ export function CatalogPicker({ title, options, selected, onChange }: {
         </span>
       </li>)}
     </ol>}
-    <select aria-label={`Add ${title}`} value="" disabled={options.every((item) => selected.includes(item.id))}
+    <select aria-label={`Add ${title}`} value="" disabled={catalogChoices(options, selected, flowKind).length === 0}
       onChange={(event) => { if (event.target.value) onChange([...selected, event.target.value]); }}>
       <option value="">Choose a bean…</option>
       {choices()}

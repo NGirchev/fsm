@@ -24,4 +24,9 @@ class FsmAdminExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException::class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     fun malformed() = mapOf("message" to "Invalid flow definition JSON")
+
+    /** The store or the application's [FsmAdminFlows] does not implement the operation. */
+    @ExceptionHandler(UnsupportedOperationException::class)
+    @ResponseStatus(HttpStatus.METHOD_NOT_ALLOWED)
+    fun unsupported(error: UnsupportedOperationException) = mapOf("message" to error.message)
 }

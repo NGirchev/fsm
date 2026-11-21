@@ -242,5 +242,65 @@ for (const mode of ['standalone', 'embedded'] as const) {
       await page.mouse.up();
       expect((await exportDocument(page)).states).toEqual(originalStates);
     });
+
+    test('menu transitions, state navigation, top-down layout, side panel and full screen', async ({ page }) => {
+      await editor(page).locator('.react-flow__node[data-id="a"]').click();
+      const connections = editor(page).locator('.connections-panel');
+      await connections.getByRole('combobox', { name: 'To', exact: true }).selectOption('c');
+      await connections.getByRole('combobox', { name: 'Trigger', exact: true }).selectOption('event:FINISH');
+      await connections.getByRole('button', { name: 'Add transition', exact: true }).click();
+      await expect(editor(page).locator('.react-flow__edge')).toHaveCount(2);
+      await connections.getByRole('button', { name: 'Add transition', exact: true }).click();
+      await expect(editor(page).locator('.toolbar-title')).toContainText('This transition already exists');
+      await expect(editor(page).locator('.react-flow__edge')).toHaveCount(2);
+      expect((await exportDocument(page)).transitions.find((item) => item.to === 'c'))
+        .toMatchObject({ from: 'a', trigger: { kind: 'event', event: 'FINISH' }, autoTransitionEnabled: false });
+
+      await connections.getByRole('button', { name: 'B', exact: true }).click();
+      await expect(editor(page).locator('.react-flow__node[data-id="b"]')).toHaveClass(/selected-node/);
+      await connections.getByRole('button', { name: 'GO', exact: true }).click();
+      await expect(editor(page).locator('.selected-panel h2')).toHaveText('Transition');
+      const viewport = editor(page).locator('.react-flow__viewport');
+      const before = await viewport.getAttribute('style');
+      await editor(page).getByRole('combobox', { name: 'Go to state', exact: true }).selectOption('c');
+      await expect(editor(page).locator('.react-flow__node[data-id="c"]')).toHaveClass(/selected-node/);
+      await expect(viewport).not.toHaveAttribute('style', before!);
+
+      page.once('dialog', (dialog) => void dialog.accept());
+      await editor(page).getByRole('button', { name: 'Arrange top to bottom', exact: true }).click();
+      await expect(editor(page).locator('.toolbar-title')).toContainText('States arranged top to bottom');
+      const states = (await exportDocument(page)).states;
+      const y = (id: string) => states.find((state) => state.id === id)!.position.y;
+      expect(y('a')).toBeLessThan(y('b'));
+      expect(y('b')).toBe(y('c'));
+
+      await editor(page).getByRole('button', { name: 'Hide side panel', exact: true }).click();
+      await expect(editor(page).locator('.inspector')).toBeHidden();
+      await editor(page).getByRole('button', { name: 'Show side panel', exact: true }).click();
+      await expect(editor(page).locator('.inspector')).toBeVisible();
+      // Autosave rewrites the status line, which can rewrap the toolbar and resize the canvas.
+      if (mode === 'standalone') await expect(editor(page).locator('.toolbar-title')).toContainText('Saved to');
+      // The minimap follows the viewport; click only after the canvas has stopped resizing and animating.
+      const miniTarget = editor(page).locator('.react-flow__minimap-node').nth(2);
+      let previous = '';
+      await expect.poll(async () => {
+        const current = JSON.stringify(await miniTarget.boundingBox());
+        const stable = current === previous;
+        previous = current;
+        return stable;
+      }, { intervals: [200] }).toBe(true);
+      const miniNode = (await miniTarget.boundingBox())!;
+      await page.mouse.click(miniNode.x + miniNode.width / 2, miniNode.y + miniNode.height / 2);
+      const pane = (await editor(page).locator('.react-flow').boundingBox())!;
+      await expect.poll(async () => {
+        const node = (await editor(page).locator('.react-flow__node[data-id="c"]').boundingBox())!;
+        return Math.hypot(node.x + node.width / 2 - (pane.x + pane.width / 2), node.y + node.height / 2 - (pane.y + pane.height / 2));
+      }).toBeLessThan(20);
+
+      await editor(page).getByRole('button', { name: 'Full screen', exact: true }).click();
+      await expect(editor(page).locator('.app-shell')).toHaveClass(/expanded/);
+      await editor(page).getByRole('button', { name: 'Exit full screen', exact: true }).click();
+      await expect(editor(page).locator('.app-shell')).not.toHaveClass(/expanded/);
+    });
   });
 }

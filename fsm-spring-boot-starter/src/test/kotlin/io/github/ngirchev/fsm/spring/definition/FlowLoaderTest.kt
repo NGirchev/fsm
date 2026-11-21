@@ -124,6 +124,55 @@ class FlowLoaderTest {
             .isInstanceOf(AutoTransitionLimitExceededException::class.java)
     }
 
+    @Test
+    fun `final states must be known states without outgoing transitions`() {
+        val table = FsmDto(false, mapOf("NEW" to listOf(TransitionDto("NEW", target(), "GO"),
+            TransitionDto("NEW", target("FAILED"), "FAIL")), "FAILED" to emptyList()))
+        val marked = FlowDefinition("NEW", table, finalStates = mapOf(
+            "DONE" to FinalStateOutcome.SUCCESS, "FAILED" to FinalStateOutcome.FAILURE))
+        assertThatCode { loader.load(marked) }.doesNotThrowAnyException()
+        // The starter does not require any final state; an application adds that rule in its activation callback.
+        assertThatCode { loader.load(FlowDefinition("NEW", table)) }.doesNotThrowAnyException()
+        assertThatThrownBy { loader.load(marked.copy(finalStates = mapOf("MISSING" to FinalStateOutcome.LIMIT))) }
+            .isInstanceOf(IllegalArgumentException::class.java).hasMessage("Final state is not in the flow table: MISSING")
+        assertThatThrownBy { loader.load(marked.copy(finalStates = mapOf("NEW" to FinalStateOutcome.SUCCESS))) }
+            .isInstanceOf(IllegalArgumentException::class.java).hasMessage("Final state must not have outgoing transitions: NEW")
+        assertThat(FinalStateOutcome.entries.map { it.name }).containsExactly("SUCCESS", "FAILURE", "LIMIT")
+    }
+
+    @Test
+    fun `iteration limit is optional and at least one when stated`() {
+        val table = definition(target()).table
+        listOf(null, 1, 25).forEach { limit ->
+            assertThatCode { loader.load(FlowDefinition("NEW", table, execution = FlowExecution(maxIterations = limit))) }
+                .doesNotThrowAnyException()
+        }
+        listOf(0, -3).forEach { limit ->
+            assertThatThrownBy { loader.load(FlowDefinition("NEW", table, execution = FlowExecution(maxIterations = limit))) }
+                .isInstanceOf(IllegalArgumentException::class.java).hasMessage("Iteration limit must be at least 1")
+        }
+    }
+
+    @Test
+    fun `stored JSON without the new properties still loads and writes them only when stated`() {
+        val mapper = jacksonObjectMapper()
+        val legacyJson = """{"initialState":"NEW","table":{"autoTransitionEnabled":false,"transitions":{"NEW":[]},""" +
+            """"maxImmediateAutoTransitions":0},"execution":{"stateListeners":[],"completionListeners":[]}}"""
+        val legacy = mapper.readValue(legacyJson, FlowDefinition::class.java)
+        assertThat(legacy.finalStates).isEmpty()
+        assertThat(legacy.execution.maxIterations).isNull()
+        assertThat(mapper.readTree(mapper.writeValueAsString(legacy))).isEqualTo(mapper.readTree(legacyJson))
+
+        val json = """{"initialState":"NEW","table":{"autoTransitionEnabled":false,"transitions":{"NEW":[],"DONE":[]},""" +
+            """"maxImmediateAutoTransitions":50},"execution":{"stateListeners":[],"completionListeners":[],"maxIterations":12},""" +
+            """"finalStates":{"DONE":"SUCCESS"}}"""
+        val stated = mapper.readValue(json, FlowDefinition::class.java)
+        assertThat(stated.finalStates).containsExactlyEntriesOf(mapOf("DONE" to FinalStateOutcome.SUCCESS))
+        assertThat(stated.execution.maxIterations).isEqualTo(12)
+        assertThat(mapper.readTree(mapper.writeValueAsString(stated))).isEqualTo(mapper.readTree(json))
+        assertThatCode { loader.load(stated) }.doesNotThrowAnyException()
+    }
+
     private fun target(state: String = "DONE", timeout: TimeoutDto? = null) =
         ToDto(state, listOf("allowed"), listOf("mark"), emptyList(), timeout)
 

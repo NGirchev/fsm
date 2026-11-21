@@ -11,6 +11,7 @@ import org.springframework.beans.factory.config.ConfigurableListableBeanFactory
 import java.util.function.Consumer
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication
 import org.springframework.context.annotation.Bean
@@ -23,18 +24,24 @@ import org.springframework.web.servlet.DispatcherServlet
 @ConditionalOnProperty(prefix = "fsm.admin", name = ["enabled"], havingValue = "true")
 class FsmAdminAutoConfiguration {
     @Bean
+    @ConditionalOnMissingBean
+    fun fsmAdminFlows(registrations: List<FsmAdminRegistration>): FsmAdminFlows = RegisteredFsmAdminFlows(registrations)
+
+    @Bean
+    @ConditionalOnMissingBean
     fun fsmAdminService(
-        registrations: List<FsmAdminRegistration>, flows: ObjectProvider<FlowService>, stores: ObjectProvider<FlowStore>,
+        adminFlows: FsmAdminFlows, flows: ObjectProvider<FlowService>, stores: ObjectProvider<FlowStore>,
         guards: Map<String, Guard<*>>, actions: Map<String, Action<*>>,
         stateListeners: Map<String, StateChangeListener<*>>, completionListeners: Map<String, Consumer<*>>,
         beanFactory: ConfigurableListableBeanFactory,
     ): FsmAdminService {
         val store = checkNotNull(stores.ifAvailable) { "fsm.admin.enabled=true requires an application FlowStore bean" }
-        return FsmAdminService(registrations, flows.getObject(), store, guards, actions,
+        return FsmAdminService(adminFlows, flows.getObject(), store, guards, actions,
             stateListeners, completionListeners, beanFactory)
     }
 
     @Bean
+    @ConditionalOnMissingBean
     fun fsmAdminController(admin: FsmAdminService, flows: FlowService, context: ApplicationContext): FsmAdminController {
         val path = context.environment.getProperty("fsm.admin.base-path", "/fsm-admin")
         require(Regex("(/[A-Za-z0-9_-]+)+").matches(path)) {
@@ -44,5 +51,6 @@ class FsmAdminAutoConfiguration {
     }
 
     @Bean
+    @ConditionalOnMissingBean
     fun fsmAdminExceptionHandler() = FsmAdminExceptionHandler()
 }

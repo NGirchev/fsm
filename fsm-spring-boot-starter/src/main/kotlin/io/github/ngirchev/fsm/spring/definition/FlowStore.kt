@@ -23,4 +23,9 @@ interface FlowStore {
     fun deleteDraft(flowKey: String, version: Int) {
         throw UnsupportedOperationException("This flow store does not support deleting drafts")
     }
+
+    /** Physically remove every version of the flow, whatever its status. Called under [lock]. */
+    fun deleteFlow(flowKey: String) {
+        throw UnsupportedOperationException("This flow store does not support deleting flows")
+    }
 }

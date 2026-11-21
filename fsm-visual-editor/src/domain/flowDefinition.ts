@@ -1,7 +1,8 @@
 import { createEmptyDocument } from './sample';
 import { normalizeEditorDocument } from './documentGuards';
 import { validateEditorDocument } from './validation';
-import type { FsmEditorDocument, FsmTransition, TimeoutConfig } from './types';
+import { verticalLayout } from './layout';
+import type { FinalOutcome, FsmEditorDocument, FsmTransition, TimeoutConfig } from './types';
 
 export interface RuntimeTransition {
   from: string;
@@ -24,6 +25,8 @@ export interface FlowDefinition {
     maxImmediateAutoTransitions: number;
     transitions: Record<string, RuntimeTransition[]>;
   };
+  /** States where a run ends, with its outcome. Absent when no state is marked. */
+  finalStates?: Record<string, FinalOutcome>;
   editor?: {
     name: string;
     codegen: FsmEditorDocument['codegen'];
@@ -67,13 +70,17 @@ export function fromFlowDefinition(definition: FlowDefinition): FsmEditorDocumen
     labels.splice(0, labels.length, ...ordered);
   }
   const usedIds = new Set<string>();
+  const finalStates = definition.finalStates ?? {};
+  const unplaced = new Set<string>();
   const states = labels.map((label, index) => {
     const saved = metadata?.states.find((state) => state.label === label);
     let id = saved?.id || `state-${index}`;
     while (usedIds.has(id)) id += '-';
     usedIds.add(id);
-    return { id, label, position: saved?.position ?? { x: index * 260, y: 100 }, description: saved?.description,
-      ...(saved?.color ? { color: saved.color } : {}) };
+    if (!saved) unplaced.add(id);
+    return { id, label, position: saved?.position ?? { x: 0, y: 0 }, description: saved?.description,
+      ...(saved?.color ? { color: saved.color } : {}),
+      ...(Object.hasOwn(finalStates, label) ? { final: finalStates[label] } : {}) };
   });
   const stateId = (label: string) => states.find((state) => state.label === label)!.id;
   const transitionIds = new Set<string>();
@@ -94,6 +101,11 @@ export function fromFlowDefinition(definition: FlowDefinition): FsmEditorDocumen
       autoTransitionEnabled: transition.to.autoTransitionEnabled ?? false,
     };
   }));
+  // States without a saved position (a definition written by hand or by code) get a top-down layout.
+  if (unplaced.size) {
+    const layout = verticalLayout({ states, transitions, codegen: { ...empty.codegen, initialState: definition.initialState } });
+    states.forEach((state) => { if (unplaced.has(state.id)) state.position = layout.get(state.id)!; });
+  }
   const eventIds = [...new Set([
     ...(metadata?.events.map((event) => event.id) ?? []),
     ...transitions.flatMap((transition) => transition.trigger.kind === 'event' ? [transition.trigger.event] : []),
@@ -140,16 +152,20 @@ export function toFlowDefinition(document: FsmEditorDocument): FlowDefinition {
       },
     });
   });
+  const finalStates = document.states.filter((state) => state.final).map((state) => [state.label, state.final!] as const);
   return {
     initialState: document.codegen.initialState,
     ...(document.execution ? { execution: document.execution } : {}),
+    ...(finalStates.length ? { finalStates: Object.fromEntries(finalStates) } : {}),
     table: {
       autoTransitionEnabled: document.autoTransitionEnabled,
       maxImmediateAutoTransitions: document.maxImmediateAutoTransitions ?? 0,
       transitions,
     },
     editor: {
-      name: document.name, codegen: document.codegen, states: document.states, events: document.events,
+      // The final-state marking lives in `finalStates`, the part the backend validates.
+      name: document.name, codegen: document.codegen, states: document.states.map(({ final: _final, ...state }) => state),
+      events: document.events,
       behaviors: document.behaviors,
       // JSONB may reorder object keys, so transition IDs are grouped by source too.
       transitionIds: Object.fromEntries(Object.keys(transitions).map((label) => [label,

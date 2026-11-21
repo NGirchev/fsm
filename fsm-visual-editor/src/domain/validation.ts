@@ -72,6 +72,17 @@ export function validateEditorDocument(document: FsmEditorDocument, runtime = fa
   if (!Number.isInteger(limit) || limit < 0 || limit > 2147483647) {
     issues.push({ severity: 'error', path: 'maxImmediateAutoTransitions', message: 'Automatic transition limit must be a non-negative integer.' });
   }
+  const maxIterations = document.execution?.maxIterations;
+  if (maxIterations !== undefined && (!Number.isInteger(maxIterations) || maxIterations < 1 || maxIterations > 2147483647)) {
+    issues.push({ severity: 'error', path: 'execution.maxIterations', message: 'Iteration limit must be an integer of at least 1.' });
+  }
+  document.states.forEach((state, index) => {
+    // A warning keeps the draft savable; the backend refuses to publish it.
+    if (state.final && document.transitions.some((transition) => transition.from === state.id)) {
+      issues.push({ severity: 'warning', path: `states[${index}].final`,
+        message: `Final state "${state.label}" has outgoing transitions and cannot be published.` });
+    }
+  });
   const transitionIds = new Set<string>();
   const transitionKeys = new Map<string, number>();
   const hasEventTransition = document.transitions.some((transition) => transition.trigger.kind === 'event');

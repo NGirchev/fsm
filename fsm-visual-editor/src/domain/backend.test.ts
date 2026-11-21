@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { backendApi, backendUrl } from './backend';
+import { backendApi, backendUrl, groupFlowsByKind, initialFlowKey } from './backend';
 
 const page = (href: string) => {
   const url = new URL(href);
@@ -23,8 +23,56 @@ describe('backendUrl', () => {
   });
 });
 
+describe('flow list', () => {
+  const flows = [
+    { flowKey: 'react', title: 'ReAct', kind: 'agent' },
+    { flowKey: 'request', title: 'Request', kind: 'request' },
+    { flowKey: 'plan', title: 'Plan first', kind: 'agent' },
+    { flowKey: 'legacy', title: 'Legacy' },
+  ];
+
+  it('opens the flow named by the page URL and falls back to the first flow', () => {
+    expect(initialFlowKey(flows, 'plan')).toBe('plan');
+    expect(initialFlowKey(flows, 'removed')).toBe('react');
+    expect(initialFlowKey(flows, null)).toBe('react');
+    expect(initialFlowKey([], 'plan')).toBeUndefined();
+  });
+
+  it('groups flows by kind in first-seen order and puts flows without a kind under other', () => {
+    expect(groupFlowsByKind(flows).map((group) => [group.kind, group.flows.map((flow) => flow.flowKey)])).toEqual([
+      ['agent', ['react', 'plan']], ['request', ['request']], ['other', ['legacy']],
+    ]);
+    expect(groupFlowsByKind([])).toEqual([]);
+  });
+});
+
 describe('backendApi', () => {
   const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
+
+  it('creates, copies, renames and deletes flows and reports the refusal message of the backend', async () => {
+    const created = { flowKey: 'my agent', title: 'Mine', kind: 'agent', description: null, deletable: true };
+    const send = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(json(created, 201))
+      .mockResolvedValueOnce(json({ ...created, title: 'Renamed' }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(json({ message: 'Built-in flows cannot be deleted' }, 409))
+      .mockResolvedValueOnce(json({ message: 'This application does not support creating flows' }, 405));
+    const api = backendApi('https://api.test/fsm-admin', send);
+
+    await expect(api.createFlow({ flowKey: 'my agent', title: 'Mine', kind: 'agent', copyOf: 'react' })).resolves.toEqual(created);
+    await expect(api.renameFlow('my agent', 'Renamed', 'Text')).resolves.toMatchObject({ title: 'Renamed' });
+    await expect(api.deleteFlow('my agent')).resolves.toBeUndefined();
+    await expect(api.deleteFlow('react')).rejects.toThrow('Built-in flows cannot be deleted');
+    await expect(api.createFlow({ flowKey: 'x', title: 'X', kind: 'agent' })).rejects.toThrow('does not support creating flows');
+
+    expect(send.mock.calls.map(([url, init]) => [init?.method, url, init?.body && JSON.parse(String(init.body))])).toEqual([
+      ['POST', 'https://api.test/fsm-admin/api/flows', { flowKey: 'my agent', title: 'Mine', kind: 'agent', copyOf: 'react' }],
+      ['PUT', 'https://api.test/fsm-admin/api/flows/my%20agent', { title: 'Renamed', description: 'Text' }],
+      ['DELETE', 'https://api.test/fsm-admin/api/flows/my%20agent', undefined],
+      ['DELETE', 'https://api.test/fsm-admin/api/flows/react', undefined],
+      ['POST', 'https://api.test/fsm-admin/api/flows', { flowKey: 'x', title: 'X', kind: 'agent' }],
+    ]);
+  });
 
   it('reads through the supplied request function', async () => {
     const send = vi.fn<typeof fetch>().mockResolvedValue(json([{ flowKey: 'order', title: 'Order' }]));

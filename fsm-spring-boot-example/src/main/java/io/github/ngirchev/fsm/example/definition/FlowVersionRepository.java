@@ -14,4 +14,6 @@ interface FlowVersionRepository extends JpaRepository<FlowVersionEntity, Long> {
     Optional<FlowVersionEntity> findByFlowKeyAndStatus(String flowKey, FlowVersionStatus status);
 
     List<FlowVersionEntity> findByFlowKeyOrderByVersionDesc(String flowKey);
+
+    void deleteByFlowKey(String flowKey);
 }

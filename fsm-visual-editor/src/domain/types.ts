@@ -21,12 +21,18 @@ export interface Point {
   y: number;
 }
 
+export const FINAL_OUTCOMES = ['SUCCESS', 'FAILURE', 'LIMIT'] as const;
+
+export type FinalOutcome = (typeof FINAL_OUTCOMES)[number];
+
 export interface FsmState {
   id: string;
   label: string;
   position: Point;
   description?: string;
   color?: string;
+  /** Outcome of a run that ends in this state; stored as the runtime definition's `finalStates`. */
+  final?: FinalOutcome;
 }
 
 export interface TimeoutConfig {
@@ -83,12 +89,16 @@ export interface FsmEditorDocument {
 export interface FlowExecution {
   stateListeners: string[];
   completionListeners: string[];
+  /** Host-defined iteration limit; absent means the application default. */
+  maxIterations?: number;
 }
 
 export interface CatalogBehavior {
   id: string;
   kind: 'guard' | 'action' | 'stateListener' | 'completionListener';
   description: string;
+  /** Kind of flow the bean works with; absent when the host does not classify beans. */
+  flowKind?: string;
 }
 
 export type ValidationSeverity = 'error' | 'warning';

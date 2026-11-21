@@ -15,6 +15,23 @@ npm --prefix fsm-visual-editor run dev
 Open the local URL printed by Vite. This starts the standalone editor; the Spring example
 and PostgreSQL are not required.
 
+## Editing The Graph
+
+- **Connect states** by dragging from a state's bottom handle to another state's top handle (this
+  creates an `auto` transition), or select a state and use **Add transition** in the **Connections**
+  panel to pick the target state and the trigger (an event or `auto`).
+- The **Connections** panel lists the selected state's outgoing and incoming transitions: a state
+  name moves the canvas to that state, a trigger opens the transition.
+- **Go to state** in the toolbar centers and selects a state; **Show selected** brings the selected
+  state or transition back into view.
+- **Arrange top to bottom** replaces all positions with a layered layout that starts from the
+  initial state. A definition opened without saved positions gets the same layout.
+- **Hide side panel** gives the canvas the full width. **Full screen** in the toolbar expands the
+  editor over the page (Esc returns); inside an iframe the browser's fullscreen needs
+  `allow="fullscreen"`, otherwise the editor fills the frame. The **Fit View** button in the canvas
+  controls only fits the graph into the current view.
+- Clicking a point on the minimap moves the canvas there; dragging the minimap pans it.
+
 ## Connecting to a backend
 
 The editor is deployed on its own (GitHub Pages, a static server, a separate pod) and can connect to
@@ -30,12 +47,38 @@ the application's registered flows and versions, and offers **Create draft**, **
 **Publish**, **Make active**, **Delete draft** and **Discard changes**. Transition dropdowns use the
 application's Spring bean catalog. **Local editor** returns to local projects.
 
+Published and archived versions keep their logic read-only, but their states can be moved and
+arranged. A moved layout is not saved to that version: **Create draft** keeps it in a new draft, and
+**Discard changes** restores the stored one.
+
+Add `&flow=<flowKey>` to open a particular flow first; without it, or when the backend does not list
+that key, the first flow opens. The **Flow** select groups flows by their `kind`.
+
+| Control                                  | What it does                                                                                             |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| **New flow**                             | Asks for key, title, kind and description and creates the flow; it opens with its first draft.           |
+| **Copy flow**                            | The same form; the first draft of the new flow is the active (else newest) version of the open flow.     |
+| **Rename flow**                          | Changes title and description of the open flow.                                                          |
+| **Delete flow**                          | Deletes the open flow with all its versions after a confirmation; disabled for a flow marked not deletable. |
+| **Bean kind** (transition panel)         | Filters the guard and action dropdowns by the flow kind of the beans. It starts at the kind of the open flow; **All kinds** shows every bean. A bean already chosen stays visible under any filter. |
+| **Final state** (state panel)            | Marks the state as the end of a run with outcome success, failure or limit; saved as `finalStates`.      |
+| **Automatic transition limit** (Project) | Longest chain of automatic transitions, from 1. Empty leaves the application default (stored as `0`).    |
+| **Max iterations** (Project)             | The application's iteration limit, from 1. Empty leaves the application default (property omitted).      |
+
+The flow list is read again after every flow change. When the backend refuses an operation (for
+example, the application does not create flows, allows only one kind, or protects a built-in flow),
+its message is shown in the status line and nothing changes in the editor. A final state with outgoing
+transitions is reported as a warning: the draft can be saved, and the backend refuses to publish it.
+Transitions of a state keep their order through loading and saving, and several transitions between
+the same two states are allowed as long as they differ in trigger, conditions, actions or timeout.
+
 On another origin, the backend must allow the editor's origin with CORS, including credentials
 ([starter instructions](../fsm-spring-boot-starter/README.md#optional-administration-api)). Embed the
-connected editor in an application page with an ordinary iframe; no messaging code is needed:
+connected editor in an application page with an ordinary iframe; no messaging code is needed
+(`allow="fullscreen"` lets the editor's **Full screen** button cover the whole screen):
 
 ```html
-<iframe title="FSM editor" src="https://fsm-editor.example.com/?backend=https%3A%2F%2Forders.example.com%2Ffsm-admin"></iframe>
+<iframe title="FSM editor" allow="fullscreen" src="https://fsm-editor.example.com/?backend=https%3A%2F%2Forders.example.com%2Ffsm-admin"></iframe>
 ```
 
 Authentication and CSRF protection belong to the deployment and the backend. By default every
@@ -103,7 +146,7 @@ The iframe contract uses `postMessage`, channel `fsm-editor/v1`:
 | Editor → host | `error`            | `session`, error text for an invalid load; the current document remains intact.                                                           |
 
 Catalog entries are `{id, kind, description}` with kinds `guard`, `action`, `stateListener`,
-`completionListener`.
+`completionListener`, and an optional `flowKind` that enables the bean-kind filter.
 Every message includes `channel`. Always verify both `event.source === iframe.contentWindow`
 and the exact editor origin, and ignore replies for old sessions or unknown request IDs.
 Use an explicit target origin, never `*`. The editor applies the equivalent checks to its parent.
@@ -154,10 +197,12 @@ Pass Playwright options after `--`, for example `npm run test:e2e -- --grep 'del
 | Connect handles, duplicate connections, edge selection/deletion, endpoints, event/auto trigger, guards/actions/post-actions, timeout units | `e2e/graph.spec.ts`, both modes |
 | Event and behavior creation/rename/deletion, reference propagation, JSON import/export and invalid input                                   | `e2e/graph.spec.ts`, both modes |
 | Zoom, fit, minimap, interaction lock                                                                                                       | `e2e/graph.spec.ts`, both modes |
+| Transitions from the Connections panel, go to state, top-down layout, minimap click, side panel, full screen                              | `e2e/graph.spec.ts`, both modes |
 | Create/save/discard/delete/cancel, reload/layout persistence, read-only versions, failure/retry paths                                      | `e2e/order.spec.ts`             |
 | Publish validation, new order version and unchanged existing orders, protected active/archive versions                                     | `e2e/order.spec.ts`             |
 | Autosave, browser fallback, project switch/delete, failed project requests, Java/Kotlin exports in both styles                             | `e2e/projects.spec.ts`          |
 | Backend connection, flow switching, request function from `config.js`                                                                      | `e2e/admin.spec.ts`             |
+| `?flow=`, flows by kind, create/copy/rename/delete of a flow, backend refusals, bean-kind filter, final states, limits                     | `e2e/admin.spec.ts`             |
 | `postMessage` host, cross-origin example tab, orders tab with unsaved draft                                                                | `e2e/embedding.spec.ts`         |
 
 Successful order operations use the real HTTP API and database. Failure scenarios deliberately

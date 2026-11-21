@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import type { Dispatch, SetStateAction } from 'react';
 import {
   Background,
+  ControlButton,
   Controls,
   MarkerType,
   MiniMap,
@@ -11,6 +12,7 @@ import {
   type EdgeChange,
   type Node,
   type NodeChange,
+  useReactFlow,
 } from '@xyflow/react';
 import {
   AlertCircle,
@@ -22,7 +24,14 @@ import {
   FileJson,
   GitBranch,
   GitBranchPlus,
+  LocateFixed,
+  Map as MapIcon,
+  Maximize2,
+  Minimize2,
   MousePointerClick,
+  Network,
+  PanelRightClose,
+  PanelRightOpen,
   Plug,
   Plus,
   Play,
@@ -51,18 +60,23 @@ import {
   saveCurrentProjectId,
   saveEditorDocument,
   saveProject,
+  FINAL_OUTCOMES,
   TIME_UNITS,
   transitionDuplicateKey,
   validateEditorDocument,
   type BehaviorRef,
+  type FinalOutcome,
   type FsmEditorDocument,
   type FsmState,
   type FsmTransition,
+  type FsmTransitionTrigger,
   type SavedProject,
   type TimeUnit,
 } from './domain';
 import { createId, slugifyId, uniqueId } from './domain/ids';
 import { moveItem } from './domain/ordering';
+import { verticalLayout } from './domain/layout';
+import { catalogFlowKinds, initialFlowKindFilter } from './domain/catalog';
 import { ExecutionSettings } from './ExecutionSettings';
 import { CatalogPicker } from './CatalogPicker';
 import type { CatalogBehavior } from './domain';
@@ -73,9 +87,14 @@ const edgeTypes = { flow: FlowEdge };
 
 export interface EmbeddedEditor {
   catalog: CatalogBehavior[];
+  /** Kind of the open flow; preselects the bean filter of the transition pickers. */
+  flowKind?: string;
   initialDocument: FsmEditorDocument;
   onDocumentChange: (document: FsmEditorDocument) => void;
+  /** Locks the flow logic: states, transitions and settings. */
   readOnly: boolean;
+  /** Whether states can still be moved and arranged; defaults to `!readOnly`. */
+  movable?: boolean;
 }
 
 export function App({ embedded }: { embedded?: EmbeddedEditor }) {
@@ -93,12 +112,20 @@ export function App({ embedded }: { embedded?: EmbeddedEditor }) {
   });
   const [recentProjects, setRecentProjects] = useState<SavedProject[]>([]);
   const [selection, setSelection] = useState<Selection>(null);
+  const [flowKindFilter, setFlowKindFilter] = useState(() => initialFlowKindFilter(embedded?.catalog ?? [], embedded?.flowKind));
   const [nodeSizes, setNodeSizes] = useState(() => new Map<string, { width: number; height: number }>());
   const [status, setStatus] = useState('Ready');
+  const [expanded, setExpanded] = useState(false);
+  const [inspectorHidden, setInspectorHidden] = useState(false);
+  const [miniMapHidden, setMiniMapHidden] = useState(false);
+  const [fitRequested, setFitRequested] = useState(false);
+  const shellRef = useRef<HTMLDivElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
+  const { fitView, getNode, getZoom, setCenter } = useReactFlow();
   const validationIssues = useMemo(() => validateEditorDocument(document, Boolean(embedded)), [document, Boolean(embedded)]);
   const onDocumentChange = embedded?.onDocumentChange;
   const readOnly = embedded?.readOnly ?? false;
+  const movable = embedded?.movable ?? !readOnly;
 
   useLayoutEffect(() => { onDocumentChange?.(document); }, [document, onDocumentChange]);
 
@@ -122,6 +149,27 @@ export function App({ embedded }: { embedded?: EmbeddedEditor }) {
     void loadRecentProjects(setRecentProjects);
   }, []);
 
+  // React Flow applies new node positions in its own effects, which run before this one.
+  useEffect(() => {
+    if (!fitRequested) return;
+    setFitRequested(false);
+    void fitView({ duration: 300, maxZoom: 1 });
+  }, [fitRequested, fitView]);
+
+  // Esc leaves the expanded canvas; the browser handles Esc itself while in real fullscreen.
+  useEffect(() => {
+    if (!expanded) return;
+    const page = window.document;
+    const onFullscreenChange = () => { if (!page.fullscreenElement) setExpanded(false); };
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape' && !page.fullscreenElement) setExpanded(false); };
+    page.addEventListener('fullscreenchange', onFullscreenChange);
+    page.addEventListener('keydown', onKeyDown);
+    return () => {
+      page.removeEventListener('fullscreenchange', onFullscreenChange);
+      page.removeEventListener('keydown', onKeyDown);
+    };
+  }, [expanded]);
+
   const stateColors = useMemo(() => new Map(document.states.map((state) =>
     [state.id, GRAPH_PALETTE.find((color) => color.ink === state.color) ?? graphColor(state.id)])), [document.states]);
   const eventColors = useMemo(() => colorsForIds(document.events.map((event) => event.id)), [document.events]);
@@ -137,6 +185,7 @@ export function App({ embedded }: { embedded?: EmbeddedEditor }) {
           label: <>
             {state.label === document.codegen.initialState && <span className="node-start"><Play size={11} aria-hidden /> Start</span>}
             <span className="node-name" title={state.label}>{state.label}</span>
+            {state.final && <span className="node-final">Final · {state.final.toLowerCase()}</span>}
           </>,
         },
         className: selection?.type === 'state' && selection.id === state.id ? 'selected-node' : undefined,
@@ -184,11 +233,13 @@ export function App({ embedded }: { embedded?: EmbeddedEditor }) {
       }
       return next;
     });
-    if (readOnly) return;
-    setSelection((current) => current?.type === 'state' && changes.some((change) => change.type === 'remove' && change.id === current.id)
+    if (!movable) return;
+    // A read-only flow keeps its logic: only moves reach the document.
+    const applied = readOnly ? changes.filter((change) => change.type === 'position') : changes;
+    setSelection((current) => current?.type === 'state' && applied.some((change) => change.type === 'remove' && change.id === current.id)
       ? null : current);
-    setDocument((current) => applyNodeChangesToDocument(current, changes));
-  }, [readOnly]);
+    setDocument((current) => applyNodeChangesToDocument(current, applied));
+  }, [movable, readOnly]);
 
   const onEdgesChange = useCallback((changes: EdgeChange[]) => {
     if (readOnly) return;
@@ -206,7 +257,7 @@ export function App({ embedded }: { embedded?: EmbeddedEditor }) {
       return;
     }
 
-    if (hasAutoTransition(document, source, target)) {
+    if (hasTransition(document, newTransition(source, target, { kind: 'auto' }))) {
       setStatus('Auto transition already exists');
       return;
     }
@@ -214,6 +265,53 @@ export function App({ embedded }: { embedded?: EmbeddedEditor }) {
     setDocument((current) => addAutoTransition(current, source, target));
     setStatus('Auto transition added');
   }, [document, readOnly]);
+
+  const addTransition = (from: string, to: string, trigger: FsmTransitionTrigger) => {
+    const transition = newTransition(from, to, trigger);
+    if (hasTransition(document, transition)) {
+      setStatus('This transition already exists');
+      return;
+    }
+    setDocument((current) => ({ ...current, transitions: [...current.transitions, transition] }));
+    setStatus('Transition added');
+  };
+
+  const toggleExpanded = () => {
+    const page = window.document;
+    if (expanded) {
+      if (page.fullscreenElement) void page.exitFullscreen().catch(() => undefined);
+      setExpanded(false);
+      return;
+    }
+    setExpanded(true);
+    // An iframe without allow="fullscreen" refuses; the canvas then fills the frame instead.
+    if (page.fullscreenEnabled) void shellRef.current?.requestFullscreen().catch(() => undefined);
+  };
+
+  const focusState = (id: string) => {
+    setSelection({ type: 'state', id });
+    const node = getNode(id);
+    if (!node) return;
+    void setCenter(node.position.x + (node.measured?.width ?? 0) / 2, node.position.y + (node.measured?.height ?? 0) / 2,
+      { zoom: Math.max(getZoom(), 1), duration: 300 });
+  };
+
+  const focusSelection = () => {
+    if (selectedState) focusState(selectedState.id);
+    else if (selectedTransition) {
+      void fitView({ nodes: [{ id: selectedTransition.from }, { id: selectedTransition.to }], duration: 300, maxZoom: 1.2, padding: 0.3 });
+    }
+  };
+
+  const arrangeVertically = () => {
+    if (!window.confirm('Arrange all states top to bottom? Current positions will be replaced.')) return;
+    setDocument((current) => {
+      const layout = verticalLayout(current, nodeSizes);
+      return { ...current, states: current.states.map((state) => ({ ...state, position: layout.get(state.id)! })) };
+    });
+    setStatus('States arranged top to bottom');
+    setFitRequested(true);
+  };
 
   const addState = () => {
     setDocument((current) => {
@@ -406,7 +504,7 @@ export function App({ embedded }: { embedded?: EmbeddedEditor }) {
   };
 
   return (
-    <div className="app-shell">
+    <div ref={shellRef} className={`app-shell${expanded ? ' expanded' : ''}`}>
       <header className="toolbar">
         <div className="toolbar-title">
           <GitBranchPlus size={22} aria-hidden />
@@ -490,6 +588,31 @@ export function App({ embedded }: { embedded?: EmbeddedEditor }) {
           </>}
           <span className="toolbar-divider" aria-hidden />
           <div className="toolbar-group">
+          <select className="state-jump" aria-label="Go to state" title="Go to state" value=""
+            onChange={(event) => { if (event.target.value) focusState(event.target.value); }}>
+            <option value="">Go to state…</option>
+            {[...document.states].sort((left, right) => left.label.localeCompare(right.label))
+              .map((state) => <option key={state.id} value={state.id}>{state.label}</option>)}
+          </select>
+          <button type="button" className="icon-button" onClick={focusSelection} disabled={!selectedState && !selectedTransition}
+            title="Show selected" aria-label="Show selected">
+            <LocateFixed size={18} />
+          </button>
+          <button type="button" className="icon-button" onClick={arrangeVertically} disabled={!movable || document.states.length === 0}
+            title="Arrange top to bottom" aria-label="Arrange top to bottom">
+            <Network size={18} />
+          </button>
+          <button type="button" className="icon-button" onClick={() => setInspectorHidden((hidden) => !hidden)}
+            title={inspectorHidden ? 'Show side panel' : 'Hide side panel'} aria-label={inspectorHidden ? 'Show side panel' : 'Hide side panel'}>
+            {inspectorHidden ? <PanelRightOpen size={18} /> : <PanelRightClose size={18} />}
+          </button>
+          <button type="button" className="icon-button" onClick={toggleExpanded} aria-pressed={expanded}
+            title={expanded ? 'Exit full screen (Esc)' : 'Full screen'} aria-label={expanded ? 'Exit full screen' : 'Full screen'}>
+            {expanded ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+          </button>
+          </div>
+          <span className="toolbar-divider" aria-hidden />
+          <div className="toolbar-group">
           <button
             type="button"
             className="icon-button danger"
@@ -516,10 +639,10 @@ export function App({ embedded }: { embedded?: EmbeddedEditor }) {
         </div>
       </header>
 
-      <main className="workspace">
+      <main className={`workspace${inspectorHidden ? ' inspector-hidden' : ''}`}>
         <section className="canvas" aria-label="FSM graph">
           <ReactFlow
-            nodesDraggable={!readOnly}
+            nodesDraggable={movable}
             nodesConnectable={!readOnly}
             deleteKeyCode={readOnly ? null : 'Backspace'}
             nodes={nodes}
@@ -536,14 +659,19 @@ export function App({ embedded }: { embedded?: EmbeddedEditor }) {
             defaultEdgeOptions={{ type: 'flow' }}
           >
             <Background gap={24} size={1} color="#bac8db" />
-            <MiniMap pannable zoomable nodeColor={(node) => (stateColors.get(node.id) ?? graphColor(node.id)).fill}
+            {!miniMapHidden && <MiniMap pannable zoomable onClick={(_, position) => void setCenter(position.x, position.y, { zoom: getZoom(), duration: 300 })} nodeColor={(node) => (stateColors.get(node.id) ?? graphColor(node.id)).fill}
               nodeStrokeColor={(node) => (stateColors.get(node.id) ?? graphColor(node.id)).ink} nodeStrokeWidth={3}
-              maskColor="rgba(51, 65, 85, 0.15)" />
-            <Controls />
+              maskColor="rgba(51, 65, 85, 0.15)" />}
+            <Controls>
+              <ControlButton onClick={() => setMiniMapHidden((hidden) => !hidden)} aria-pressed={!miniMapHidden}
+                title={miniMapHidden ? 'Show minimap' : 'Hide minimap'} aria-label={miniMapHidden ? 'Show minimap' : 'Hide minimap'}>
+                <MapIcon />
+              </ControlButton>
+            </Controls>
           </ReactFlow>
         </section>
 
-        <aside className="inspector">
+        <aside className="inspector" hidden={inspectorHidden}>
           <fieldset disabled={readOnly} className="editor-fields">
           <ProjectPanel document={document} setDocument={setDocument} runtime={Boolean(embedded)} />
           <EventPanel document={document} setDocument={setDocument} addEvent={addEvent} deleteEvent={deleteEvent} />
@@ -553,9 +681,13 @@ export function App({ embedded }: { embedded?: EmbeddedEditor }) {
             <MousePointerClick size={18} aria-hidden />
             <span>Select a state or transition on the canvas to edit it.</span>
           </section>}
-          {selectedState && <StateInspector state={selectedState} document={document} setDocument={setDocument} />}
-          {selectedTransition && <TransitionInspector transition={selectedTransition} document={document} setDocument={setDocument} catalog={embedded?.catalog} />}
+          {selectedState && <StateInspector state={selectedState} setDocument={setDocument} runtime={Boolean(embedded)} />}
+          {selectedTransition && <TransitionInspector transition={selectedTransition} document={document} setDocument={setDocument}
+            catalog={embedded?.catalog} flowKind={flowKindFilter} setFlowKind={setFlowKindFilter} />}
           </fieldset>
+          {selectedState && <ConnectionsPanel key={selectedState.id} state={selectedState} document={document} readOnly={readOnly}
+            onGoToState={focusState} onSelectTransition={(id) => setSelection({ type: 'transition', id })}
+            onAddTransition={addTransition} />}
           <ValidationPanel issues={validationIssues} document={document} onSelectTransition={(id) => setSelection({ type: 'transition', id })} />
         </aside>
       </main>
@@ -626,11 +758,26 @@ function ProjectPanel({
           <option value="builder">Builder add calls</option>
         </select>
       </label>}
-      <label>
+      {runtime ? <div className="field-row">
+        {/* A flow version states its limits from 1; an empty field leaves the application default. */}
+        <label>
+          Automatic transition limit
+          <input type="number" min="1" max="2147483647" placeholder="Default" value={document.maxImmediateAutoTransitions || ''}
+            onChange={(event) => setDocument((current) => ({ ...current, maxImmediateAutoTransitions: Number(event.target.value) }))} />
+        </label>
+        <label>
+          Max iterations
+          <input type="number" min="1" max="2147483647" placeholder="Default" value={document.execution?.maxIterations ?? ''}
+            onChange={(event) => setDocument((current) => {
+              const { maxIterations: _previous, ...execution } = current.execution ?? { stateListeners: [], completionListeners: [] };
+              return { ...current, execution: event.target.value ? { ...execution, maxIterations: Number(event.target.value) } : execution };
+            })} />
+        </label>
+      </div> : <label>
         Automatic transition limit
         <input type="number" min="0" max="2147483647" value={document.maxImmediateAutoTransitions ?? 0}
           onChange={(event) => setDocument((current) => ({ ...current, maxImmediateAutoTransitions: Number(event.target.value) }))} />
-      </label>
+      </label>}
       <label className="toggle-row">
         <input
           type="checkbox"
@@ -784,12 +931,12 @@ function BehaviorList({
 
 function StateInspector({
   state,
-  document,
   setDocument,
+  runtime,
 }: {
   state: FsmState;
-  document: FsmEditorDocument;
   setDocument: Dispatch<SetStateAction<FsmEditorDocument>>;
+  runtime: boolean;
 }) {
   return (
     <Panel title="State" icon={<Box size={15} aria-hidden />} className="selected-panel">
@@ -839,8 +986,96 @@ function StateInspector({
           }
         />
       </label>
-      <p className="muted">Incoming: {document.transitions.filter((transition) => transition.to === state.id).length}</p>
-      <p className="muted">Outgoing: {document.transitions.filter((transition) => transition.from === state.id).length}</p>
+      {runtime && <label>
+        Final state
+        <select value={state.final ?? ''}
+          onChange={(event) => setDocument((current) => ({ ...current,
+            states: current.states.map((candidate) => {
+              if (candidate.id !== state.id) return candidate;
+              const { final: _previous, ...unmarked } = candidate;
+              return event.target.value ? { ...unmarked, final: event.target.value as FinalOutcome } : unmarked;
+            }),
+          }))}>
+          <option value="">Not final</option>
+          {FINAL_OUTCOMES.map((outcome) => <option key={outcome} value={outcome}>
+            {outcome.charAt(0) + outcome.slice(1).toLowerCase()}
+          </option>)}
+        </select>
+      </label>}
+    </Panel>
+  );
+}
+
+function ConnectionsPanel({
+  state,
+  document,
+  readOnly,
+  onGoToState,
+  onSelectTransition,
+  onAddTransition,
+}: {
+  state: FsmState;
+  document: FsmEditorDocument;
+  readOnly: boolean;
+  onGoToState: (id: string) => void;
+  onSelectTransition: (id: string) => void;
+  onAddTransition: (from: string, to: string, trigger: FsmTransitionTrigger) => void;
+}) {
+  const [chosenTarget, setTarget] = useState(() => document.states.find((candidate) => candidate.id !== state.id)?.id ?? state.id);
+  const [chosenTrigger, setTrigger] = useState('auto');
+  // A state or event chosen here may be deleted or renamed meanwhile; fall back to what the selects show.
+  const target = document.states.some((candidate) => candidate.id === chosenTarget) ? chosenTarget : document.states[0]?.id ?? state.id;
+  const trigger = document.events.some((eventRef) => `event:${eventRef.id}` === chosenTrigger) ? chosenTrigger : 'auto';
+  const label = (id: string) => document.states.find((candidate) => candidate.id === id)?.label ?? id;
+  const triggerLabel = (transition: FsmTransition) => transition.trigger.kind === 'event' ? transition.trigger.event : 'auto';
+  const outgoing = document.transitions.filter((transition) => transition.from === state.id);
+  const incoming = document.transitions.filter((transition) => transition.to === state.id);
+  const row = (transition: FsmTransition, other: string, direction: 'from' | 'to') => (
+    <li key={transition.id} className="connection-row">
+      {direction === 'from' && <><button type="button" className="link-button" onClick={() => onGoToState(other)}
+        title={`Go to ${label(other)}`}>{label(other)}</button><span aria-hidden>→</span></>}
+      <button type="button" className="trigger-chip" onClick={() => onSelectTransition(transition.id)}
+        title="Edit transition">{triggerLabel(transition)}</button>
+      {direction === 'to' && <><span aria-hidden>→</span><button type="button" className="link-button"
+        onClick={() => onGoToState(other)} title={`Go to ${label(other)}`}>{label(other)}</button></>}
+    </li>
+  );
+
+  return (
+    <Panel title="Connections" icon={<GitBranch size={15} aria-hidden />} className="connections-panel">
+      <section aria-label="Outgoing transitions">
+        <h3 className="connection-heading">Outgoing ({outgoing.length})</h3>
+        {outgoing.length ? <ul className="connection-list">{outgoing.map((transition) => row(transition, transition.to, 'to'))}</ul>
+          : <p className="muted">None</p>}
+      </section>
+      <section aria-label="Incoming transitions">
+        <h3 className="connection-heading">Incoming ({incoming.length})</h3>
+        {incoming.length ? <ul className="connection-list">{incoming.map((transition) => row(transition, transition.from, 'from'))}</ul>
+          : <p className="muted">None</p>}
+      </section>
+      <fieldset disabled={readOnly} className="editor-fields add-transition">
+        <legend>Add transition</legend>
+        <div className="field-row">
+          <label>
+            To
+            <select value={target} onChange={(event) => setTarget(event.target.value)}>
+              {document.states.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.label}</option>)}
+            </select>
+          </label>
+          <label>
+            Trigger
+            <select value={trigger} onChange={(event) => setTrigger(event.target.value)}>
+              <option value="auto">Auto</option>
+              {document.events.map((eventRef) => <option key={eventRef.id} value={`event:${eventRef.id}`}>{eventRef.id}</option>)}
+            </select>
+          </label>
+        </div>
+        <button type="button" className="text-button" onClick={() => onAddTransition(state.id, target,
+          trigger === 'auto' ? { kind: 'auto' } : { kind: 'event', event: trigger.slice('event:'.length) })}>
+          <Plus size={16} />
+          Add transition
+        </button>
+      </fieldset>
     </Panel>
   );
 }
@@ -850,12 +1085,17 @@ function TransitionInspector({
   document,
   setDocument,
   catalog,
+  flowKind,
+  setFlowKind,
 }: {
   transition: FsmTransition;
   document: FsmEditorDocument;
   setDocument: Dispatch<SetStateAction<FsmEditorDocument>>;
   catalog?: CatalogBehavior[];
+  flowKind: string;
+  setFlowKind: (kind: string) => void;
 }) {
+  const flowKinds = catalogFlowKinds(catalog ?? []);
   const updateTransition = (patch: Partial<FsmTransition>) => {
     setDocument((current) => ({
       ...current,
@@ -965,8 +1205,16 @@ function TransitionInspector({
           </select>
         </label>
       )}
+      {flowKinds.length > 0 && <label>
+        Bean kind
+        <select value={flowKind} onChange={(event) => setFlowKind(event.target.value)}>
+          <option value="">All kinds</option>
+          {flowKinds.map((kind) => <option key={kind} value={kind}>{kind}</option>)}
+        </select>
+      </label>}
       <BehaviorPicker
         title="Guards"
+        flowKind={flowKind}
         catalog={catalog?.filter((bean) => bean.kind === 'guard')}
         options={document.behaviors.conditions}
         selected={transition.conditions}
@@ -979,6 +1227,7 @@ function TransitionInspector({
       </label>}
       <BehaviorPicker
         title="Actions"
+        flowKind={flowKind}
         catalog={catalog?.filter((bean) => bean.kind === 'action')}
         options={document.behaviors.actions}
         selected={transition.actions}
@@ -986,6 +1235,7 @@ function TransitionInspector({
       />
       <BehaviorPicker
         title="Post actions"
+        flowKind={flowKind}
         catalog={catalog?.filter((bean) => bean.kind === 'action')}
         options={document.behaviors.actions}
         selected={transition.postActions}
@@ -1039,14 +1289,16 @@ function BehaviorPicker({
   selected,
   onChange,
   catalog,
+  flowKind,
 }: {
   title: string;
   options: BehaviorRef[];
   selected: string[];
   onChange: (next: string[]) => void;
   catalog?: CatalogBehavior[];
+  flowKind: string;
 }) {
-  if (catalog) return <CatalogPicker title={title} options={catalog} selected={selected} onChange={onChange} />;
+  if (catalog) return <CatalogPicker title={title} options={catalog} selected={selected} onChange={onChange} flowKind={flowKind} />;
   return (
     <fieldset className="check-group">
       <legend>{title}</legend>
@@ -1277,40 +1529,26 @@ export function deleteBehaviorAtIndex(
   };
 }
 
-export function addAutoTransition(document: FsmEditorDocument, source: string, target: string): FsmEditorDocument {
-  const transition: FsmTransition = {
+export function newTransition(from: string, to: string, trigger: FsmTransitionTrigger): FsmTransition {
+  return {
     id: createId('transition'),
-    from: source,
-    to: target,
-    trigger: { kind: 'auto' },
-    autoTransitionEnabled: true,
+    from,
+    to,
+    trigger,
+    autoTransitionEnabled: trigger.kind === 'auto',
     conditions: [],
     actions: [],
     postActions: [],
-  };
-
-  if (document.transitions.some((candidate) => transitionDuplicateKey(candidate) === transitionDuplicateKey(transition))) {
-    return document;
-  }
-
-  return {
-    ...document,
-    transitions: [...document.transitions, transition],
   };
 }
 
-function hasAutoTransition(document: FsmEditorDocument, source: string, target: string): boolean {
-  const candidate: FsmTransition = {
-    id: '',
-    from: source,
-    to: target,
-    trigger: { kind: 'auto' },
-    conditions: [],
-    actions: [],
-    postActions: [],
-  };
+export function hasTransition(document: FsmEditorDocument, transition: FsmTransition): boolean {
+  return document.transitions.some((candidate) => transitionDuplicateKey(candidate) === transitionDuplicateKey(transition));
+}
 
-  return document.transitions.some((transition) => transitionDuplicateKey(transition) === transitionDuplicateKey(candidate));
+export function addAutoTransition(document: FsmEditorDocument, source: string, target: string): FsmEditorDocument {
+  const transition = newTransition(source, target, { kind: 'auto' });
+  return hasTransition(document, transition) ? document : { ...document, transitions: [...document.transitions, transition] };
 }
 
 function nextEventId(document: FsmEditorDocument): string {

@@ -81,7 +81,38 @@ bean when they need different execution infrastructure.
 `FlowService` owns version numbering, draft editing/deletion, definition validation and publication.
 Stores supporting deletion implement `deleteDraft`: physically remove the draft, including from
 `latest`. Deleting the highest draft permits its number to be reused. The default implementation
-rejects deletion for stores that have not opted in.
+rejects deletion for stores that have not opted in. `deleteFlow` follows the same pattern for a whole
+flow: the store removes every version of the key, the active one included, and the default
+implementation rejects the call. `FlowService.deleteFlow` runs it under the flow-key lock and leaves
+the decision whether a flow may be deleted to the caller.
+
+`FlowDefinition.finalStates` optionally maps a state to the outcome of a run that ends there:
+`SUCCESS`, `FAILURE` or `LIMIT` (`FinalStateOutcome`). The starter does not interpret the outcome; the
+application reads it after a run. `FlowLoader` requires every listed state to be a source or target
+in the table and to have no outgoing transitions. It does not require any final state: an application
+that needs one checks `definition.finalStates()` in its own validation, for example the
+`validateActivation` callback of the administration API.
+
+A definition carries two limits. `table.maxImmediateAutoTransitions` bounds a chain of automatic
+transitions; `0`, which is also the value of a definition that omits the property, means the limit is
+not stated. The core then runs the chain without a limit, so an application with its own default
+replaces `0` before it builds the table, and a negative value is rejected.
+`execution.maxIterations` is a number the application interprets (for example the iterations of an
+agent loop); `null` or absent means the application default, and a stated value lower than 1 is
+rejected. Both checks are part of `FlowLoader`, so they apply to publication, reactivation and loading.
+
+```json
+{
+  "initialState": "NEW",
+  "table": { "autoTransitionEnabled": true, "maxImmediateAutoTransitions": 50, "transitions": { "NEW": [], "DONE": [] } },
+  "execution": { "stateListeners": [], "completionListeners": [], "maxIterations": 12 },
+  "finalStates": { "DONE": "SUCCESS" }
+}
+```
+
+`finalStates` is written only when it is not empty and `maxIterations` only when it is stated, so
+definitions stored before these properties existed read and write unchanged.
+
 `FlowDefinition.editor` optionally carries visual editor metadata. It is stored with the definition
 and ignored by `FlowLoader`; definitions without this field remain supported. Stores that persist
 definitions as JSON should retain this field when reading and writing versions.
@@ -132,9 +163,9 @@ WebMvcConfigurer fsmEditorCors() {
 ```
 
 Provide the existing `FlowStore` and transaction manager, and one `FsmAdminRegistration` bean for
-each editable flow. An enabled API without a store fails startup. Duplicate or invalid keys also
-fail startup. An empty registration list returns no flows. Unregistered keys return 404, even
-if the store contains their definitions.
+each editable flow (or an `FsmAdminFlows` bean, see below). An enabled API without a store fails
+startup. Duplicate or invalid registration keys also fail startup. An empty registration list returns
+no flows. Unregistered keys return 404, even if the store contains their definitions.
 
 ```java
 @Bean
@@ -145,11 +176,68 @@ FsmAdminRegistration orderAdmin(OrderFlowValidator validator) {
 }
 ```
 
+A registration optionally states a `kind` (the group the editor shows the flow in, `other` by
+default), a `description` and whether the editor should offer deletion (`deletable`, `false` by
+default): `new FsmAdminRegistration(key, title, initial, validateDraft, validateActivation, "agent",
+"Plans first, then acts", true)`.
+
+### Flows created at run time
+
+The API reads its flows from an `FsmAdminFlows` bean on every request. The default bean serves the
+`FsmAdminRegistration` beans and refuses to create, rename or delete a flow (405). An application
+that keeps flows in its own storage declares its own bean; the default one then backs off and the
+`FsmAdminRegistration` beans are not used:
+
+```java
+@Bean
+FsmAdminFlows adminFlows(AgentFlowRepository flows) {
+    return new FsmAdminFlows() {
+        public List<FsmAdminRegistration> all() { return flows.registrations(); }
+        public FsmAdminRegistration find(String flowKey) { return flows.registration(flowKey); } // null when unknown
+        public FsmAdminRegistration create(String flowKey, String title, String kind, String description, String copyOf) {
+            if (!kind.equals("agent")) throw new IllegalArgumentException("Only agent flows can be created"); // 400
+            return flows.insert(flowKey, title, kind, description);
+        }
+        public FsmAdminRegistration rename(String flowKey, String title, String description) {
+            return flows.update(flowKey, title, description);
+        }
+        public void delete(String flowKey) {
+            if (flows.isBuiltIn(flowKey)) throw new IllegalStateException("Built-in flows cannot be deleted"); // 409
+            flows.remove(flowKey);
+        }
+    };
+}
+```
+
+The three mutating methods are optional; one that is not overridden answers 405. Before `create`
+the API checks the key (`[A-Za-z0-9._-]{1,120}`), that title and kind are not blank and that the key
+is not registered (409), and takes the flow-key lock. After `create` it stores the first draft: the
+`initialDefinition` of the returned registration, or with `copyOf` the active version of that flow,
+else its newest version. `DELETE` calls `FsmAdminFlows.delete` and then `FlowService.deleteFlow`, so
+the store must implement `FlowStore.deleteFlow`. All of it runs in the administration transaction.
+`fsmAdminService`, `fsmAdminController` and `fsmAdminExceptionHandler` are also replaceable by
+application beans of the same types; a subclass of `FsmAdminService` can override `flow(registration)`
+to add properties to the flow JSON.
+
+### Bean catalog
+
 The starter discovers Spring beans by interface: `Guard<?>`, `Action<?>`, `StateChangeListener<?>`
 and `Consumer<?>` (completion listeners). Bean names are the IDs stored in definitions; `@Description`
-provides editor labels, falling back to the bean name. Every registered flow sees the same catalog.
-Applications do not supply a catalog or create handler descriptors. The HTTP response retains
-`id`, `kind` (`guard`, `action`, `stateListener`, `completionListener`) and `description` for the editor.
+provides editor labels, falling back to the bean name. Applications do not supply a catalog or create
+handler descriptors. Every flow receives the whole catalog; each entry names the kind of flow its bean
+works with, so the editor can filter:
+
+```java
+@Bean
+@FsmFlowKind("agent")
+@Description("The model asked for a tool")
+Guard<StateContext<String>> hasToolCall() { ... }
+```
+
+`@FsmFlowKind` goes on the `@Bean` method or on the bean class; beans without it are reported as
+`other`. The HTTP response is `[{id, kind, flowKind, description}]` with `kind` one of `guard`,
+`action`, `stateListener`, `completionListener`. The kind is a hint for the editor only: publication
+accepts a bean of any flow kind, and the application decides what such a bean does at run time.
 
 The example's `OrderFlowValidator` and `OrderEvent` above are application-owned. Admin checks that
 each name exists under the required bean interface before publication/activation. Domain compatibility
@@ -162,23 +250,27 @@ reactivation. Activation validation and the lifecycle change share a transaction
 lock. Callbacks must not mutate their arguments. Storage and runtime invariants should also remain
 enforced by the application's store/runtime when callers bypass the admin API.
 
-The API supports first drafts from the registration template, subsequent drafts from a submitted
-definition, saving, deletion, publication and reactivation. Layout and descriptions persist in the same
+The API supports flow creation, renaming and deletion when the application allows them, first drafts
+from the registration template, subsequent drafts from a submitted definition, saving, deletion,
+publication and reactivation. Layout and descriptions persist in the same
 definition.
 
 All endpoints are below the configured prefix:
 
 | Method           | Suffix                                         | Purpose                                                            |
 | ---------------- | ---------------------------------------------- | ------------------------------------------------------------------ |
-| GET              | `/api/flows`                                   | Registered keys and titles                                         |
-| GET              | `/api/flows/{key}/behaviors`                   | Spring bean catalog (all registered flows share it)                |
+| GET              | `/api/flows`                                   | `[{flowKey, title, kind, description, deletable}]`                 |
+| POST             | `/api/flows`                                   | Create a flow from `{flowKey, title, kind, description?, copyOf?}` |
+| PUT, DELETE      | `/api/flows/{key}`                             | Rename with `{title, description?}` / delete with all versions     |
+| GET              | `/api/flows/{key}/behaviors`                   | Spring bean catalog with the flow kind of every bean               |
 | GET, POST        | `/api/flows/{key}/versions`                    | List versions / create a draft; absent POST body uses the template |
 | GET, PUT, DELETE | `/api/flows/{key}/versions/{version}`          | Read, update or delete a draft                                     |
 | POST             | `/api/flows/{key}/versions/{version}/publish`  | Publish a draft                                                    |
 | POST             | `/api/flows/{key}/versions/{version}/activate` | Reactivate an archived version                                     |
 
 Successful creation returns 201, deletion 204. Invalid input returns 400, missing registrations or
-versions 404, and invalid lifecycle operations 409, using `{ "message": "..." }` errors.
+versions 404, invalid lifecycle operations 409, and an operation the store or the `FsmAdminFlows`
+bean does not implement 405, using `{ "message": "..." }` errors.
 Error handling is scoped to the admin controllers.
 
 ### Application-owned security

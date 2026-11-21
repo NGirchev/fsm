@@ -60,6 +60,12 @@ public class JpaFlowStore implements FlowStore {
     }
 
     @Override
+    public void deleteFlow(@NonNull String flowKey) {
+        versions.deleteByFlowKey(flowKey);
+        versions.flush();
+    }
+
+    @Override
     @NonNull
     public FlowVersion save(FlowVersion version) {
         if (version.status() == FlowVersionStatus.ACTIVE) {

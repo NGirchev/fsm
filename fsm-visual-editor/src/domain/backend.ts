@@ -18,6 +18,19 @@ declare global {
 export interface FlowRegistration {
   flowKey: string;
   title: string;
+  /** Group of the flow; backends older than the flow-management API send none. */
+  kind?: string;
+  description?: string | null;
+  deletable?: boolean;
+}
+
+export interface NewFlow {
+  flowKey: string;
+  title: string;
+  kind: string;
+  description?: string;
+  /** Flow whose active (else newest) version becomes the first draft. */
+  copyOf?: string;
 }
 
 export type FlowVersionStatus = 'DRAFT' | 'ACTIVE' | 'ARCHIVED';
@@ -42,6 +55,21 @@ export function backendUrl(location: Location = window.location, config: EditorC
   }
 }
 
+/** The flow to open: the preferred key (for example from `?flow=`) when the backend lists it, else the first flow. */
+export function initialFlowKey(flows: FlowRegistration[], preferred?: string | null): string | undefined {
+  return (flows.find((flow) => flow.flowKey === preferred) ?? flows[0])?.flowKey;
+}
+
+/** Flows by kind in first-seen order; flows without a kind share the `other` group. */
+export function groupFlowsByKind(flows: FlowRegistration[]): { kind: string; flows: FlowRegistration[] }[] {
+  const groups = new Map<string, FlowRegistration[]>();
+  flows.forEach((flow) => {
+    const kind = flow.kind || 'other';
+    groups.set(kind, [...(groups.get(kind) ?? []), flow]);
+  });
+  return [...groups].map(([kind, items]) => ({ kind, flows: items }));
+}
+
 // Cookies are sent so the backend's own session authentication applies across origins.
 const includeCredentials: typeof fetch = (input, init) => fetch(input, { credentials: 'include', ...init });
 
@@ -59,10 +87,15 @@ export function backendApi(baseUrl: string, send: typeof fetch = includeCredenti
     return (response.status === 204 ? undefined : await response.json()) as T;
   }
 
-  const versions = (flowKey: string) => `flows/${encodeURIComponent(flowKey)}/versions`;
+  const flow = (flowKey: string) => `flows/${encodeURIComponent(flowKey)}`;
+  const versions = (flowKey: string) => `${flow(flowKey)}/versions`;
   return {
     flows: () => request<FlowRegistration[]>('flows'),
-    behaviors: (flowKey: string) => request<CatalogBehavior[]>(`flows/${encodeURIComponent(flowKey)}/behaviors`),
+    createFlow: (created: NewFlow) => request<FlowRegistration>('flows', 'POST', created),
+    renameFlow: (flowKey: string, title: string, description?: string) =>
+      request<FlowRegistration>(flow(flowKey), 'PUT', { title, description }),
+    deleteFlow: (flowKey: string) => request<void>(flow(flowKey), 'DELETE'),
+    behaviors: (flowKey: string) => request<CatalogBehavior[]>(`${flow(flowKey)}/behaviors`),
     versions: (flowKey: string) => request<StoredFlowVersion[]>(versions(flowKey)),
     create: (flowKey: string, definition?: FlowDefinition) => request<StoredFlowVersion>(versions(flowKey), 'POST', definition),
     save: (flowKey: string, version: number, definition: FlowDefinition) =>

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { fromFlowDefinition, toFlowDefinition, type FlowDefinition } from './flowDefinition';
 import { createEmptyDocument } from './sample';
 import { normalizeEditorDocument } from './documentGuards';
+import { validateEditorDocument } from './validation';
 import { generateJavaFactory } from './javaGenerator';
 import { generateKotlinFactory } from './kotlinGenerator';
 
@@ -47,6 +48,15 @@ describe('runtime flow editing', () => {
     const imported = normalizeEditorDocument(JSON.parse(JSON.stringify(document)));
     expect(imported).not.toBeNull();
     expect(() => toFlowDefinition(imported!)).toThrow('Only eventless transitions');
+  });
+
+  it('lays out a definition without editor positions from the initial state downwards', () => {
+    const position = (document: ReturnType<typeof fromFlowDefinition>, label: string) =>
+      document.states.find((state) => state.label === label)!.position;
+    const document = fromFlowDefinition(definition);
+
+    expect(position(document, 'NEW').y).toBeLessThan(position(document, 'REVIEW').y);
+    expect(position(document, 'REVIEW').y).toBeLessThan(position(document, 'DONE').y);
   });
 
   it('restores exact positions, labels, unused events and IDs after JSON persistence', () => {
@@ -103,6 +113,51 @@ describe('runtime flow editing', () => {
     expect(toFlowDefinition(document).table.maxImmediateAutoTransitions).toBe(0);
     document.maxImmediateAutoTransitions = -1;
     expect(() => toFlowDefinition(document)).toThrow('Automatic transition limit');
+  });
+
+  it('keeps the order of several transitions between one pair of states that differ only by conditions', () => {
+    const branch = (conditions: string[]) => ({ from: 'THINKING', event: null,
+      to: { state: 'DONE', conditions, actions: [], postActions: [], timeout: null, autoTransitionEnabled: false } });
+    const table = { autoTransitionEnabled: true, maxImmediateAutoTransitions: 0, transitions: {
+      THINKING: [branch(['agent.hasError']), branch(['agent.hasFinalAnswer', 'agent.notCancelled']), branch([])], DONE: [] } };
+    const document = fromFlowDefinition({ initialState: 'THINKING', table });
+    expect(validateEditorDocument(document, true).filter((issue) => issue.severity === 'error')).toEqual([]);
+    const saved = JSON.parse(JSON.stringify(toFlowDefinition(document))) as FlowDefinition;
+    expect(saved.table).toEqual(table);
+    expect(toFlowDefinition(fromFlowDefinition(saved)).table).toEqual(table);
+    document.transitions[1].conditions = ['agent.hasError'];
+    expect(() => toFlowDefinition(document)).toThrow('Duplicate transition');
+  });
+
+  it('stores final states by state name in the definition and not in the editor metadata', () => {
+    const marked: FlowDefinition = { ...definition, finalStates: { DONE: 'SUCCESS', UNUSED: 'LIMIT' } };
+    const document = fromFlowDefinition(marked);
+    expect(document.states.map((state) => [state.label, state.final])).toEqual(
+      [['NEW', undefined], ['REVIEW', undefined], ['DONE', 'SUCCESS'], ['UNUSED', 'LIMIT']]);
+    document.states[3].label = 'GAVE_UP';
+    document.states[1].final = 'FAILURE';
+    const saved = JSON.parse(JSON.stringify(toFlowDefinition(document))) as FlowDefinition;
+    expect(saved.finalStates).toEqual({ REVIEW: 'FAILURE', DONE: 'SUCCESS', GAVE_UP: 'LIMIT' });
+    expect(saved.editor!.states.every((state) => !('final' in state))).toBe(true);
+    expect(fromFlowDefinition(saved)).toEqual(document);
+    expect(toFlowDefinition(fromFlowDefinition(definition))).not.toHaveProperty('finalStates');
+    expect(validateEditorDocument(document, true).filter((issue) => issue.path === 'states[1].final')).toEqual([
+      { severity: 'warning', path: 'states[1].final', message: 'Final state "REVIEW" has outgoing transitions and cannot be published.' }]);
+  });
+
+  it('keeps the iteration limit in execution, omits it when empty and rejects values below one', () => {
+    const limited: FlowDefinition = { ...definition, execution: { stateListeners: [], completionListeners: [], maxIterations: 12 } };
+    const document = fromFlowDefinition(limited);
+    expect(toFlowDefinition(document).execution).toEqual(limited.execution);
+    expect(normalizeEditorDocument(JSON.parse(JSON.stringify(document)))).toEqual(document);
+    expect(toFlowDefinition(fromFlowDefinition(definition))).not.toHaveProperty('execution');
+    for (const invalid of [0, -1, 1.5]) {
+      document.execution = { stateListeners: [], completionListeners: [], maxIterations: invalid };
+      expect(() => toFlowDefinition(document)).toThrow('Iteration limit must be an integer of at least 1.');
+    }
+    expect(normalizeEditorDocument({ ...document, execution: { ...document.execution, maxIterations: 'many' } })).toBeNull();
+    expect(normalizeEditorDocument({ ...document, execution: undefined,
+      states: [{ ...document.states[0], final: 'DONE' }, ...document.states.slice(1)] })).toBeNull();
   });
 
   it('allows string states and events, including object prototype names', () => {

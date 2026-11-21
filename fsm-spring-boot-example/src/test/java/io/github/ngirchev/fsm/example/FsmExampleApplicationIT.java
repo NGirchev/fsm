@@ -1,5 +1,6 @@
 package io.github.ngirchev.fsm.example;
 
+import org.springframework.context.annotation.Import;
 import tools.jackson.databind.ObjectMapper;
 import io.github.ngirchev.fsm.example.ApiExceptionHandler.ApiError;
 import io.github.ngirchev.fsm.spring.definition.FlowDefinition;
@@ -33,7 +34,7 @@ import static io.github.ngirchev.fsm.example.order.OrderController.*;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @Testcontainers
-@org.springframework.context.annotation.Import(FsmExampleApplicationIT.AdminRegistrations.class)
+@Import(FsmExampleApplicationIT.AdminRegistrations.class)
 @AutoConfigureTestRestTemplate
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class FsmExampleApplicationIT {

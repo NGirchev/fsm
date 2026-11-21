@@ -14,7 +14,7 @@ import java.util.function.Consumer
 /** HTTP-facing policy; version lifecycle and persistence remain in FlowService. */
 @Transactional(readOnly = true)
 open class FsmAdminService(
-    registrations: List<FsmAdminRegistration>,
+    private val adminFlows: FsmAdminFlows,
     private val flows: FlowService,
     private val store: FlowStore,
     private val guards: Map<String, Guard<*>>,
@@ -23,20 +23,58 @@ open class FsmAdminService(
     private val completionListeners: Map<String, Consumer<*>>,
     private val beanFactory: ConfigurableListableBeanFactory,
 ) {
-    private val registrations = registrations.associateBy { it.flowKey }
+    open fun registration(key: String): FsmAdminRegistration =
+        adminFlows.find(key) ?: throw NoSuchElementException("FSM is not registered: $key")
 
-    init {
-        require(this.registrations.size == registrations.size) { "Duplicate FSM admin flowKey" }
-        registrations.forEach {
-            require(Regex("[A-Za-z0-9._-]{1,120}").matches(it.flowKey)) { "Invalid FSM admin flowKey" }
-            require(it.title.isNotBlank()) { "FSM admin title must not be blank" }
-        }
+    open fun list(): List<Map<String, Any?>> = adminFlows.all().map(::flow)
+
+    /** HTTP representation of a flow; an application subclass may add its own properties. */
+    open fun flow(registration: FsmAdminRegistration): Map<String, Any?> = mapOf(
+        "flowKey" to registration.flowKey, "title" to registration.title, "kind" to registration.kind,
+        "description" to registration.description, "deletable" to registration.deletable)
+
+    @Transactional
+    open fun createFlow(flowKey: String?, title: String?, kind: String?, description: String?, copyOf: String?): Map<String, Any?> {
+        val key = text(flowKey, "flowKey")
+        require(FLOW_KEY.matches(key)) { "flowKey must contain 1-120 letters, digits, dots, underscores or hyphens" }
+        val newTitle = text(title, "title")
+        val newKind = text(kind, "kind")
+        val sourceKey = copyOf?.takeIf { it.isNotBlank() }
+        val source = sourceKey?.let(::registration)
+        store.lock(key)
+        check(adminFlows.find(key) == null) { "FSM is already registered: $key" }
+        val registration = adminFlows.create(key, newTitle, newKind, description, sourceKey)
+        // A copy starts from what runs now; a flow that was never published gives its newest version.
+        val copied = if (source == null) null else store.active(source.flowKey).or { store.latest(source.flowKey) }.orElse(null)
+        val draft = copied?.definition ?: registration.initialDefinition
+        registration.validateDraft.accept(draft)
+        flows.createDraft(key, draft)
+        return flow(registration)
     }
 
-    open fun registration(key: String): FsmAdminRegistration =
-        registrations[key] ?: throw NoSuchElementException("FSM is not registered: $key")
+    @Transactional
+    open fun renameFlow(key: String, title: String?, description: String?): Map<String, Any?> {
+        lockedRegistration(key)
+        return flow(adminFlows.rename(key, text(title, "title"), description))
+    }
 
-    open fun list(): List<Map<String, String>> = registrations.values.map { mapOf("flowKey" to it.flowKey, "title" to it.title) }
+    @Transactional
+    open fun deleteFlow(key: String) {
+        lockedRegistration(key)
+        adminFlows.delete(key)
+        flows.deleteFlow(key)
+    }
+
+    /** Looks the flow up under its lock, so a change cannot interleave with the deletion of the flow. */
+    private fun lockedRegistration(key: String): FsmAdminRegistration {
+        store.lock(key)
+        return registration(key)
+    }
+
+    private fun text(value: String?, name: String): String {
+        require(!value.isNullOrBlank()) { "$name must not be blank" }
+        return value
+    }
 
     open fun behaviors(key: String): List<Map<String, String>> {
         registration(key)
@@ -48,12 +86,13 @@ open class FsmAdminService(
         val description = if (beanFactory.containsBeanDefinition(name)) {
             beanFactory.getBeanDefinition(name).description
         } else null
-        mapOf("id" to name, "kind" to kind, "description" to (description ?: name))
+        val flowKind = beanFactory.findAnnotationOnBean(name, FsmFlowKind::class.java)?.value ?: OTHER_FLOW_KIND
+        mapOf("id" to name, "kind" to kind, "flowKind" to flowKind, "description" to (description ?: name))
     }
 
     @Transactional
     open fun create(key: String, definition: FlowDefinition?): FlowVersion {
-        val registration = registration(key)
+        val registration = lockedRegistration(key)
         val draft = definition ?: registration.initialDefinition
         registration.validateDraft.accept(draft)
         return flows.createDraft(key, draft)
@@ -61,15 +100,14 @@ open class FsmAdminService(
 
     @Transactional
     open fun update(key: String, version: Int, definition: FlowDefinition): FlowVersion {
-        registration(key).validateDraft.accept(definition)
+        lockedRegistration(key).validateDraft.accept(definition)
         return flows.updateDraft(key, version, definition)
     }
 
     @Transactional
     open fun activate(key: String, version: Int, publish: Boolean): FlowVersion {
-        val registration = registration(key)
         // Validate the same version that FlowService activates, under its transaction-scoped lock.
-        store.lock(key)
+        val registration = lockedRegistration(key)
         val definition = flows.get(key, version).definition
         registration.validateDraft.accept(definition)
         validateBehaviors(definition)

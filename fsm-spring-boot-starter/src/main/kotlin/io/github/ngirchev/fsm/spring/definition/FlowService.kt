@@ -35,6 +35,14 @@ open class FlowService(
         store.deleteDraft(key, version)
     }
 
+    /** Removes every version of the flow, including the active one. The caller decides whether that is allowed. */
+    @Transactional
+    open fun deleteFlow(flowKey: String?) {
+        val key = requireFlowKey(flowKey)
+        store.lock(key)
+        store.deleteFlow(key)
+    }
+
     open fun list(flowKey: String?): List<FlowVersion> = store.list(requireFlowKey(flowKey))
 
     open fun get(flowKey: String?, version: Int): FlowVersion =

@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Changes since the published 1.2.0 release. This section describes the unreleased development version.
 
 ### Added
+- The backend editor lets you move states of a published version; **Create draft** keeps the new layout.
 - Per-transition `.auto()` opt-in for synchronous eventless transitions and an optional
   `maxImmediateAutoTransitions` runtime limit. The default limit of `0` leaves chains unlimited.
 - A Spring Boot starter with automatic bean registration and JSON serialization that restores
@@ -23,6 +24,24 @@ Changes since the published 1.2.0 release. This section describes the unreleased
   editor at an application's administration API for draft, publish and activation workflows. Requests
   send cookies by default; `config.js` can replace the request function to add credentials.
   A Dockerfile packages the static editor with nginx.
+- Visual editor navigation: full-screen canvas, a hideable side panel, **Go to state** and
+  **Show selected**, a **Connections** panel that lists a state's transitions and adds new ones
+  without dragging, and a top-down **Arrange** layout (via `@dagrejs/dagre`) that is also applied
+  to definitions opened without saved positions.
+- Flows managed at run time through the administration API: an application-provided `FsmAdminFlows`
+  bean is asked on every request and may create, rename and delete flows (`POST /api/flows`,
+  `PUT` and `DELETE /api/flows/{key}`); `FlowStore.deleteFlow` and `FlowService.deleteFlow` remove
+  every version of a flow. An operation the application or store does not implement answers 405.
+  `FsmAdminRegistration` gains optional `kind`, `description` and `deletable`, returned by
+  `GET /api/flows`. The admin service, controller and error handler back off for application beans.
+- `@FsmFlowKind` on guard, action and listener beans; the bean catalog returns `flowKind` for every
+  entry (`other` for unmarked beans). It is a hint for the editor and does not restrict publication.
+- `FlowDefinition.finalStates` (state to `SUCCESS`, `FAILURE` or `LIMIT`) and the host-defined
+  `execution.maxIterations`. A final state must be a known state without outgoing transitions and a
+  stated iteration limit must be at least 1. Definitions stored without these properties are unchanged.
+- Visual editor in backend mode: create, copy, rename and delete flows, flows grouped by kind,
+  `?flow=<key>` to open a flow, a bean filter by flow kind, final-state marking and the two limit
+  fields (empty means the application default).
 - Automatic background processing for declared `FsmTaskProcessor` beans, with a separate transaction
   per task, configurable polling, bounded queue draining and an opt-out for external job runners.
   Applications supply task handlers and storage through `FsmTaskHandler` and `FsmTaskStore`.

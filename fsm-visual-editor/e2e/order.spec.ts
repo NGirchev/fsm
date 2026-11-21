@@ -18,7 +18,7 @@ test('load failure can be retried', async ({ page }) => {
   await expect(admin(page).getByLabel('Version')).toBeVisible();
 });
 
-test('active version is read only, including keyboard and graph interaction lock', async ({ page }) => {
+test('active version logic is read only, including keyboard and graph interaction lock', async ({ page }) => {
   await page.goto(`${embedded}/#flow`);
   await expect(admin(page).getByLabel('Version')).toBeVisible();
   for (const name of ['Save draft', 'Publish', 'Delete draft', 'Add state', 'Import JSON']) {
@@ -37,6 +37,48 @@ test('active version is read only, including keyboard and graph interaction lock
   await page.mouse.move(box.x + 140, box.y + 80, { steps: 10 });
   await page.mouse.up();
   expect(await exportDocument(page)).toEqual(before);
+});
+
+test('active version layout can be moved and kept by creating a draft', async ({ page, request }) => {
+  await page.goto(`${embedded}/#flow`);
+  const active = Number(await admin(page).getByLabel('Version').inputValue());
+  const stored = await (await request.get(`${api}/${active}`)).json();
+  const node = editor(page).locator('.react-flow__node').first();
+  const box = (await node.boundingBox())!;
+  await page.mouse.move(box.x + 50, box.y + 15);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 150, box.y + 90, { steps: 10 });
+  await page.mouse.up();
+  const moved = await exportDocument(page);
+  expect(moved.states[0].position).not.toEqual(stored.definition.editor.states[0].position);
+  await expect(admin(page).locator('#flow-message')).toContainText('Create draft keeps this layout');
+  await expect(editor(page).getByLabel('Name', { exact: true })).toBeDisabled();
+  await expect(editor(page).getByRole('button', { name: 'Add state', exact: true })).toBeDisabled();
+  await expect(admin(page).getByLabel('Version')).toBeDisabled();
+
+  await admin(page).getByRole('button', { name: 'Create draft', exact: true }).click();
+  await expect(admin(page).getByRole('status').first()).toContainText('Draft created');
+  const draft = Number(await admin(page).getByLabel('Version').inputValue());
+  expect(draft).toBeGreaterThan(active);
+  expect(await exportDocument(page)).toEqual(moved);
+  const created = await (await request.get(`${api}/${draft}`)).json();
+  expect(created.definition.editor.states).toEqual(moved.states);
+  expect(created.definition.table).toEqual(stored.definition.table);
+  expect(await (await request.get(`${api}/${active}`)).json()).toEqual(stored);
+});
+
+test('moved active layout can be discarded', async ({ page }) => {
+  await page.goto(`${embedded}/#flow`);
+  await expect(admin(page).getByLabel('Version')).toBeVisible();
+  const before = await exportDocument(page);
+  const box = (await editor(page).locator('.react-flow__node').first().boundingBox())!;
+  await page.mouse.move(box.x + 50, box.y + 15);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 150, box.y + 90, { steps: 10 });
+  await page.mouse.up();
+  await admin(page).getByRole('button', { name: 'Discard changes' }).click();
+  expect(await exportDocument(page)).toEqual(before);
+  await expect(admin(page).getByLabel('Version')).toBeEnabled();
 });
 
 test('build amount branches and add two condition beans through the editor', async ({ page, request }) => {

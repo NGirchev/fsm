@@ -11,6 +11,19 @@ class FsmAdminController(private val admin: FsmAdminService, private val flows: 
     @GetMapping("/api/flows")
     fun registrations() = admin.list()
 
+    @PostMapping("/api/flows")
+    @ResponseStatus(HttpStatus.CREATED)
+    fun createFlow(@RequestBody body: Map<String, String?>) =
+        admin.createFlow(body["flowKey"], body["title"], body["kind"], body["description"], body["copyOf"])
+
+    @PutMapping("/api/flows/{key}")
+    fun renameFlow(@PathVariable key: String, @RequestBody body: Map<String, String?>) =
+        admin.renameFlow(key, body["title"], body["description"])
+
+    @DeleteMapping("/api/flows/{key}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    fun deleteFlow(@PathVariable key: String) = admin.deleteFlow(key)
+
     @GetMapping("/api/flows/{key}/behaviors")
     fun behaviors(@PathVariable key: String) = admin.behaviors(key)
 

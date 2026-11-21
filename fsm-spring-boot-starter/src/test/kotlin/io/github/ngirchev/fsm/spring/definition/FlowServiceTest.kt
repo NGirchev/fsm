@@ -93,6 +93,25 @@ class FlowServiceTest {
     }
 
     @Test
+    fun `deletes every version of one flow under its lock`() {
+        service.createDraft("order", definition)
+        service.publish("order", 1)
+        service.createDraft("order", definition)
+        service.createDraft("other", definition)
+        val locks = store.locks
+
+        service.deleteFlow("order")
+
+        assertThat(store.locks).isEqualTo(locks + 1)
+        assertThat(service.list("order")).isEmpty()
+        assertThat(service.list("other")).hasSize(1)
+        assertThat(service.createDraft("order", definition).version).isEqualTo(1)
+        assertThatThrownBy { service.deleteFlow("a/b") }.isInstanceOf(IllegalArgumentException::class.java)
+        assertThatThrownBy { store.unsupportedDeleteFlow() }.isInstanceOf(UnsupportedOperationException::class.java)
+            .hasMessage("This flow store does not support deleting flows")
+    }
+
+    @Test
     fun `rejects invalid keys before storage`() {
         listOf("", "a/../b", "a".repeat(121)).forEach { key ->
             assertThatThrownBy { service.createDraft(key, definition) }
@@ -106,6 +125,8 @@ class FlowServiceTest {
         private val flows = mutableMapOf<String, MutableMap<Int, FlowVersion>>()
         fun unsupportedDelete() = super.deleteDraft("order", 1)
         override fun deleteDraft(flowKey: String, version: Int) { flows[flowKey]?.remove(version) }
+        fun unsupportedDeleteFlow() = super.deleteFlow("order")
+        override fun deleteFlow(flowKey: String) { flows.remove(flowKey) }
         var locks = 0
             private set
 

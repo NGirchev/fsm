@@ -18,6 +18,8 @@ import org.springframework.boot.test.context.FilteredClassLoader
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner
 import org.springframework.http.MediaType
+import org.springframework.beans.factory.config.ConfigurableListableBeanFactory
+import org.springframework.test.json.JsonCompareMode
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Description
@@ -111,7 +113,10 @@ class FsmAdminTest {
     fun `registered flows support first draft lifecycle and reject unregistered keys`() {
         enabled().withBean("second", FsmAdminRegistration::class.java, { registration("second") }).run { context ->
             val mvc = MockMvcBuilders.webAppContextSetup(context).build()
-            mvc.perform(get("/fsm-admin/api/flows")).andExpect(status().isOk).andExpect(jsonPath("$.length()").value(2))
+            mvc.perform(get("/fsm-admin/api/flows")).andExpect(status().isOk).andExpect(content().json("""[
+                {"flowKey":"sample","title":"Sample","kind":"other","description":null,"deletable":false},
+                {"flowKey":"second","title":"Sample","kind":"other","description":null,"deletable":false}
+            ]""", JsonCompareMode.STRICT))
             mvc.perform(get("/fsm-admin/api/flows/sample/behaviors")).andExpect(content().json("[]"))
             val path = "/fsm-admin/api/flows/sample/versions"
             mvc.perform(get(path)).andExpect(content().json("[]"))
@@ -148,17 +153,18 @@ class FsmAdminTest {
             .withInitializer { it.beanFactory.registerSingleton("singletonGuard", Guard<String> { true }) }
             .run { context ->
                 val mvc = MockMvcBuilders.webAppContextSetup(context).build()
+                // The kind comes from the bean method or the bean class; it never restricts publication.
                 val expected = """[
-                    {"id":"guard","kind":"guard","description":"Available guard"},
-                    {"id":"otherGuard","kind":"guard","description":"otherGuard"},
-                    {"id":"singletonGuard","kind":"guard","description":"singletonGuard"},
-                    {"id":"action","kind":"action","description":"action"},
-                    {"id":"listener","kind":"stateListener","description":"listener"},
-                    {"id":"completion","kind":"completionListener","description":"completion"}
+                    {"id":"guard","kind":"guard","flowKind":"agent","description":"Available guard"},
+                    {"id":"otherGuard","kind":"guard","flowKind":"other","description":"otherGuard"},
+                    {"id":"singletonGuard","kind":"guard","flowKind":"other","description":"singletonGuard"},
+                    {"id":"action","kind":"action","flowKind":"document","description":"action"},
+                    {"id":"listener","kind":"stateListener","flowKind":"other","description":"listener"},
+                    {"id":"completion","kind":"completionListener","flowKind":"other","description":"completion"}
                 ]"""
                 listOf("sample", "second").forEach { key ->
                     mvc.perform(get("/fsm-admin/api/flows/$key/behaviors"))
-                        .andExpect(status().isOk).andExpect(content().json(expected))
+                        .andExpect(status().isOk).andExpect(content().json(expected, JsonCompareMode.STRICT))
                 }
                 val admin = context.getBean(FsmAdminService::class.java)
                 val draft = admin.create("sample", allowed)
@@ -189,11 +195,12 @@ class FsmAdminTest {
     class HandlerBeans {
         @Bean
         @Description("Available guard")
+        @FsmFlowKind("agent")
         fun guard() = Guard<StateContext<String>> { true }
         @Bean
         fun otherGuard() = Guard<Int> { it > 0 }
         @Bean
-        fun action() = Action<StateContext<String>> { }
+        fun action(): Action<StateContext<String>> = DocumentAction()
         @Bean
         fun listener() = StateChangeListener<String> { _, _, _ -> }
         @Bean
@@ -227,9 +234,188 @@ class FsmAdminTest {
             }
     }
 
+    @FsmFlowKind("document")
+    class DocumentAction : Action<StateContext<String>> {
+        override fun invoke(context: StateContext<String>) = Unit
+    }
+
+    @Test
+    fun `fixed registrations refuse flow creation renaming and deletion`() {
+        enabled().run { context ->
+            val mvc = MockMvcBuilders.webAppContextSetup(context).build()
+            val body = """{"flowKey":"created","title":"Created","kind":"agent"}"""
+            mvc.perform(post("/fsm-admin/api/flows").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isMethodNotAllowed)
+                .andExpect(jsonPath("$.message").value("This application does not support creating flows"))
+            mvc.perform(put("/fsm-admin/api/flows/sample").contentType(MediaType.APPLICATION_JSON).content("""{"title":"Renamed"}"""))
+                .andExpect(status().isMethodNotAllowed)
+                .andExpect(jsonPath("$.message").value("This application does not support renaming flows"))
+            mvc.perform(delete("/fsm-admin/api/flows/sample")).andExpect(status().isMethodNotAllowed)
+                .andExpect(jsonPath("$.message").value("This application does not support deleting flows"))
+            mvc.perform(get("/fsm-admin/api/flows")).andExpect(jsonPath("$.length()").value(1))
+        }
+    }
+
+    @Test
+    fun `application flow source creates copies renames and deletes flows per request`() {
+        val store = MemoryStore()
+        val flows = MemoryFlows(definition)
+        val json = MediaType.APPLICATION_JSON
+        runner.withPropertyValues("fsm.admin.enabled=true").withBean(FlowStore::class.java, { store })
+            .withBean(FsmAdminFlows::class.java, { flows }).run { context ->
+                val mvc = MockMvcBuilders.webAppContextSetup(context).build()
+                val api = "/fsm-admin/api/flows"
+                mvc.perform(get(api)).andExpect(content().json("[]"))
+                mvc.perform(post(api).contentType(json).content(
+                    """{"flowKey":"first","title":"First","kind":"agent","description":"Made here"}"""))
+                    .andExpect(status().isCreated).andExpect(content().json(
+                        """{"flowKey":"first","title":"First","kind":"agent","description":"Made here","deletable":true}""",
+                        JsonCompareMode.STRICT))
+                // The first draft is the registration template and the flow is visible without a restart.
+                mvc.perform(get("$api/first/versions")).andExpect(jsonPath("$.length()").value(1))
+                    .andExpect(jsonPath("$[0].status").value("DRAFT")).andExpect(jsonPath("$[0].definition.initialState").value("NEW"))
+                mvc.perform(get(api)).andExpect(jsonPath("$[0].flowKey").value("first"))
+
+                // A copy takes the active version, else the newest one, else the template.
+                val edited = mapper.writeValueAsBytes(definition.copy(initialState = "EDITED",
+                    table = FsmDto(false, mapOf("EDITED" to emptyList()))))
+                mvc.perform(put("$api/first/versions/1").contentType(json).content(edited)).andExpect(status().isOk)
+                fun copy(key: String, source: String) = mvc.perform(post(api).contentType(json).content(
+                    """{"flowKey":"$key","title":"Copy","kind":"agent","copyOf":"$source"}"""))
+                copy("fromDraft", "first").andExpect(status().isCreated)
+                mvc.perform(get("$api/fromDraft/versions/1")).andExpect(jsonPath("$.definition.initialState").value("EDITED"))
+                mvc.perform(post("$api/first/versions/1/publish")).andExpect(status().isOk)
+                mvc.perform(post("$api/first/versions")).andExpect(status().isCreated)
+                copy("fromActive", "first").andExpect(status().isCreated)
+                mvc.perform(get("$api/fromActive/versions/1")).andExpect(jsonPath("$.definition.initialState").value("EDITED"))
+                flows.flows["empty"] = flows.registration("empty", "Empty", "agent", null)
+                copy("fromEmpty", "empty").andExpect(status().isCreated)
+                mvc.perform(get("$api/fromEmpty/versions/1")).andExpect(jsonPath("$.definition.initialState").value("NEW"))
+
+                copy("fromMissing", "missing").andExpect(status().isNotFound)
+                // A blank copyOf is the same as none: the template becomes the first draft.
+                copy("fromBlank", " ").andExpect(status().isCreated)
+                mvc.perform(get("$api/fromBlank/versions/1")).andExpect(jsonPath("$.definition.initialState").value("NEW"))
+                mvc.perform(post(api).contentType(json).content("""{"flowKey":"first","title":"Again","kind":"agent"}"""))
+                    .andExpect(status().isConflict).andExpect(jsonPath("$.message").value("FSM is already registered: first"))
+                mvc.perform(post(api).contentType(json).content("""{"flowKey":"other","title":"Other","kind":"request"}"""))
+                    .andExpect(status().isBadRequest).andExpect(jsonPath("$.message").value("Only agent flows can be created"))
+                listOf("""{"title":"T","kind":"agent"}""" to "flowKey must not be blank",
+                    """{"flowKey":"bad/key","title":"T","kind":"agent"}""" to
+                        "flowKey must contain 1-120 letters, digits, dots, underscores or hyphens",
+                    """{"flowKey":"k","title":" ","kind":"agent"}""" to "title must not be blank",
+                    """{"flowKey":"k","title":"T"}""" to "kind must not be blank").forEach { (body, message) ->
+                    mvc.perform(post(api).contentType(json).content(body))
+                        .andExpect(status().isBadRequest).andExpect(jsonPath("$.message").value(message))
+                }
+                assertThat(flows.flows.keys).containsExactly("first", "fromDraft", "fromActive", "empty", "fromEmpty", "fromBlank")
+
+                mvc.perform(put("$api/first").contentType(json).content("""{"title":"Renamed","description":"New text"}"""))
+                    .andExpect(status().isOk).andExpect(jsonPath("$.title").value("Renamed"))
+                    .andExpect(jsonPath("$.description").value("New text")).andExpect(jsonPath("$.kind").value("agent"))
+                mvc.perform(put("$api/first").contentType(json).content("""{"description":"No title"}"""))
+                    .andExpect(status().isBadRequest).andExpect(jsonPath("$.message").value("title must not be blank"))
+                mvc.perform(put("$api/missing").contentType(json).content("""{"title":"T"}""")).andExpect(status().isNotFound)
+
+                // The application may veto; otherwise every version goes, the active one included.
+                flows.flows["builtin"] = flows.registration("builtin", "Built-in", "request", null)
+                mvc.perform(delete("$api/builtin")).andExpect(status().isConflict)
+                    .andExpect(jsonPath("$.message").value("Built-in flows cannot be deleted"))
+                mvc.perform(delete("$api/missing")).andExpect(status().isNotFound)
+                assertThat(store.list("first")).hasSize(2)
+                mvc.perform(delete("$api/first")).andExpect(status().isNoContent)
+                assertThat(store.list("first")).isEmpty()
+                assertThat(store.list("fromActive")).hasSize(1)
+                mvc.perform(get("$api/first/versions")).andExpect(status().isNotFound)
+
+                store.supportsFlowDeletion = false
+                mvc.perform(delete("$api/fromActive")).andExpect(status().isMethodNotAllowed)
+                    .andExpect(jsonPath("$.message").value("This flow store does not support deleting flows"))
+                assertThat(store.list("fromActive")).hasSize(1)
+            }
+    }
+
+    @Test
+    fun `changes of a flow look it up under the flow-key lock`() {
+        val store = MemoryStore()
+        val lookups = mutableListOf<Boolean>()
+        val flows = object : MemoryFlows(definition) {
+            override fun find(flowKey: String) = super.find(flowKey).also { lookups += store.locked }
+        }
+        flows.flows["sample"] = flows.registration("sample", "Sample", "agent", null)
+        val json = MediaType.APPLICATION_JSON
+        runner.withPropertyValues("fsm.admin.enabled=true").withBean(FlowStore::class.java, { store })
+            .withBean(FsmAdminFlows::class.java, { flows }).run { context ->
+                val mvc = MockMvcBuilders.webAppContextSetup(context).build()
+                val api = "/fsm-admin/api/flows/sample"
+                // A lookup before the lock could see a flow that a concurrent deletion is removing.
+                listOf(post("$api/versions"), put("$api/versions/1").contentType(json).content(mapper.writeValueAsBytes(definition)),
+                    post("$api/versions/1/publish"), put(api).contentType(json).content("""{"title":"Renamed"}"""),
+                    delete(api)).forEach { request ->
+                    store.locked = false
+                    lookups.clear()
+                    mvc.perform(request).andExpect(status().is2xxSuccessful)
+                    assertThat(lookups).isNotEmpty.containsOnly(true)
+                }
+            }
+    }
+
+    @Test
+    fun `application beans replace the default admin service controller and error handler`() {
+        val handler = FsmAdminExceptionHandler()
+        enabled().withUserConfiguration(CustomAdmin::class.java)
+            .withBean(FsmAdminExceptionHandler::class.java, { handler }).run { context ->
+                assertThat(context).hasSingleBean(FsmAdminService::class.java).hasSingleBean(FsmAdminController::class.java)
+                assertThat(context.getBean(FsmAdminExceptionHandler::class.java)).isSameAs(handler)
+                assertThat(context.getBean(FsmAdminController::class.java)).isSameAs(context.getBean(CustomAdmin::class.java).controller)
+                MockMvcBuilders.webAppContextSetup(context).build().perform(get("/fsm-admin/api/flows"))
+                    .andExpect(jsonPath("$[0].flowKey").value("sample")).andExpect(jsonPath("$[0].defaultAgent").value(false))
+            }
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    class CustomAdmin {
+        lateinit var controller: FsmAdminController
+
+        @Bean
+        fun fsmAdminService(adminFlows: FsmAdminFlows, flows: FlowService, store: FlowStore,
+            beanFactory: ConfigurableListableBeanFactory): FsmAdminService =
+            object : FsmAdminService(adminFlows, flows, store, emptyMap(), emptyMap(), emptyMap(), emptyMap(), beanFactory) {
+                override fun flow(registration: FsmAdminRegistration) = super.flow(registration) + ("defaultAgent" to false)
+            }
+
+        @Bean
+        fun fsmAdminController(admin: FsmAdminService, flows: FlowService): FsmAdminController =
+            FsmAdminController(admin, flows).also { controller = it }
+    }
+
+    /** Flows kept by the application, as a host with run-time flow creation would provide them. */
+    open class MemoryFlows(private val definition: FlowDefinition) : FsmAdminFlows {
+        val flows = linkedMapOf<String, FsmAdminRegistration>()
+        fun registration(key: String, title: String, kind: String, description: String?) =
+            FsmAdminRegistration(key, title, definition, {}, {}, kind, description, true)
+        override fun all() = flows.values.toList()
+        override fun find(flowKey: String) = flows[flowKey]
+        override fun create(flowKey: String, title: String, kind: String, description: String?, copyOf: String?): FsmAdminRegistration {
+            require(kind == "agent") { "Only agent flows can be created" }
+            return registration(flowKey, title, kind, description).also { flows[flowKey] = it }
+        }
+        override fun rename(flowKey: String, title: String, description: String?) =
+            registration(flowKey, title, flows.getValue(flowKey).kind, description).also { flows[flowKey] = it }
+        override fun delete(flowKey: String) {
+            check(flowKey != "builtin") { "Built-in flows cannot be deleted" }
+            flows.remove(flowKey)
+        }
+    }
+
     /** Test adapter only: production stores must hold locks and roll back within the caller transaction. */
     class MemoryStore : FlowStore {
         private val versions = mutableMapOf<Pair<String, Int>, FlowVersion>()
+        var supportsFlowDeletion = true
+        override fun deleteFlow(flowKey: String) {
+            if (!supportsFlowDeletion) return super.deleteFlow(flowKey)
+            versions.keys.removeIf { it.first == flowKey }
+        }
         var locked = false
         override fun lock(flowKey: String) { locked = true }
         override fun latest(flowKey: String) = Optional.ofNullable(list(flowKey).maxByOrNull { it.version })

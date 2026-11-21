@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addAutoTransition, deleteBehaviorAtIndex, deleteEventAtIndex, transitionLabel } from './App';
+import { addAutoTransition, deleteBehaviorAtIndex, deleteEventAtIndex, hasTransition, newTransition, transitionLabel } from './App';
 import { sampleDocument } from './domain';
 
 describe('deleteEventAtIndex', () => {
@@ -106,5 +106,21 @@ describe('transitionLabel', () => {
         timeout: { value: 5, unit: 'SECONDS' },
       }),
     ).toBe('auto / autoSent post: notifyUser 5s');
+  });
+});
+
+describe('newTransition', () => {
+  it('creates an event transition that is not run automatically', () => {
+    expect(newTransition('new', 'signed', { kind: 'event', event: 'SIGN' })).toEqual(expect.objectContaining({
+      from: 'new', to: 'signed', trigger: { kind: 'event', event: 'SIGN' }, autoTransitionEnabled: false,
+      conditions: [], actions: [], postActions: [],
+    }));
+  });
+
+  it('is a duplicate only of a transition with the same source, target and trigger', () => {
+    const updated = addAutoTransition(sampleDocument, 'new', 'signed');
+
+    expect(hasTransition(updated, newTransition('new', 'signed', { kind: 'auto' }))).toBe(true);
+    expect(hasTransition(updated, newTransition('new', 'signed', { kind: 'event', event: 'NO_SUCH_EVENT' }))).toBe(false);
   });
 });

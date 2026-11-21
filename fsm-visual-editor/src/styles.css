@@ -205,6 +205,11 @@ summary:focus-visible {
   height: var(--control-lg);
 }
 
+.state-jump {
+  width: clamp(140px, 14vw, 200px);
+  height: var(--control-lg);
+}
+
 /* Buttons */
 .icon-button,
 .text-button,
@@ -320,6 +325,89 @@ summary:focus-visible {
   scrollbar-width: thin;
   scrollbar-color: var(--border-strong) transparent;
   box-shadow: -4px 0 20px rgba(15, 23, 42, 0.12);
+}
+
+/* The canvas covers the page (or the frame when the host does not allow fullscreen). */
+.app-shell.expanded,
+.backend-shell .app-shell.expanded {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  height: 100vh;
+  background: var(--bg);
+}
+
+.workspace.inspector-hidden {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.inspector[hidden] {
+  display: none;
+}
+
+/* Connections of the selected state */
+.connection-heading {
+  margin: 4px 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.connection-list {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.connection-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.link-button,
+.trigger-chip {
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.link-button {
+  padding: 0;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.trigger-chip {
+  padding: 1px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface-muted);
+}
+
+.link-button:hover,
+.trigger-chip:hover {
+  color: var(--accent-active);
+}
+
+.add-transition legend {
+  margin-bottom: 6px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 /* Panels */
@@ -833,6 +921,15 @@ textarea {
   letter-spacing: 0.08em;
 }
 
+.node-final {
+  display: block;
+  margin-top: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
 .react-flow__node:hover {
   box-shadow: 0 0 0 2px var(--item-ink), 0 5px 12px rgba(15, 23, 42, 0.15);
 }
@@ -911,6 +1008,14 @@ textarea {
 
 .react-flow__controls-button svg {
   fill: currentColor;
+}
+
+.react-flow__controls-button svg.lucide {
+  fill: none;
+}
+
+.react-flow__controls-button[aria-pressed='false'] {
+  color: var(--text-muted);
 }
 
 .react-flow__minimap {
@@ -1049,6 +1154,20 @@ textarea {
   height: var(--control-lg);
   padding-top: 0;
   padding-bottom: 0;
+}
+
+/* Flow details take their own row under the controls. */
+.backend-form {
+  display: flex;
+  flex-basis: 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+}
+
+.backend-form input {
+  width: 180px;
+  height: var(--control-lg);
 }
 
 .backend-origin {

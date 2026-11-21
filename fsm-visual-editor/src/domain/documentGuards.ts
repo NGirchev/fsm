@@ -1,4 +1,4 @@
-import { CODEGEN_STYLES, EDITOR_FORMAT_VERSION, type CodegenStyle, type FsmEditorDocument } from './types';
+import { CODEGEN_STYLES, EDITOR_FORMAT_VERSION, FINAL_OUTCOMES, type CodegenStyle, type FinalOutcome, type FsmEditorDocument } from './types';
 import { isStateColor } from './stateColors';
 
 interface LegacyTransition {
@@ -121,7 +121,8 @@ function hasValidDocumentMetadata(value: LegacyDocument): boolean {
   return (
     (value.execution === undefined || (isRecord(value.execution) &&
       Array.isArray(value.execution.stateListeners) && value.execution.stateListeners.every((id) => typeof id === 'string') &&
-      Array.isArray(value.execution.completionListeners) && value.execution.completionListeners.every((id) => typeof id === 'string'))) &&
+      Array.isArray(value.execution.completionListeners) && value.execution.completionListeners.every((id) => typeof id === 'string') &&
+      (value.execution.maxIterations === undefined || Number.isInteger(value.execution.maxIterations)))) &&
     (value.name === undefined || typeof value.name === 'string') &&
     (value.autoTransitionEnabled === undefined || typeof value.autoTransitionEnabled === 'boolean') &&
     (value.maxImmediateAutoTransitions === undefined ||
@@ -141,7 +142,8 @@ function isState(value: unknown): value is FsmEditorDocument['states'][number] {
     typeof value.label === 'string' &&
     isPosition(value.position) &&
     (value.description === undefined || typeof value.description === 'string') &&
-    (value.color === undefined || isStateColor(value.color))
+    (value.color === undefined || isStateColor(value.color)) &&
+    (value.final === undefined || FINAL_OUTCOMES.includes(value.final as FinalOutcome))
   );
 }
 

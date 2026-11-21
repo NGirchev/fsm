@@ -25,11 +25,19 @@ class FlowLoader(
         require(table.transitions.containsKey(definition.initialState)) {
             "Initial state is not in the flow table"
         }
+        // 0 is also what a definition without the property holds, so it stays "not stated".
         require(table.maxImmediateAutoTransitions >= 0) {
-            "Automatic transition limit must not be negative"
+            "Automatic transition limit must be at least 1 when stated (0 means not stated)"
         }
+        val maxIterations = definition.execution.maxIterations
+        require(maxIterations == null || maxIterations >= 1) { "Iteration limit must be at least 1" }
 
         table.transitions.forEach(::validateTransitions)
+        val targets = table.transitions.values.flatten().map { it.to.state }
+        definition.finalStates.keys.forEach { state ->
+            require(state in table.transitions || state in targets) { "Final state is not in the flow table: $state" }
+            require(table.transitions[state].isNullOrEmpty()) { "Final state must not have outgoing transitions: $state" }
+        }
     }
 
     private fun validateTransitions(state: String, transitions: List<TransitionDto>) {
