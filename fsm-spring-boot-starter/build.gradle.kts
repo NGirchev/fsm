@@ -14,7 +14,7 @@ jacoco { toolVersion = "0.8.15" }
 repositories { mavenCentral() }
 
 dependencies {
-    api(platform("org.springframework.boot:spring-boot-dependencies:4.1.2"))
+    api(platform("org.springframework.boot:spring-boot-dependencies:4.1.3"))
     api(project(":fsm"))
     api("org.springframework.boot:spring-boot-starter-jackson")
     // Core FSM DTOs are Kotlin classes; Boot's JsonMapper discovers this module on the classpath.

@@ -1,6 +1,6 @@
 plugins {
     java
-    id("org.springframework.boot") version "4.1.2"
+    id("org.springframework.boot") version "4.1.3"
 }
 
 repositories {
@@ -8,7 +8,7 @@ repositories {
 }
 
 dependencies {
-    implementation(platform("org.springframework.boot:spring-boot-dependencies:4.1.2"))
+    implementation(platform("org.springframework.boot:spring-boot-dependencies:4.1.3"))
     implementation(project(":fsm-spring-boot-starter"))
     implementation("io.github.ngirchev:dotenv:1.0.5")
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
@@ -16,11 +16,11 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-flyway")
     implementation("org.flywaydb:flyway-database-postgresql")
     compileOnly("org.projectlombok:lombok")
-    annotationProcessor(platform("org.springframework.boot:spring-boot-dependencies:4.1.2"))
+    annotationProcessor(platform("org.springframework.boot:spring-boot-dependencies:4.1.3"))
     annotationProcessor("org.projectlombok:lombok")
     runtimeOnly("org.postgresql:postgresql")
 
-    testImplementation(platform("org.springframework.boot:spring-boot-dependencies:4.1.2"))
+    testImplementation(platform("org.springframework.boot:spring-boot-dependencies:4.1.3"))
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     // TestRestTemplate lives in its own module and builds on RestTemplateBuilder.
     testImplementation("org.springframework.boot:spring-boot-resttestclient")

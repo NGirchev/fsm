@@ -288,6 +288,12 @@ class FsmAdminTest {
                 mvc.perform(post("$api/first/versions")).andExpect(status().isCreated)
                 copy("fromActive", "first").andExpect(status().isCreated)
                 mvc.perform(get("$api/fromActive/versions/1")).andExpect(jsonPath("$.definition.initialState").value("EDITED"))
+                // copyVersion copies the version open in the editor, here the template draft v2 instead of active v1.
+                fun copyVersion(key: String, version: String) = mvc.perform(post(api).contentType(json).content(
+                    """{"flowKey":"$key","title":"Copy","kind":"agent","copyOf":"first","copyVersion":$version}"""))
+                copyVersion("fromVersion", "2").andExpect(status().isCreated)
+                mvc.perform(get("$api/fromVersion/versions/1")).andExpect(jsonPath("$.definition.initialState").value("NEW"))
+                copyVersion("fromMissingVersion", "9").andExpect(status().isNotFound)
                 flows.flows["empty"] = flows.registration("empty", "Empty", "agent", null)
                 copy("fromEmpty", "empty").andExpect(status().isCreated)
                 mvc.perform(get("$api/fromEmpty/versions/1")).andExpect(jsonPath("$.definition.initialState").value("NEW"))
@@ -302,13 +308,18 @@ class FsmAdminTest {
                     .andExpect(status().isBadRequest).andExpect(jsonPath("$.message").value("Only agent flows can be created"))
                 listOf("""{"title":"T","kind":"agent"}""" to "flowKey must not be blank",
                     """{"flowKey":"bad/key","title":"T","kind":"agent"}""" to
-                        "flowKey must contain 1-120 letters, digits, dots, underscores or hyphens",
+                        "flowKey must contain 1-120 letters, digits, dots, underscores or hyphens, not only dots",
+                    """{"flowKey":"..","title":"T","kind":"agent"}""" to
+                        "flowKey must contain 1-120 letters, digits, dots, underscores or hyphens, not only dots",
+                    """{"flowKey":".","title":"T","kind":"agent"}""" to
+                        "flowKey must contain 1-120 letters, digits, dots, underscores or hyphens, not only dots",
+                    """{"flowKey":"k","title":"T","kind":"agent","copyVersion":1}""" to "copyVersion requires copyOf",
                     """{"flowKey":"k","title":" ","kind":"agent"}""" to "title must not be blank",
                     """{"flowKey":"k","title":"T"}""" to "kind must not be blank").forEach { (body, message) ->
                     mvc.perform(post(api).contentType(json).content(body))
                         .andExpect(status().isBadRequest).andExpect(jsonPath("$.message").value(message))
                 }
-                assertThat(flows.flows.keys).containsExactly("first", "fromDraft", "fromActive", "empty", "fromEmpty", "fromBlank")
+                assertThat(flows.flows.keys).containsExactly("first", "fromDraft", "fromActive", "fromVersion", "empty", "fromEmpty", "fromBlank")
 
                 mvc.perform(put("$api/first").contentType(json).content("""{"title":"Renamed","description":"New text"}"""))
                     .andExpect(status().isOk).andExpect(jsonPath("$.title").value("Renamed"))

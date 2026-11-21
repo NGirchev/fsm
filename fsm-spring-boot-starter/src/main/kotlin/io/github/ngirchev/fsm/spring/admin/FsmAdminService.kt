@@ -34,18 +34,25 @@ open class FsmAdminService(
         "description" to registration.description, "deletable" to registration.deletable)
 
     @Transactional
-    open fun createFlow(flowKey: String?, title: String?, kind: String?, description: String?, copyOf: String?): Map<String, Any?> {
+    open fun createFlow(
+        flowKey: String?, title: String?, kind: String?, description: String?, copyOf: String?, copyVersion: Int?,
+    ): Map<String, Any?> {
         val key = text(flowKey, "flowKey")
-        require(FLOW_KEY.matches(key)) { "flowKey must contain 1-120 letters, digits, dots, underscores or hyphens" }
+        require(FLOW_KEY.matches(key)) { "flowKey must contain 1-120 letters, digits, dots, underscores or hyphens, not only dots" }
         val newTitle = text(title, "title")
         val newKind = text(kind, "kind")
         val sourceKey = copyOf?.takeIf { it.isNotBlank() }
+        require(copyVersion == null || sourceKey != null) { "copyVersion requires copyOf" }
         val source = sourceKey?.let(::registration)
         store.lock(key)
         check(adminFlows.find(key) == null) { "FSM is already registered: $key" }
+        // A copy takes the requested version, else what runs now, else the newest version of a never published flow.
+        val copied = when {
+            source == null -> null
+            copyVersion != null -> flows.get(source.flowKey, copyVersion)
+            else -> store.active(source.flowKey).or { store.latest(source.flowKey) }.orElse(null)
+        }
         val registration = adminFlows.create(key, newTitle, newKind, description, sourceKey)
-        // A copy starts from what runs now; a flow that was never published gives its newest version.
-        val copied = if (source == null) null else store.active(source.flowKey).or { store.latest(source.flowKey) }.orElse(null)
         val draft = copied?.definition ?: registration.initialDefinition
         registration.validateDraft.accept(draft)
         flows.createDraft(key, draft)

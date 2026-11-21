@@ -1170,6 +1170,10 @@ textarea {
   height: var(--control-lg);
 }
 
+.backend-copy-source {
+  color: var(--text-muted);
+}
+
 .backend-origin {
   flex: none;
   color: var(--text-subtle);

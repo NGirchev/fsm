@@ -210,10 +210,10 @@ FsmAdminFlows adminFlows(AgentFlowRepository flows) {
 ```
 
 The three mutating methods are optional; one that is not overridden answers 405. Before `create`
-the API checks the key (`[A-Za-z0-9._-]{1,120}`), that title and kind are not blank and that the key
+the API checks the key (`[A-Za-z0-9._-]{1,120}`, not only dots), that title and kind are not blank and that the key
 is not registered (409), and takes the flow-key lock. After `create` it stores the first draft: the
-`initialDefinition` of the returned registration, or with `copyOf` the active version of that flow,
-else its newest version. `DELETE` calls `FsmAdminFlows.delete` and then `FlowService.deleteFlow`, so
+`initialDefinition` of the returned registration, or with `copyOf` version `copyVersion` of that flow
+(404 if it is missing), else its active version, else its newest version. `DELETE` calls `FsmAdminFlows.delete` and then `FlowService.deleteFlow`, so
 the store must implement `FlowStore.deleteFlow`. All of it runs in the administration transaction.
 `fsmAdminService`, `fsmAdminController` and `fsmAdminExceptionHandler` are also replaceable by
 application beans of the same types; a subclass of `FsmAdminService` can override `flow(registration)`
@@ -260,7 +260,7 @@ All endpoints are below the configured prefix:
 | Method           | Suffix                                         | Purpose                                                            |
 | ---------------- | ---------------------------------------------- | ------------------------------------------------------------------ |
 | GET              | `/api/flows`                                   | `[{flowKey, title, kind, description, deletable}]`                 |
-| POST             | `/api/flows`                                   | Create a flow from `{flowKey, title, kind, description?, copyOf?}` |
+| POST             | `/api/flows`                                   | Create a flow from `{flowKey, title, kind, description?, copyOf?, copyVersion?}` |
 | PUT, DELETE      | `/api/flows/{key}`                             | Rename with `{title, description?}` / delete with all versions     |
 | GET              | `/api/flows/{key}/behaviors`                   | Spring bean catalog with the flow kind of every bean               |
 | GET, POST        | `/api/flows/{key}/versions`                    | List versions / create a draft; absent POST body uses the template |

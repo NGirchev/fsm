@@ -92,7 +92,8 @@ test('editor manages flows by kind, filters beans by flow kind and stores final 
       if (body.kind !== 'agent') return fulfillApi(route, 400, { message: 'Only agent flows can be created' });
       const flow = { flowKey: body.flowKey, title: body.title, kind: body.kind, description: body.description ?? null, deletable: true };
       flows.push(flow);
-      const source = body.copyOf ? versions[body.copyOf][0].definition : template;
+      const copied = body.copyOf && versions[body.copyOf];
+      const source = copied ? (copied.find((item) => item.version === body.copyVersion) ?? copied[0]).definition : template;
       versions[flow.flowKey] = [{ version: 1, status: 'DRAFT', definition: source }];
       return fulfillApi(route, 201, flow);
     }
@@ -185,6 +186,7 @@ test('editor manages flows by kind, filters beans by flow kind and stores final 
   // Copy and rename read the flow list again.
   await button('Copy flow').click();
   await expect(page.getByLabel('Flow title')).toHaveValue('My agent copy');
+  await expect(page.getByLabel('Flow details')).toContainText('Copies v1 (DRAFT)');
   await page.getByLabel('Flow key').fill('mine2');
   await button('Create copy').click();
   await expect(flowSelect).toHaveValue('mine2');
@@ -208,7 +210,7 @@ test('editor manages flows by kind, filters beans by flow kind and stores final 
   await expect(status).toHaveText('The default agent cannot be deleted');
   await expect(flowSelect).toHaveValue('mine');
   expect(writes.filter(([, path]) => !String(path).includes('versions')).map(([method, path, body]) =>
-    [method, path, (body as { copyOf?: string } | null)?.copyOf])).toEqual([
-    ['POST', '', undefined], ['POST', '', undefined], ['POST', '', 'mine'], ['PUT', 'mine2', undefined],
-    ['DELETE', 'mine2', undefined], ['DELETE', 'mine', undefined]]);
+    [method, path, (body as { copyOf?: string } | null)?.copyOf, (body as { copyVersion?: number } | null)?.copyVersion]))
+    .toEqual([['POST', '', undefined, undefined], ['POST', '', undefined, undefined], ['POST', '', 'mine', 1],
+      ['PUT', 'mine2', undefined, undefined], ['DELETE', 'mine2', undefined, undefined], ['DELETE', 'mine', undefined, undefined]]);
 });

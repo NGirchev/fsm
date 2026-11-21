@@ -57,7 +57,7 @@ that key, the first flow opens. The **Flow** select groups flows by their `kind`
 | Control                                  | What it does                                                                                             |
 | ---------------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | **New flow**                             | Asks for key, title, kind and description and creates the flow; it opens with its first draft.           |
-| **Copy flow**                            | The same form; the first draft of the new flow is the active (else newest) version of the open flow.     |
+| **Copy flow**                            | The same form; the first draft of the new flow is the version open in the editor; the form names it.    |
 | **Rename flow**                          | Changes title and description of the open flow.                                                          |
 | **Delete flow**                          | Deletes the open flow with all its versions after a confirmation; disabled for a flow marked not deletable. |
 | **Bean kind** (transition panel)         | Filters the guard and action dropdowns by the flow kind of the beans. It starts at the kind of the open flow; **All kinds** shows every bean. A bean already chosen stays visible under any filter. |

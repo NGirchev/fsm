@@ -15,7 +15,7 @@ interface OpenedVersion {
   document?: FsmEditorDocument;
 }
 
-/** Fields of the flow form; a copy takes its first draft from the open flow. */
+/** Fields of the flow form; a copy takes its first draft from the open version of the open flow. */
 interface FlowForm {
   mode: 'create' | 'copy' | 'rename';
   flowKey: string;
@@ -194,7 +194,7 @@ export function BackendEditor({ baseUrl }: { baseUrl: string }) {
         return 'Flow renamed.';
       }
       const created = await api.createFlow({ flowKey: form.flowKey, title: form.title, kind: form.kind, description,
-        ...(form.mode === 'copy' ? { copyOf: flowKey } : {}) });
+        ...(form.mode === 'copy' ? { copyOf: flowKey, copyVersion: selected?.version } : {}) });
       await loadFlows();
       setForm(undefined);
       await selectFlow(created.flowKey);
@@ -285,6 +285,9 @@ export function BackendEditor({ baseUrl }: { baseUrl: string }) {
             {groupFlowsByKind(registrations).map((group) => <option key={group.kind} value={group.kind} />)}
           </datalist>
           <label>Description<input aria-label="Flow description" {...field('description')} /></label>
+          {form.mode === 'copy' && <span className="backend-copy-source">
+            {selected ? `Copies v${selected.version} (${selected.status})` : 'Copies the newest version'}
+          </span>}
           <button type="submit" className="text-button primary" disabled={busy || formBlocked}
             title={formBlocked ? 'Save the draft first: opening the new flow would drop its unsaved changes.' : undefined}>
             {form.mode === 'create' ? 'Create flow' : form.mode === 'copy' ? 'Create copy' : 'Save flow'}

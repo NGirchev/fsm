@@ -13,8 +13,8 @@ class FsmAdminController(private val admin: FsmAdminService, private val flows: 
 
     @PostMapping("/api/flows")
     @ResponseStatus(HttpStatus.CREATED)
-    fun createFlow(@RequestBody body: Map<String, String?>) =
-        admin.createFlow(body["flowKey"], body["title"], body["kind"], body["description"], body["copyOf"])
+    fun createFlow(@RequestBody body: NewFlowRequest) =
+        admin.createFlow(body.flowKey, body.title, body.kind, body.description, body.copyOf, body.copyVersion)
 
     @PutMapping("/api/flows/{key}")
     fun renameFlow(@PathVariable key: String, @RequestBody body: Map<String, String?>) =
@@ -51,3 +51,13 @@ class FsmAdminController(private val admin: FsmAdminService, private val flows: 
     @ResponseStatus(HttpStatus.NO_CONTENT)
     fun delete(@PathVariable key: String, @PathVariable version: Int) = flows.deleteDraft(admin.registration(key).flowKey, version)
 }
+
+/** Body of `POST /api/flows`; [copyVersion] picks the version of [copyOf] to copy. */
+data class NewFlowRequest(
+    val flowKey: String? = null,
+    val title: String? = null,
+    val kind: String? = null,
+    val description: String? = null,
+    val copyOf: String? = null,
+    val copyVersion: Int? = null,
+)

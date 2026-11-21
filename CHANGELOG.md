@@ -39,7 +39,8 @@ Changes since the published 1.2.0 release. This section describes the unreleased
 - `FlowDefinition.finalStates` (state to `SUCCESS`, `FAILURE` or `LIMIT`) and the host-defined
   `execution.maxIterations`. A final state must be a known state without outgoing transitions and a
   stated iteration limit must be at least 1. Definitions stored without these properties are unchanged.
-- Visual editor in backend mode: create, copy, rename and delete flows, flows grouped by kind,
+- Visual editor in backend mode: create, copy (the open version, `copyVersion` in the API), rename and
+  delete flows (a flow key of dots only is refused), flows grouped by kind,
   `?flow=<key>` to open a flow, a bean filter by flow kind, final-state marking and the two limit
   fields (empty means the application default).
 - Automatic background processing for declared `FsmTaskProcessor` beans, with a separate transaction

@@ -29,8 +29,9 @@ export interface NewFlow {
   title: string;
   kind: string;
   description?: string;
-  /** Flow whose active (else newest) version becomes the first draft. */
+  /** Flow whose version becomes the first draft: `copyVersion`, else the active one, else the newest. */
   copyOf?: string;
+  copyVersion?: number;
 }
 
 export type FlowVersionStatus = 'DRAFT' | 'ACTIVE' | 'ARCHIVED';

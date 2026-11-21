@@ -83,12 +83,13 @@ open class FlowService(
 
     private fun requireFlowKey(flowKey: String?): String {
         require(flowKey != null && FLOW_KEY.matches(flowKey)) {
-            "flowKey must contain 1-120 letters, digits, dots, underscores or hyphens"
+            "flowKey must contain 1-120 letters, digits, dots, underscores or hyphens, not only dots"
         }
         return flowKey
     }
 
     private companion object {
-        private val FLOW_KEY = Regex("[A-Za-z0-9._-]{1,120}")
+        // A key of dots only would be a "." or ".." URL segment, which browsers remove from the path.
+        private val FLOW_KEY = Regex("(?!\\.+$)[A-Za-z0-9._-]{1,120}")
     }
 }

@@ -1,6 +1,7 @@
 package io.github.ngirchev.fsm.spring.admin
 
-internal val FLOW_KEY = Regex("[A-Za-z0-9._-]{1,120}")
+// A key of dots only would be a "." or ".." URL segment, which browsers remove from the path.
+internal val FLOW_KEY = Regex("(?!\\.+$)[A-Za-z0-9._-]{1,120}")
 
 /**
  * Source of the flows the administration API exposes, asked on every request. An application that
