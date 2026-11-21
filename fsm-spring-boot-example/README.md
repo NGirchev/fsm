@@ -29,6 +29,8 @@ starts. Existing JVM properties and environment variables take priority; the fir
 wins for duplicate keys. This supports `bootRun` and IDE launches from the repository root or
 the example module. The local `.env` stays outside Git and the packaged JAR.
 
+![Edit, publish and run a flow](../fsm-flow.gif)
+
 Flyway's single `V1` file creates the schema and two ready-to-use versions of the `order` flow:
 `Fixed commission` (v1, 2% for every amount) and `Commission by amount` (v2, initially active).
 The second version chooses 2% below `1000.00` or 1% from `1000.00` and shows the chosen branch

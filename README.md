@@ -21,6 +21,10 @@ see [`fsm-spring-boot-example`](fsm-spring-boot-example/README.md).
 
 [Open FSM Visual Editor](https://ngirchev.github.io/fsm/)
 
+![Edit, publish and run a flow](fsm-flow.gif)
+
+*Working with a flow in the example: create a draft, edit states and transitions, save, publish, run an order.*
+
 `fsm` is a lightweight Kotlin finite state machine library for event-driven workflows, state transitions, guards, actions, timeouts, and domain objects with status fields. The repository also includes a local visual FSM editor for designing flows and generating Java/Kotlin FSM factory code.
 
 The library contains several implementations for common use cases:
