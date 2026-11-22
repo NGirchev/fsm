@@ -4,6 +4,9 @@ import { ReactFlowProvider } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import './styles.css';
 import { EditorHost } from './EditorHost';
+import { startTheme } from './theme';
+
+startTheme();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

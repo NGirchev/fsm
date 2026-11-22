@@ -29,6 +29,18 @@
   --danger: #dc2626;
   --danger-soft: #fee2e2;
 
+  /* Editor chrome (toolbar, backend bar, inspector) and canvas */
+  --chrome: #ffffff;
+  --chrome-group: #f1f5f9;
+  --panel-head: #f8fafc;
+  --icon: #4f46e5;
+  --grid-dot: #bac8db;
+  --section-default: #8b5cf6;
+  --section-project: #3b82f6;
+  --section-events: #14b8a6;
+  --section-behavior: #f59e0b;
+  --section-selected: #d946ef;
+
   /* Shape */
   --r-sm: 6px;
   --r-md: 8px;
@@ -100,10 +112,8 @@ summary:focus-visible {
   color: var(--text-muted);
 }
 
-/* Toolbar */
-.toolbar,
-.backend-bar,
-.inspector {
+/* Dark theme: html[data-theme=dark], set by theme.ts */
+:root[data-theme='dark'] {
   color-scheme: dark;
   --bg: #111b2c;
   --surface: #1c2a40;
@@ -125,8 +135,19 @@ summary:focus-visible {
   --danger: #fda4af;
   --danger-soft: #502637;
   --ring: 0 0 0 3px rgba(165, 180, 252, 0.6);
-  color: var(--text);
+  --chrome: #111b2c;
+  --chrome-group: rgba(255, 255, 255, 0.04);
+  --panel-head: rgba(255, 255, 255, 0.025);
+  --icon: #a5b4fc;
+  --grid-dot: #33445c;
+  --section-default: #c4b5fd;
+  --section-project: #93c5fd;
+  --section-events: #5eead4;
+  --section-behavior: #fcd34d;
+  --section-selected: #f0abfc;
 }
+
+/* Toolbar */
 
 .toolbar {
   display: flex;
@@ -135,7 +156,7 @@ summary:focus-visible {
   justify-content: space-between;
   gap: 12px 16px;
   border-bottom: 1px solid var(--border);
-  background: #111b2c;
+  background: var(--chrome);
   box-shadow: var(--shadow-sm);
   padding: 10px 16px;
   z-index: 5;
@@ -150,7 +171,7 @@ summary:focus-visible {
 
 .toolbar-title > svg {
   flex: none;
-  color: #a5b4fc;
+  color: var(--icon);
 }
 
 .toolbar-title strong {
@@ -190,7 +211,7 @@ summary:focus-visible {
   min-width: 0;
   padding: 4px;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--chrome-group);
 }
 
 .toolbar-divider {
@@ -412,7 +433,7 @@ summary:focus-visible {
 
 /* Panels */
 .panel {
-  --section-accent: #c4b5fd;
+  --section-accent: var(--section-default);
   flex-shrink: 0;
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
@@ -420,9 +441,9 @@ summary:focus-visible {
   overflow: hidden;
 }
 
-.project-panel { --section-accent: #93c5fd; }
-.events-panel { --section-accent: #5eead4; }
-.behavior-panel { --section-accent: #fcd34d; }
+.project-panel { --section-accent: var(--section-project); }
+.events-panel { --section-accent: var(--section-events); }
+.behavior-panel { --section-accent: var(--section-behavior); }
 
 .panel-head {
   display: flex;
@@ -437,7 +458,7 @@ summary:focus-visible {
   cursor: pointer;
   user-select: none;
   border-left: 3px solid var(--section-accent);
-  background: rgba(255, 255, 255, 0.025);
+  background: var(--panel-head);
 }
 
 .panel-head::-webkit-details-marker {
@@ -521,7 +542,7 @@ details[open] > .panel-head .chevron {
 }
 
 .selected-panel {
-  --section-accent: #f0abfc;
+  --section-accent: var(--section-selected);
   border-color: var(--accent-border);
   box-shadow: 0 0 0 1px var(--accent-soft), var(--shadow-sm);
 }
@@ -1020,14 +1041,15 @@ textarea {
 
 .react-flow__minimap {
   overflow: hidden;
-  border: 1px solid #94a3b8;
-  background: #f8fafc;
+  border: 1px solid var(--border-strong);
+  background: var(--bg);
   border-radius: var(--r-md);
   box-shadow: var(--shadow-sm);
 }
 
 .react-flow__attribution {
   opacity: 0.45;
+  background: transparent;
 }
 
 @media (max-width: 900px) {
@@ -1093,7 +1115,7 @@ textarea {
   align-items: center;
   gap: 10px 14px;
   padding: 10px 16px;
-  background: #111b2c;
+  background: var(--chrome);
 }
 
 .backend-title {
@@ -1105,7 +1127,7 @@ textarea {
 
 .backend-title > svg {
   flex: none;
-  color: #a5b4fc;
+  color: var(--icon);
 }
 
 .backend-title h1 {

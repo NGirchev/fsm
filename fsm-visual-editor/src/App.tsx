@@ -658,7 +658,7 @@ export function App({ embedded }: { embedded?: EmbeddedEditor }) {
             fitViewOptions={{ maxZoom: 1 }}
             defaultEdgeOptions={{ type: 'flow' }}
           >
-            <Background gap={24} size={1} color="#bac8db" />
+            <Background gap={24} size={1} color="var(--grid-dot)" />
             {!miniMapHidden && <MiniMap pannable zoomable onClick={(_, position) => void setCenter(position.x, position.y, { zoom: getZoom(), duration: 300 })} nodeColor={(node) => (stateColors.get(node.id) ?? graphColor(node.id)).fill}
               nodeStrokeColor={(node) => (stateColors.get(node.id) ?? graphColor(node.id)).ink} nodeStrokeWidth={3}
               maskColor="rgba(51, 65, 85, 0.15)" />}

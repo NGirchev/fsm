@@ -155,6 +155,13 @@ report the failure and unlock; do not claim the document was saved.
 
 `?parentOrigin=` takes precedence over `?backend=`. The same static build serves all three modes.
 
+### Color theme
+
+`?theme=light`, `?theme=dark` or `?theme=system` (the default, follows the OS setting) colors the whole
+editor: toolbar, backend bar, inspector and canvas. An embedding page changes it without a reload by
+posting `{ channel: 'fsm-editor/v1', type: 'theme', theme: 'dark' }` to the frame; the editor accepts it
+only from its parent window on its own origin or on `?parentOrigin=`.
+
 ## Browser regression tests
 
 `npm run test:codegen` exports Java/Kotlin factories in both styles, compiles them against
