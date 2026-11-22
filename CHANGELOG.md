@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- Built with Kotlin 2.4.21 (CVE in the Kotlin build cache); the published `fsm` and starter keep
+  Kotlin 2.2 as their API level and `kotlin-stdlib` version.
+- Updated vulnerable build-only dependencies: commons-lang3 in the example's Gradle classpath, and
+  vite, vitest (now 5.x) and source-map-js in the visual editor.
+
 ## [2.0.0] - 2026-11-21
 
 ### Added

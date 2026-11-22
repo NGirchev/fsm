@@ -1,3 +1,12 @@
+buildscript {
+    dependencies {
+        constraints {
+            // The Spring Boot plugin brings commons-lang3 3.16.0, which has CVE-2025-48924.
+            classpath("org.apache.commons:commons-lang3:3.22.0")
+        }
+    }
+}
+
 plugins {
     java
     id("org.springframework.boot") version "4.1.3"

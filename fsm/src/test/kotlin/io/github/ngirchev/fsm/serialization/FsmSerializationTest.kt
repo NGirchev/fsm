@@ -598,17 +598,13 @@ class FsmSerializationTest {
         val namedAction = NamedAction<Any>("namedAction") { }
         val namedGuard = NamedGuard<Any>("namedGuard") { true }
 
-        // then - verify that all implement IdentifiableAction/IdentifiableGuard
-        assertTrue(idAction is IdentifiableAction<*>)
-        assertTrue(idGuard is IdentifiableGuard<*>)
-        assertTrue(namedAction is IdentifiableAction<*>)
-        assertTrue(namedGuard is IdentifiableGuard<*>)
+        // then - these lists compile only if all implement IdentifiableAction/IdentifiableGuard
+        val actions: List<IdentifiableAction<*>> = listOf(idAction, namedAction)
+        val guards: List<IdentifiableGuard<*>> = listOf(idGuard, namedGuard)
 
-        // and verify IDs
-        assertEquals("actionId", idAction.id)
-        assertEquals("guardId", idGuard.id)
-        assertEquals("namedAction", namedAction.id)
-        assertEquals("namedGuard", namedGuard.id)
+        // and the interfaces expose the IDs
+        assertEquals(listOf("actionId", "namedAction"), actions.map { it.id })
+        assertEquals(listOf("guardId", "namedGuard"), guards.map { it.id })
     }
 
     @Test

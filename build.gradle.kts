@@ -1,6 +1,6 @@
 plugins {
     base
-    kotlin("jvm") version "2.2.0" apply false
+    kotlin("jvm") version "2.4.21" apply false
     id("com.vanniktech.maven.publish") version "0.34.0" apply false
     id("net.researchgate.release") version "3.1.0"
 }

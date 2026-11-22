@@ -2,8 +2,7 @@ import org.gradle.api.JavaVersion
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
-    // Kotlin version bumped to be compatible with the Maven Publish plugin and Gradle 8.10
-    kotlin("jvm") version "2.2.0"
+    kotlin("jvm") version "2.4.21"
     id("io.gitlab.arturbosch.detekt") version "1.23.8"
     id("maven-publish")
     id("signing")
@@ -131,9 +130,14 @@ tasks.check {
     dependsOn(tasks.jacocoTestCoverageVerification)
 }
 
+// The build uses a newer Kotlin plugin, but the published library stays usable from Kotlin 2.2.
+kotlin { coreLibrariesVersion = "2.2.0" }
+
 tasks.withType<KotlinCompile> {
     compilerOptions {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
+        apiVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_2)
+        languageVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_2)
     }
 }
 
